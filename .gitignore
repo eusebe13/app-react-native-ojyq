@@ -57,3 +57,9 @@ ios/Pods/
 # VS Code
 .vscode/
 .history/
+# Firebase / Google Services
+google-services.json
+GoogleService-Info.plist
+
+# Environment variables
+.env
