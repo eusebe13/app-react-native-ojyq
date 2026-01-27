@@ -1,5 +1,6 @@
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { logOut } from "../../hooks/use-auth";
 
 const HomeScreen = () => (
   <View style={styles.container}>
@@ -10,10 +11,11 @@ const HomeScreen = () => (
     <Text style={styles.welcomeText}>Welcome to the App!</Text>
     <TouchableOpacity
       style={styles.button}
-      onPress={() => alert("Get Started Pressed")}
+      onPress={() => logOut()}
     >
-      <Text style={styles.buttonText}>Get Started</Text>
+      <Text style={styles.buttonText}>Logout</Text>
     </TouchableOpacity>
+    
   </View>
 );
 
