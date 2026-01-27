@@ -9,6 +9,12 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
 
+const events = [
+  { id: '1', title: 'Meeting with Team', time: '10:00 AM' },
+  { id: '2', title: 'Lunch with Client', time: '1:00 PM' },
+  { id: '3', title: 'Project Deadline', time: '5:00 PM' },
+];
+
 export default function TabTwoScreen() {
   return (
     <ParallaxScrollView
@@ -108,5 +114,30 @@ const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
     gap: 8,
+  },
+  eventContainer: {
+    backgroundColor: '#f9f9f9',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  eventHeader: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  eventCard: {
+    backgroundColor: '#e1f5fe',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  eventTime: {
+    fontSize: 16,
+    color: '#666',
   },
 });
