@@ -1,143 +1,224 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Ionicons } from "@expo/vector-icons"; // Pour les icônes
+import React, { useState } from "react";
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
-
-const events = [
-  { id: '1', title: 'Meeting with Team', time: '10:00 AM' },
-  { id: '2', title: 'Lunch with Client', time: '1:00 PM' },
-  { id: '3', title: 'Project Deadline', time: '5:00 PM' },
+// 1. Données initiales (Simulation de la Base de Données)
+const initialEvents = [
+  {
+    id: "1",
+    date: "10 Fév",
+    title: "Assemblée Générale",
+    time: "18h00",
+    type: "General",
+  },
+  {
+    id: "2",
+    date: "12 Fév",
+    title: "Sécurité - Concert",
+    time: "14h00",
+    type: "Shift",
+  },
+  {
+    id: "3",
+    date: "14 Fév",
+    title: "Réunion d'équipe",
+    time: "09h00",
+    type: "General",
+  },
+  {
+    id: "4",
+    date: "15 Fév",
+    title: "Distribution alimentaire",
+    time: "10h00",
+    type: "Shift",
+  },
 ];
 
-export default function TabTwoScreen() {
+const Calendar = () => {
+  const [events, setEvents] = useState(initialEvents);
+  const [text, setText] = useState("");
+
+  // Fonction simple pour ajouter un événement (Simulation)
+  const addEvent = () => {
+    if (text.trim().length > 0) {
+      const newEvent = {
+        id: Math.random().toString(),
+        date: "20 Fév", // Date par défaut pour l'exemple
+        title: text,
+        time: "12h00",
+        type: "General",
+      };
+      setEvents([...events, newEvent]);
+      setText("");
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <View style={styles.container}>
+      {/* Titre de la page */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Agenda OJYQ</Text>
+      </View>
+
+      {/* Liste des événements */}
+      <FlatList
+        data={events}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View
+            style={[
+              styles.eventCard,
+              // Bordure orange pour les Shifts, Bleu pour le reste
+              {
+                borderLeftColor: item.type === "Shift" ? "#FF9500" : "#007AFF",
+              },
+            ]}
+          >
+            <View style={styles.dateContainer}>
+              <Text style={styles.dateText}>{item.date}</Text>
+              <Text style={styles.timeText}>{item.time}</Text>
+            </View>
+            <View style={styles.contentContainer}>
+              <Text style={styles.eventTitle}>{item.title}</Text>
+              <Text style={styles.eventType}>
+                {item.type === "Shift" ? "QUART DE TRAVAIL" : "ÉVÉNEMENT"}
+              </Text>
+            </View>
+          </View>
+        )}
+        contentContainerStyle={styles.listContent}
+      />
+
+      {/* Zone de saisie (Comme dans votre exemple Chat) */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+        style={styles.inputContainer}
+      >
+        <TextInput
+          style={styles.input}
+          placeholder="Ajouter un événement rapide..."
+          value={text}
+          onChangeText={setText}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+        <TouchableOpacity onPress={addEvent} style={styles.addButton}>
+          <Ionicons name="add" size={24} color="white" />
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: "#f9f9f9",
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-  eventContainer: {
-    backgroundColor: '#f9f9f9',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 16,
-  },
-  eventHeader: {
+  headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 100, // Espace pour l'input
   },
   eventCard: {
-    backgroundColor: '#e1f5fe',
-    padding: 16,
-    borderRadius: 8,
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 12,
     marginBottom: 12,
+    // Ombre légère
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    // Bordure gauche colorée
+    borderLeftWidth: 5,
+  },
+  dateContainer: {
+    marginRight: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#eee",
+    paddingRight: 15,
+    minWidth: 60,
+  },
+  dateText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  timeText: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 4,
+  },
+  contentContainer: {
+    flex: 1,
+    justifyContent: "center",
   },
   eventTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  eventTime: {
     fontSize: 16,
-    color: '#666',
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  eventType: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#999",
+    textTransform: "uppercase",
+  },
+  inputContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  input: {
+    flex: 1,
+    height: 50,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    fontSize: 16,
+    marginRight: 10,
+  },
+  addButton: {
+    width: 50,
+    height: 50,
+    backgroundColor: "#007AFF",
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
+
+export default Calendar;
