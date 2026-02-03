@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import useAuth from '@/hooks/use-auth';
+import AuthScreen from './auth/auth-screen';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -11,6 +13,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { user } = useAuth();
+
+  if (!user) {
+    return <AuthScreen />;
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
