@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "ojyq",
-    "slug": "ojyq",
+    "name": "OJYQ",
+    "slug": "OJYQ",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ojyq",
+    "scheme": "OJYQ",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "bundleIdentifier": "org.ojyq.app",
       "supportsTablet": true
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
+      "package": "org.ojyq.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
