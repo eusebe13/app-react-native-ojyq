@@ -31,7 +31,8 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env
+.env.*
 
 # typescript
 *.tsbuildinfo
@@ -42,6 +43,20 @@ app-example
 /ios
 /android
 
+# Firebase
+debug.log
+firebase-debug.log
+
+# Android
+android/.gradle/
+android/app/build/
+
+# iOS
+ios/Pods/
+
+# VS Code
+.vscode/
+.history/
 # Firebase / Google Services
 google-services.json
 GoogleService-Info.plist
