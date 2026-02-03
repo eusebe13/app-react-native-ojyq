@@ -1,7 +1,7 @@
 // firebaseConfig.ts
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp } from "firebase/app";
+import { initializeAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Remplacez ces valeurs par celles de votre console Firebase (Section "Web App")
 const firebaseConfig = {
@@ -17,6 +17,8 @@ const firebaseConfig = {
 // Initialisation
 const app = initializeApp(firebaseConfig);
 
+const auth = initializeAuth(app, {});
+
 // Export des services pour les utiliser ailleurs dans l'app
-export const auth = getAuth(app);
+export { auth };
 export const db = getFirestore(app);
