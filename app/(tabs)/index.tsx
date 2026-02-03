@@ -1,7 +1,25 @@
-import React from "react";
+/**
+ * HomeScreen — OJYQ Member Portal
+ *
+ * Features:
+ *  - Gradient header with logo and notification bell
+ *  - Weekly schedule with day filter
+ *  - Recent chat list with unread badges
+ *  - Document quick access
+ *  - Contact information
+ *
+ * BACKEND INTEGRATION NOTES:
+ *  - Replace mockData imports with API hooks (useSchedule, useChats, useDocuments)
+ *  - Add WebSocket connection for real-time chat updates
+ *  - Implement navigation handlers for chat/schedule detail views
+ *  - Add pull-to-refresh functionality
+ */
+
+import React, { useState } from "react";
 import {
   Image,
   Linking,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -9,386 +27,656 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-// Icon components (using Unicode emoji/symbols as fallback)
-const DocumentIcon = () => <Text style={styles.icon}>📄</Text>;
-const FormIcon = () => <Text style={styles.icon}>📋</Text>;
-const CardIcon = () => <Text style={styles.icon}>🎫</Text>;
-const EditIcon = () => <Text style={styles.icon}>✏️</Text>;
-const ChartIcon = () => <Text style={styles.icon}>📊</Text>;
-const ChevronIcon = () => <Text style={styles.chevron}>›</Text>;
-const EmailIcon = () => <Text style={styles.contactIcon}>✉️</Text>;
-const PhoneIcon = () => <Text style={styles.contactIcon}>📱</Text>;
-const FacebookIcon = () => <Text style={styles.contactIcon}>👥</Text>;
-
-interface DocumentLinkProps {
-  icon: React.ReactNode;
-  title: string;
-  url: string;
-}
-
-const DocumentLink = ({ icon, title, url }: DocumentLinkProps) => (
-  <TouchableOpacity
-    style={styles.documentCard}
-    onPress={() => Linking.openURL(url)}
-    activeOpacity={0.7}
-  >
-    <View style={styles.documentCardContent}>
-      <View style={styles.documentIconContainer}>{icon}</View>
-      <View style={styles.documentTextContainer}>
-        <Text style={styles.documentTitle}>{title}</Text>
-        <Text style={styles.documentSubtext}>Appuyer pour ouvrir</Text>
-      </View>
-      <ChevronIcon />
-    </View>
-  </TouchableOpacity>
-);
+import { Avatar } from "../../components/Avatar";
+import { Badge } from "../../components/Badge";
+import { Card } from "../../components/Card";
+import { SectionHeader } from "../../components/SectionHeader";
+import { Icon } from "../../components/ui/Icon";
+import {
+  CHATS_DATA,
+  DAYS,
+  DOCUMENTS_DATA,
+  SCHEDULE_DATA,
+} from "../../constants/Mockdata";
+import { T } from "../../theme/tokens";
 
 const HomeScreen = () => {
+  const [selectedDay, setSelectedDay] = useState("Lun");
+
+  const todayEvents = SCHEDULE_DATA.filter((e) => e.day === selectedDay);
+  const daysWithEvents = new Set(SCHEDULE_DATA.map((e) => e.day));
+
+  // BACKEND: Replace with navigation.navigate("Chat", { chatId })
+  const openChat = (id: string) => console.log("[NAV] Chat →", id);
+
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        style={styles.screen}
+        contentContainerStyle={styles.screenContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoWrapper}>
-            <Image
-              source={{
-                uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
-              }}
-              style={styles.logo}
-              resizeMode="cover"
-            />
-          </View>
-          <Text style={styles.organizationName}>
-            Organisation de la jeunesse
-          </Text>
-          <Text style={styles.organizationNameBold}>Yira du Québec</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>ESPACE MEMBRES</Text>
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* GRADIENT HEADER                                                   */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        <View style={styles.headerGradient}>
+          {/* Decorative blobs */}
+          <View style={styles.blob1} />
+          {/* <View style={styles.blob2} /> */}
+
+          <View style={styles.headerInner}>
+            <View style={styles.headerTopRow}>
+              <TouchableOpacity style={styles.headerAvatarWrap}>
+                <Image
+                  source={{
+                    uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
+                  }}
+                  style={styles.headerLogo}
+                />
+              </TouchableOpacity>
+              <View style={styles.headerTitleBlock}>
+                <Text style={styles.headerOrgName}>
+                  Organisation de la jeunesse
+                </Text>
+                <Text style={styles.headerOrgBold}>Yira du Québec</Text>
+              </View>
+              {/* <TouchableOpacity style={styles.headerNotifBtn}>
+                <Icon name="bell-outline" size={22} color="#FFFFFF" />
+                <Badge dot color="#EC4899" size="sm" />
+              </TouchableOpacity> */}
+            </View>
+
+            <View style={styles.headerBadgeRow}>
+              <View style={styles.headerBadge}>
+                <Icon
+                  name="shield-check-outline"
+                  size={13}
+                  color="rgba(255,255,255,0.85)"
+                />
+                <Text style={styles.headerBadgeText}>ESPACE MEMBRES</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Welcome Section */}
-        <View style={styles.welcomeCard}>
-          <Text style={styles.welcomeTitle}>📂 Documents & Ressources</Text>
-          <Text style={styles.welcomeDescription}>
-            Accédez à tous les documents et modèles essentiels pour les membres
-            de l'O.J.Y.Q.
-          </Text>
-        </View>
-
-        {/* Documents Section */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* HORAIRE (SCHEDULE)                                                */}
+        {/* ─────────────────────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Documents disponibles</Text>
-
-          <DocumentLink
-            icon={<DocumentIcon />}
-            title="Demande de fonds"
-            url="https://docs.google.com/document/d/1DF0Dq-laPTGJDa0M-SEOUrTqR4szV2GK/edit?usp=sharing"
+          <SectionHeader
+            icon="calendar-check-outline"
+            title="Horaire"
+            onViewAll={() => console.log("[NAV] Horaire complet")}
           />
 
-          <DocumentLink
-            icon={<FormIcon />}
-            title="Formulaire de dépense (Facture)"
-            url="https://docs.google.com/forms/d/10bSS1_EP4Mp8xGZx8AaNkP_KU_3z8HQovJBK7mDqEMk"
-          />
+          {/* Day pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.dayScroll}
+          >
+            {DAYS.map((d) => {
+              const active = selectedDay === d.key;
+              const hasEvents = daysWithEvents.has(d.key);
+              return (
+                <TouchableOpacity
+                  key={d.key}
+                  style={[styles.dayPill, active && styles.dayPill_active]}
+                  onPress={() => setSelectedDay(d.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dayPill_label,
+                      active && styles.dayPill_label_active,
+                    ]}
+                  >
+                    {d.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.dayPill_date,
+                      active && styles.dayPill_date_active,
+                    ]}
+                  >
+                    {d.date}
+                  </Text>
+                  {hasEvents && !active && (
+                    <Badge dot color={T.colors.primary} size="sm" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
-          <DocumentLink
-            icon={<CardIcon />}
-            title="Carte d'invitation"
-            url="https://docs.google.com/document/d/1P4gsxMJtLNesD4H7mdwnobPJHUT-8-vc"
-          />
+          {/* Events */}
+          <View style={styles.eventList}>
+            {todayEvents.length === 0 ? (
+              <Card variant="default">
+                <View style={styles.emptyWrap}>
+                  <Icon
+                    name="calendar-remove-outline"
+                    size={28}
+                    color={T.colors.textTertiary}
+                  />
+                  <Text style={styles.emptyText}>Aucun événement ce jour</Text>
+                </View>
+              </Card>
+            ) : (
+              todayEvents.map((ev) => (
+                <Card key={ev.id} variant="default" style={styles.eventCard}>
+                  {/* Color stripe */}
+                  <View
+                    style={[styles.eventStripe, { backgroundColor: ev.color }]}
+                  />
 
-          <DocumentLink
-            icon={<EditIcon />}
-            title="Démission / Absence"
-            url="https://docs.google.com/document/d/1rJvOx5GWH9Wr9dnBxuvB9XcFFzrj_vvZ"
-          />
-
-          <DocumentLink
-            icon={<ChartIcon />}
-            title="Contribution mensuelle OJYQ"
-            url="https://docs.google.com/spreadsheets/d/1o8PALcnfRligb1yGkOC_GSwGRGg8klvm4qDaw9ttb4w"
-          />
+                  <View style={styles.eventBody}>
+                    <View style={styles.eventTimeRow}>
+                      <Text style={[styles.eventTime, { color: ev.color }]}>
+                        {ev.time}
+                      </Text>
+                      {ev.isNow && (
+                        <View style={styles.eventNowBadge}>
+                          {/* <Badge dot color={T.colors.online} size="sm" /> */}
+                          <Text style={styles.eventNowText}>En cours</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.eventTitle}>{ev.title}</Text>
+                    <View style={styles.eventLocationRow}>
+                      <Icon
+                        name="map-marker-outline"
+                        size={13}
+                        color={T.colors.textTertiary}
+                      />
+                      <Text style={styles.eventLocation}>{ev.location}</Text>
+                    </View>
+                  </View>
+                </Card>
+              ))
+            )}
+          </View>
         </View>
 
-        {/* Contact Section */}
-        <View style={styles.contactSection}>
-          <Text style={styles.sectionTitle}>Contact & Réseaux</Text>
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* MESSAGERIE (CHAT)                                                 */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon="chat-outline"
+            title="Messagerie"
+            onViewAll={() => console.log("[NAV] Tous les chats")}
+          />
 
-          <View style={styles.contactGrid}>
-            <View style={styles.contactCard}>
-              <EmailIcon />
+          <Card variant="elevated" style={styles.chatListCard}>
+            {CHATS_DATA.map((chat, i) => (
+              <View key={chat.id}>
+                <TouchableOpacity
+                  style={styles.chatRow}
+                  onPress={() => openChat(chat.id)}
+                  activeOpacity={0.88}
+                >
+                  <Avatar
+                    name={chat.name}
+                    isGroup={chat.isGroup}
+                    isOnline={chat.isOnline}
+                  />
+
+                  <View style={styles.chatMeta}>
+                    <View style={styles.chatMetaTop}>
+                      <Text
+                        style={[
+                          styles.chatName,
+                          chat.unread > 0 && styles.chatName_bold,
+                        ]}
+                      >
+                        {chat.name}
+                      </Text>
+                      <Text style={styles.chatTime}>{chat.time}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.chatPreview,
+                        chat.unread > 0 && styles.chatPreview_bold,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {chat.lastMessage}
+                    </Text>
+                  </View>
+
+                  {chat.unread > 0 ? (
+                    <Badge count={chat.unread} />
+                  ) : (
+                    <Icon
+                      name="check-all"
+                      size={16}
+                      color={T.colors.textTertiary}
+                    />
+                  )}
+                </TouchableOpacity>
+
+                {/* Divider (not after last) */}
+                {i < CHATS_DATA.length - 1 && (
+                  <View style={styles.chatDivider} />
+                )}
+              </View>
+            ))}
+          </Card>
+        </View>
+
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* DOCUMENTS                                                         */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <SectionHeader icon="folder-outline" title="Documents" />
+
+          <Card variant="elevated" style={styles.docListCard}>
+            {DOCUMENTS_DATA.map((doc, i) => (
+              <View key={doc.id}>
+                <TouchableOpacity
+                  style={styles.docRow}
+                  onPress={() => Linking.openURL(doc.url)}
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.docIconWrap}>
+                    <Icon name={doc.icon} size={20} color={T.colors.primary} />
+                  </View>
+                  <Text style={styles.docTitle} numberOfLines={1}>
+                    {doc.title}
+                  </Text>
+                  <Icon
+                    name="open-in-new"
+                    size={16}
+                    color={T.colors.textTertiary}
+                  />
+                </TouchableOpacity>
+                {i < DOCUMENTS_DATA.length - 1 && (
+                  <View style={styles.chatDivider} />
+                )}
+              </View>
+            ))}
+          </Card>
+        </View>
+
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* CONTACT                                                           */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <SectionHeader icon="contacts-outline" title="Contact" />
+
+          <View style={styles.contactRow}>
+            <Card
+              variant="tinted"
+              tintColor={T.colors.primary}
+              style={styles.contactCard}
+              onPress={() => Linking.openURL("mailto:info@ojyq.org")}
+            >
+              <View style={styles.contactIconWrap}>
+                <Icon name="email-outline" size={22} color={T.colors.primary} />
+              </View>
               <Text style={styles.contactLabel}>Email</Text>
-              <TouchableOpacity
-                onPress={() => Linking.openURL("mailto:info@ojyq.org")}
-              >
-                <Text style={styles.contactValue}>info@ojyq.org</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.contactValue}>info@ojyq.org</Text>
+            </Card>
 
-            <View style={styles.contactCard}>
-              <PhoneIcon />
-              <Text style={styles.contactLabel}>Téléphone</Text>
-              <TouchableOpacity
-                onPress={() => Linking.openURL("tel:+14386224435")}
+            <Card
+              variant="tinted"
+              tintColor={T.colors.accent2}
+              style={styles.contactCard}
+              onPress={() => Linking.openURL("tel:+14386224435")}
+            >
+              <View
+                style={[
+                  styles.contactIconWrap,
+                  { backgroundColor: T.colors.accent2 + "12" },
+                ]}
               >
-                <Text style={styles.contactValue}>+1 438-622-4435</Text>
-              </TouchableOpacity>
-            </View>
+                <Icon name="phone-outline" size={22} color={T.colors.accent2} />
+              </View>
+              <Text style={styles.contactLabel}>Téléphone</Text>
+              <Text style={[styles.contactValue, { color: T.colors.accent2 }]}>
+                +1 438-622-4435
+              </Text>
+            </Card>
           </View>
 
-          <TouchableOpacity
-            style={styles.socialButton}
+          <Card
+            variant="elevated"
+            style={styles.fbCard}
             onPress={() =>
               Linking.openURL(
                 "https://www.facebook.com/people/OJYQ/61573730380786/",
               )
             }
-            activeOpacity={0.8}
           >
-            <FacebookIcon />
-            <Text style={styles.socialButtonText}>
-              Suivez-nous sur Facebook
-            </Text>
-            <ChevronIcon />
-          </TouchableOpacity>
+            <View style={styles.fbInner}>
+              <View style={styles.fbIconWrap}>
+                <Icon name="facebook" size={22} color="#FFFFFF" />
+              </View>
+              <View style={styles.fbTextBlock}>
+                <Text style={styles.fbTitle}>Facebook</Text>
+                <Text style={styles.fbSub}>Suivez nos dernières nouvelles</Text>
+              </View>
+              <Icon
+                name="chevron-right"
+                size={20}
+                color="rgba(255,255,255,0.7)"
+              />
+            </View>
+          </Card>
         </View>
 
-        {/* Footer */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* FOOTER                                                            */}
+        {/* ─────────────────────────────────────────────────────────────── */}
         <View style={styles.footer}>
-          <Text style={styles.copyright}>
-            © 2025 Organisation de la jeunesse Yira du Québec
+          <Text style={styles.footerText}>
+            © 2026 Organisation de la jeunesse Yira du Québec
           </Text>
-          <Text style={styles.copyrightSub}>Tous droits réservés</Text>
+          <Text style={styles.footerSub}>Tous droits réservés</Text>
         </View>
       </ScrollView>
     </>
   );
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 24,
-    paddingTop: 20,
-  },
-  logoWrapper: {
-    marginBottom: 16,
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  organizationName: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#64748B",
-    textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  organizationNameBold: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1E293B",
-    textAlign: "center",
-    marginBottom: 12,
-    letterSpacing: -0.5,
-  },
-  badge: {
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-  },
-  badgeText: {
-    color: "#6366F1",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  welcomeCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  welcomeTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 8,
-  },
-  welcomeDescription: {
-    fontSize: 15,
-    color: "#64748B",
-    lineHeight: 22,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 16,
-    paddingLeft: 4,
-  },
-  documentCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+  // ── Screen ──
+  screen: { flex: 1, backgroundColor: T.colors.surfaceDim },
+  screenContent: { paddingBottom: 48 },
+
+  // ── Gradient Header ──
+  headerGradient: {
+    backgroundColor: T.colors.primaryDark,
+    paddingTop: Platform.OS === "ios" ? 58 : 44,
+    paddingBottom: 28,
+    position: "relative",
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  documentCardContent: {
+  blob1: {
+    position: "absolute",
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: T.colors.primaryLight,
+    opacity: 0.25,
+  },
+  blob2: {
+    position: "absolute",
+    bottom: -30,
+    left: -50,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: T.colors.accent1,
+    opacity: 0.12,
+  },
+  headerInner: {
+    paddingHorizontal: T.space.xl,
+    position: "relative",
+    zIndex: 1,
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    gap: T.space.md,
   },
-  documentIconContainer: {
-    width: 48,
-    height: 48,
-    backgroundColor: "#EEF2FF",
-    borderRadius: 12,
+  headerAvatarWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.4)",
+    overflow: "hidden",
+  },
+  headerLogo: { width: 42, height: 42, borderRadius: 21 },
+  headerTitleBlock: { flex: 1 },
+  headerOrgName: {
+    fontSize: T.font.sm,
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "500",
+  },
+  headerOrgBold: {
+    fontSize: T.font.md,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  headerNotifBtn: { position: "relative", padding: 6 },
+  headerBadgeRow: { marginTop: T.space.md },
+  headerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: T.radius.pill,
+    alignSelf: "flex-start",
+  },
+  headerBadgeText: {
+    fontSize: T.font.xs,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+
+  // ── Section shared ──
+  section: { paddingHorizontal: T.space.xl, marginTop: T.space.xxl },
+
+  // ── Day pills ──
+  dayScroll: {
+    marginBottom: T.space.md,
+    marginHorizontal: -T.space.xl,
+    paddingHorizontal: T.space.xl,
+  },
+  dayPill: {
+    alignItems: "center",
+    backgroundColor: T.colors.surface,
+    borderWidth: 1,
+    borderColor: T.colors.border,
+    borderRadius: T.radius.lg,
+    paddingHorizontal: T.space.md,
+    paddingVertical: T.space.sm,
+    minWidth: 54,
+    gap: 2,
+    marginRight: T.space.sm,
+  },
+  dayPill_active: {
+    backgroundColor: T.colors.primary,
+    borderColor: T.colors.primary,
+    shadowColor: T.colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  dayPill_label: {
+    fontSize: T.font.sm,
+    fontWeight: "600",
+    color: T.colors.textSecondary,
+  },
+  dayPill_label_active: { color: "#FFFFFF" },
+  dayPill_date: {
+    fontSize: T.font.lg,
+    fontWeight: "700",
+    color: T.colors.textPrimary,
+  },
+  dayPill_date_active: { color: "#FFFFFF" },
+
+  // ── Events ──
+  eventList: { gap: T.space.sm },
+  eventCard: { flexDirection: "row", overflow: "hidden", minHeight: 72 },
+  eventStripe: { width: 4, minHeight: 72 },
+  eventBody: { flex: 1, padding: T.space.md, justifyContent: "center" },
+  eventTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: T.space.xs,
+    marginBottom: 3,
+  },
+  eventTime: { fontSize: T.font.sm, fontWeight: "700" },
+  eventNowBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+  eventNowText: {
+    fontSize: T.font.sm,
+    fontWeight: "600",
+    color: T.colors.online,
+    marginRight: T.space.sm,
+  },
+  eventTitle: {
+    fontSize: T.font.md,
+    fontWeight: "600",
+    color: T.colors.textPrimary,
+    marginBottom: 3,
+  },
+  eventLocationRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  eventLocation: { fontSize: T.font.sm, color: T.colors.textTertiary },
+
+  // ── Empty ──
+  emptyWrap: { alignItems: "center", gap: T.space.sm, padding: T.space.xl },
+  emptyText: {
+    fontSize: T.font.base,
+    color: T.colors.textTertiary,
+    fontStyle: "italic",
+  },
+
+  // ── Chat list ──
+  chatListCard: { overflow: "hidden" },
+  chatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: T.space.md,
+    gap: T.space.md,
+  },
+  chatMeta: { flex: 1, minWidth: 0 },
+  chatMetaTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  chatName: {
+    fontSize: T.font.base,
+    fontWeight: "500",
+    color: T.colors.textSecondary,
+  },
+  chatName_bold: { color: T.colors.textPrimary, fontWeight: "700" },
+  chatTime: {
+    fontSize: T.font.xs,
+    color: T.colors.textTertiary,
+    flexShrink: 0,
+  },
+  chatPreview: { fontSize: T.font.sm, color: T.colors.textTertiary },
+  chatPreview_bold: { color: T.colors.textSecondary, fontWeight: "500" },
+  chatDivider: {
+    height: 1,
+    backgroundColor: T.colors.borderLight,
+    marginLeft: 60,
+  },
+
+  // ── Documents list ──
+  docListCard: { overflow: "hidden" },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: T.space.md,
+    gap: T.space.md,
+  },
+  docIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: T.radius.md,
+    backgroundColor: T.colors.primaryTint,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
   },
-  icon: {
-    fontSize: 24,
-  },
-  documentTextContainer: {
+  docTitle: {
     flex: 1,
+    fontSize: T.font.base,
+    fontWeight: "500",
+    color: T.colors.textPrimary,
   },
-  documentTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  documentSubtext: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  chevron: {
-    fontSize: 24,
-    color: "#94A3B8",
-    fontWeight: "300",
-  },
-  contactSection: {
-    marginBottom: 32,
-  },
-  contactGrid: {
+
+  // ── Contact ──
+  contactRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
+    gap: T.space.sm,
+    marginBottom: T.space.sm,
   },
-  contactCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
+  contactCard: { flex: 1, padding: T.space.md, alignItems: "center", gap: 6 },
+  contactIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: T.radius.md,
+    backgroundColor: T.colors.primaryTint,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  contactIcon: {
-    fontSize: 28,
-    marginBottom: 8,
+    justifyContent: "center",
   },
   contactLabel: {
-    fontSize: 12,
-    color: "#64748B",
-    marginBottom: 4,
+    fontSize: T.font.xs,
     fontWeight: "600",
+    color: T.colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   contactValue: {
-    fontSize: 13,
-    color: "#6366F1",
+    fontSize: T.font.sm,
     fontWeight: "600",
+    color: T.colors.primary,
     textAlign: "center",
   },
-  socialButton: {
-    backgroundColor: "#1877F2",
-    borderRadius: 16,
-    padding: 16,
+
+  // ── Facebook card ──
+  fbCard: {
+    backgroundColor: T.colors.facebook,
+    borderColor: T.colors.facebook,
+    overflow: "hidden",
+  },
+  fbInner: {
     flexDirection: "row",
     alignItems: "center",
+    padding: T.space.md,
+    gap: T.space.md,
+  },
+  fbIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: T.radius.md,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#1877F2",
-    gap: 12,
-    shadowColor: "#1877F2",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  socialButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    flex: 1,
-  },
+  fbTextBlock: { flex: 1 },
+  fbTitle: { fontSize: T.font.md, fontWeight: "700", color: "#FFFFFF" },
+  fbSub: { fontSize: T.font.sm, color: "rgba(255,255,255,0.7)" },
+
+  // ── Footer ──
   footer: {
     alignItems: "center",
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+    paddingTop: T.space.xxl,
+    paddingHorizontal: T.space.xl,
   },
-  copyright: {
-    fontSize: 13,
-    color: "#64748B",
+  footerText: {
+    fontSize: T.font.sm,
+    color: T.colors.textTertiary,
     textAlign: "center",
-    fontWeight: "500",
   },
-  copyrightSub: {
-    fontSize: 12,
-    color: "#94A3B8",
-    textAlign: "center",
-    marginTop: 4,
+  footerSub: {
+    fontSize: T.font.xs,
+    color: T.colors.textTertiary,
+    marginTop: 3,
+    opacity: 0.7,
   },
 });
 
