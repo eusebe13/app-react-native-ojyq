@@ -313,7 +313,7 @@ export default function FirebaseCalendarScreen() {
       </Modal>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9f9f9" },
@@ -481,3 +481,5 @@ const styles = StyleSheet.create({
   textCancel: { color: "red", fontWeight: "600" },
   textSave: { color: "white", fontWeight: "bold" },
 });
+
+export default Calendar;
