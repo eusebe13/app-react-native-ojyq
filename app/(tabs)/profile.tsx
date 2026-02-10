@@ -1,6 +1,6 @@
+import { logOut } from "@/hooks/use-auth";
 import React from "react";
 import { Button, Image, StyleSheet, Text, View } from "react-native";
-
 const Profile = () => (
   <View style={styles.container}>
     <Image
@@ -13,6 +13,7 @@ const Profile = () => (
       title="Edit Profile"
       onPress={() => alert("Edit Profile Pressed")}
     />
+    <Button title="Log Out" onPress={logOut} color="#FF3B30" />
   </View>
 );
 
