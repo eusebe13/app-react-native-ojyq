@@ -15,7 +15,6 @@
  *  - Add pull-to-refresh functionality
  */
 
-import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Image,
@@ -48,9 +47,7 @@ const HomeScreen = () => {
   const daysWithEvents = new Set(SCHEDULE_DATA.map((e) => e.day));
 
   // BACKEND: Replace with navigation.navigate("Chat", { chatId })
-  const openChat = (id: string) => {
-    router.push(`/chat/${id}`);
-  };
+  const openChat = (id: string) => console.log("[NAV] Chat →", id);
 
   return (
     <>
@@ -115,7 +112,7 @@ const HomeScreen = () => {
           <SectionHeader
             icon="calendar-check-outline"
             title="Horaire"
-            onViewAll={() => router.push(`/calendar`)}
+            onViewAll={() => console.log("[NAV] Horaire complet")}
           />
 
           {/* Day pills */}
@@ -214,7 +211,7 @@ const HomeScreen = () => {
           <SectionHeader
             icon="chat-outline"
             title="Messagerie"
-            onViewAll={() => router.push(`/chat`)}
+            onViewAll={() => console.log("[NAV] Tous les chats")}
           />
 
           <Card variant="elevated" style={styles.chatListCard}>
