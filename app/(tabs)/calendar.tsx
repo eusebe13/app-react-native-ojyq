@@ -10,8 +10,10 @@ import {
   Modal,
   Alert,
   ScrollView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   collection,
   addDoc,
@@ -19,6 +21,9 @@ import {
   query,
   orderBy,
   Timestamp,
+  doc,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
@@ -28,110 +33,162 @@ export default function FirebaseCalendarScreen() {
 
   // États pour le Modal et le Formulaire
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
-
-  // Pour faire simple sans librairie externe, on utilise des strings pour date/heure
-  // Dans une vraie app prod, on utiliserait @react-native-community/datetimepicker
-  const [dateStr, setDateStr] = useState(
-    new Date().toISOString().split("T")[0],
-  ); // YYYY-MM-DD
-  const [timeStr, setTimeStr] = useState("12:00");
   const [isShiftMode, setIsShiftMode] = useState(false);
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // --- 1. ÉCOUTER LES DONNÉES AVEC GESTION "EN ATTENTE" ---
+  const onChangeDate = (event, selectedDate) => {
+
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    
+    if (selectedDate) {
+      const currentDate = new Date(date);
+      currentDate.setFullYear(selectedDate.getFullYear());
+      currentDate.setMonth(selectedDate.getMonth());
+      currentDate.setDate(selectedDate.getDate());
+      setDate(currentDate);
+    }
+  };
+
+  const onChangeTime = (event, selectedTime) => {
+    if (Platform.OS === 'android') setShowTimePicker(false);
+
+    if (selectedTime) {
+      const currentTime = new Date(date);
+      currentTime.setHours(selectedTime.getHours());
+      currentTime.setMinutes(selectedTime.getMinutes());
+      setDate(currentTime);
+    }
+  };
+
+  // --- OPTIMISATION DES PICKERS (iOS focus) ---
+const openDatePicker = () => {
+  setShowTimePicker(false);
+  setShowDatePicker(true);
+};
+
+const openTimePicker = () => {
+  setShowDatePicker(false);
+  setShowTimePicker(true);
+};
+
+  // --- 1. ÉCOUTER LES DONNÉES ---
   useEffect(() => {
     const q = query(collection(db, "events"), orderBy("date", "asc"));
-
-    // includeMetadataChanges: true est CRUCIAL pour voir les événements non-synchronisés
     const unsubscribe = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snapshot) => {
-        console.log("Nombre de docs trouvés:", snapshot.size); // Si 0, le problème est la requête ou les permissions
-
         const fetchedEvents = snapshot.docs.map((doc) => {
           const data = doc.data();
-          console.log("Données du doc:", data);
           return {
             id: doc.id,
             ...data,
             dateObj: data.date ? data.date.toDate() : new Date(),
-            // C'est ici que la magie opère : true si pas encore sur le serveur
             pending: doc.metadata.hasPendingWrites,
           };
         });
         setEvents(fetchedEvents);
         setLoading(false);
       },
-      (error) => {
-        console.error("Erreur:", error);
-        setLoading(false);
-      },
     );
-
     return () => unsubscribe();
   }, []);
 
-  // --- 2. AJOUTER UN ÉVÉNEMENT (Mode Optimiste) ---
-  const handleAddEvent = () => {
-    // 1. Validation
-    if (!title.trim() || !dateStr.trim()) {
-      Alert.alert("Erreur", "Le titre et la date sont obligatoires");
+  // --- 2. LOGIQUE DE DATE PASSÉE ---
+  const isEventPast = (date: Date) => {
+    const now = new Date();
+    return date < now;
+  };
+
+  // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
+  const handleSaveEvent = async () => {
+    if (!title.trim()) {
+      Alert.alert("Erreur", "Le titre est obligatoire");
       return;
     }
 
-    // 2. Création de l'objet (Préparation)
-    const combinedDate = new Date(`${dateStr}T${timeStr}:00`);
-    const newEvent = {
+    // On utilise directement l'objet 'date' qui contient tout (jour + heure)
+    if (!editingId && date < new Date()) {
+      Alert.alert("Action impossible", "L'événement est dans le passé.");
+      return;
+    }
+
+    const eventData = {
       title: title,
       type: isShiftMode ? "Shift" : "General",
-      date: Timestamp.fromDate(combinedDate),
+      date: Timestamp.fromDate(date), // On utilise l'objet Date directement ici
       location: location || (isShiftMode ? "QG" : "À définir"),
       assignee: isShiftMode ? "À assigner" : null,
     };
 
-    // 3. UI INSTANTANÉE : On ferme et on vide AVANT d'envoyer
-    // C'est ça le secret : on ne bloque pas l'utilisateur
-    setModalVisible(false);
-    setTitle("");
-    setLocation("");
-
-    // 4. Envoi à Firebase en arrière-plan
-    // On n'utilise pas "await" ici pour ne pas geler l'écran si le réseau est lent
-    addDoc(collection(db, "events"), newEvent)
-      .then(() => {
-        console.log("Événement synchronisé avec le serveur !");
-      })
-      .catch((error) => {
-        console.error("Erreur d'envoi:", error);
-        Alert.alert("Oups", "Erreur lors de la sauvegarde.");
-      });
-
-    // Grâce à votre useEffect avec { includeMetadataChanges: true },
-    // l'événement apparaîtra immédiatement dans la liste (en local) !
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "events", editingId), eventData);
+      } else {
+        await addDoc(collection(db, "events"), eventData);
+      }
+      closeModal();
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de sauvegarder.");
+    }
   };
 
-  // --- 3. FORMATAGE ---
+  // N'oubliez pas de mettre à jour closeModal pour réinitialiser la date
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingId(null);
+    setTitle("");
+    setLocation("");
+    setDate(new Date()); // Réinitialise à maintenant
+  };
+
+  // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
+  const handleLongPress = (item: any) => {
+  Alert.alert(
+    "Options de l'événement",
+    `Que souhaitez-vous faire pour "${item.title}" ?`,
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Modifier",
+        onPress: () => {
+          setEditingId(item.id);
+          setTitle(item.title);
+          setLocation(item.location);
+          setIsShiftMode(item.type === "Shift");
+          
+          // On met à jour l'objet date directement
+          setDate(item.dateObj); 
+          
+          setModalVisible(true);
+        },
+      },
+      {
+        text: "Supprimer",
+        style: "destructive",
+        onPress: async () => {
+          await deleteDoc(doc(db, "events", item.id));
+        },
+      },
+    ]
+  );
+};
+
+  // --- 5. FORMATAGE ---
   const formatDate = (date: Date) => {
-    try {
-      return date.toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "short",
-      });
-    } catch (e) {
-      return "Date invalide";
-    }
+    return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
   };
 
   const formatTime = (date: Date) => {
-    try {
-      return date.toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (e) {
-      return "--:--";
-    }
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -149,54 +206,63 @@ export default function FirebaseCalendarScreen() {
           data={events}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.eventCard,
-                {
-                  borderLeftColor:
-                    item.type === "Shift" ? "#FF9500" : "#007AFF",
-                },
-                // On réduit l'opacité si l'événement n'est pas encore synchronisé
-                { opacity: item.pending ? 0.6 : 1 },
-              ]}
-            >
-              <View style={styles.dateContainer}>
-                <Text style={styles.dateText}>{formatDate(item.dateObj)}</Text>
-                <Text style={styles.timeText}>{formatTime(item.dateObj)}</Text>
-              </View>
-
-              <View style={styles.contentContainer}>
-                <Text style={styles.eventTitle}>{item.title}</Text>
-
-                <View style={styles.detailsRow}>
-                  <Text
-                    style={[
-                      styles.eventType,
-                      { color: item.type === "Shift" ? "#FF9500" : "#007AFF" },
-                    ]}
-                  >
-                    {item.type === "Shift" ? "QUART" : "ÉVÉNEMENT"}
+          renderItem={({ item }) => {
+            const past = isEventPast(item.dateObj);
+            return (
+              <TouchableOpacity
+                onLongPress={() => handleLongPress(item)}
+                delayLongPress={500}
+                style={[
+                  styles.eventCard,
+                  {
+                    borderLeftColor:
+                      item.type === "Shift" ? "#FF9500" : "#007AFF",
+                  },
+                  past && styles.pastEventCard,
+                  { opacity: item.pending ? 0.6 : 1 },
+                ]}
+              >
+                <View style={styles.dateContainer}>
+                  <Text style={[styles.dateText, past && styles.pastText]}>
+                    {formatDate(item.dateObj)}
                   </Text>
-                  {item.location && (
-                    <Text style={styles.locationText}>📍 {item.location}</Text>
-                  )}
+                  <Text style={styles.timeText}>
+                    {formatTime(item.dateObj)}
+                  </Text>
                 </View>
 
-                {/* Indication de synchronisation */}
-                {item.pending && (
-                  <View style={styles.syncStatus}>
-                    <Ionicons name="cloud-upload" size={12} color="#666" />
-                    <Text style={styles.syncText}> Envoi en cours...</Text>
+                <View style={styles.contentContainer}>
+                  <Text style={[styles.eventTitle, past && styles.pastText]}>
+                    {item.title} {past && "(Terminé)"}
+                  </Text>
+                  <View style={styles.detailsRow}>
+                    <Text
+                      style={[
+                        styles.eventType,
+                        {
+                          color: past
+                            ? "#888"
+                            : item.type === "Shift"
+                              ? "#FF9500"
+                              : "#007AFF",
+                        },
+                      ]}
+                    >
+                      {item.type === "Shift" ? "QUART" : "ÉVÉNEMENT"}
+                    </Text>
+                    {item.location && (
+                      <Text style={styles.locationText}>
+                        📍 {item.location}
+                      </Text>
+                    )}
                   </View>
-                )}
-              </View>
-            </View>
-          )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
 
-      {/* Bouton Flottant (+) pour ouvrir le Modal */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => setModalVisible(true)}
@@ -204,19 +270,14 @@ export default function FirebaseCalendarScreen() {
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      {/* --- MODAL DE CRÉATION --- */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      <Modal visible={modalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>Nouvel Événement</Text>
-
+            <Text style={styles.modalTitle}>
+              {editingId ? "Modifier l'événement" : "Nouvel Événement"}
+            </Text>
             <ScrollView style={{ width: "100%" }}>
-              {/* Sélecteur de Type */}
+              {/* Type Selector */}
               <View style={styles.typeSelector}>
                 <TouchableOpacity
                   style={[
@@ -247,65 +308,93 @@ export default function FirebaseCalendarScreen() {
                       isShiftMode && styles.typeTextActive,
                     ]}
                   >
-                    Quart de travail
+                    Quart
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Champs de saisie */}
               <Text style={styles.label}>Titre</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ex: Réunion CA"
                 value={title}
                 onChangeText={setTitle}
+                placeholder="Nom de l'activité"
               />
 
               <View style={styles.row}>
+                {/* Sélecteur de DATE */}
                 <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={styles.label}>Date (AAAA-MM-JJ)</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="2026-02-15"
-                    value={dateStr}
-                    onChangeText={setDateStr}
-                    keyboardType="numbers-and-punctuation"
-                  />
+                  <Text style={styles.label}>Date</Text>
+                  <TouchableOpacity
+                    style={styles.inputPicker}
+                    onPress={openDatePicker}
+                  >
+                    <Text>{date.toLocaleDateString("fr-FR")}</Text>
+                    <Ionicons name="calendar-outline" size={18} color="#666" />
+                  </TouchableOpacity>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "inline" : "default"}
+                      onChange={onChangeDate}
+                      minimumDate={new Date()} // Empêche de choisir une date passée
+                    />
+                  )}
                 </View>
+
+                {/* Sélecteur d'HEURE */}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Heure (HH:MM)</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="14:00"
-                    value={timeStr}
-                    onChangeText={setTimeStr}
-                    keyboardType="numbers-and-punctuation"
-                  />
+                  <Text style={styles.label}>Heure</Text>
+                  <TouchableOpacity
+                    style={styles.inputPicker}
+                    onPress={openTimePicker}
+                  >
+                    <Text>
+                      {date.toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                    <Ionicons name="time-outline" size={18} color="#666" />
+                  </TouchableOpacity>
+
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner" // Sélection défilante
+                      onChange={onChangeTime}
+                    />
+                  )}
                 </View>
               </View>
 
               <Text style={styles.label}>Lieu</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ex: Salle 101"
                 value={location}
                 onChangeText={setLocation}
+                placeholder="Lieu"
               />
             </ScrollView>
 
-            {/* Boutons d'action */}
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
+                onPress={closeModal}
                 style={styles.buttonCancel}
               >
                 <Text style={styles.textCancel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleAddEvent}
+                onPress={handleSaveEvent}
                 style={styles.buttonSave}
               >
-                <Text style={styles.textSave}>Ajouter</Text>
+                <Text style={styles.textSave}>
+                  {editingId ? "Mettre à jour" : "Ajouter"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -328,21 +417,17 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
   centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   listContent: { padding: 16, paddingBottom: 100 },
-
-  // Styles de la Carte
   eventCard: {
     flexDirection: "row",
     backgroundColor: "#fff",
     padding: 15,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
     elevation: 2,
     borderLeftWidth: 5,
   },
+  pastEventCard: { backgroundColor: "#f0f0f0", borderLeftColor: "#ccc" }, // Style grisé
+  pastText: { color: "#888", textDecorationLine: "none" },
   dateContainer: {
     marginRight: 15,
     alignItems: "center",
@@ -369,12 +454,6 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   locationText: { fontSize: 12, color: "#666" },
-
-  // Status Sync
-  syncStatus: { flexDirection: "row", alignItems: "center", marginTop: 5 },
-  syncText: { fontSize: 10, color: "#666", fontStyle: "italic" },
-
-  // Bouton Flottant (FAB)
   fab: {
     position: "absolute",
     right: 20,
@@ -386,13 +465,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
-
-  // Styles du Modal
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
@@ -405,11 +478,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 25,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
   },
   modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 20 },
   label: {
@@ -430,8 +498,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9f9f9",
   },
   row: { flexDirection: "row", width: "100%", justifyContent: "space-between" },
-
-  // Selecteur de Type
   typeSelector: {
     flexDirection: "row",
     width: "100%",
@@ -446,24 +512,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 6,
   },
-  typeButtonActive: {
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  typeButtonActiveShift: {
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  typeText: { fontSize: 14, color: "#666", fontWeight: "500" },
+  typeButtonActive: { backgroundColor: "#fff", elevation: 1 },
+  typeButtonActiveShift: { backgroundColor: "#fff", elevation: 1 },
+  typeText: { fontSize: 14, color: "#666" },
   typeTextActive: { color: "#000", fontWeight: "bold" },
-
-  // Boutons Modal
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -480,4 +532,17 @@ const styles = StyleSheet.create({
   },
   textCancel: { color: "red", fontWeight: "600" },
   textSave: { color: "white", fontWeight: "bold" },
+  inputPicker: {
+    width: "100%",
+    height: 45,
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+    backgroundColor: "#f9f9f9",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 });
