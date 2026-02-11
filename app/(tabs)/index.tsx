@@ -1,21 +1,19 @@
 /**
  * HomeScreen — OJYQ Member Portal
- *
- * Features:
- *  - Gradient header with logo and notification bell
- *  - Weekly schedule with day filter
- *  - Recent chat list with unread badges
- *  - Document quick access
- *  - Contact information
- *
- * BACKEND INTEGRATION NOTES:
- *  - Replace mockData imports with API hooks (useSchedule, useChats, useDocuments)
- *  - Add WebSocket connection for real-time chat updates
- *  - Implement navigation handlers for chat/schedule detail views
- *  - Add pull-to-refresh functionality
  */
 
-import React, { useState } from "react";
+import { db } from "@/firebaseConfig";
+import { router } from "expo-router";
+import {
+  collection,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  Timestamp,
+  where,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import {
   Image,
   Linking,
@@ -32,22 +30,198 @@ import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { SectionHeader } from "../../components/SectionHeader";
 import { Icon } from "../../components/ui/Icon";
-import {
-  CHATS_DATA,
-  DAYS,
-  DOCUMENTS_DATA,
-  SCHEDULE_DATA,
-} from "../../constants/Mockdata";
+import { DOCUMENTS_DATA } from "../../constants/Mockdata";
 import { T } from "../../theme/tokens";
 
+// ✅ Fonctions helper
+const getDayKey = (date: Date): string => {
+  const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  return days[date.getDay()];
+};
+
+const formatTime = (date: Date): string => {
+  return date.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const isEventNow = (date: Date): boolean => {
+  const now = new Date();
+  const eventTime = date.getTime();
+  const nowTime = now.getTime();
+  const oneHour = 60 * 60 * 1000;
+
+  return eventTime <= nowTime && nowTime - eventTime < oneHour;
+};
+
+// ✅ Formater l'heure du dernier message (relatif)
+const formatMessageTime = (date: Date): string => {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "À l'instant";
+  if (minutes < 60) return `${minutes}m`;
+  if (hours < 24) return `${hours}h`;
+  if (days < 7) return `${days}j`;
+
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+};
+
+// Générer les jours de la semaine en cours
+const getCurrentWeekDays = () => {
+  const today = new Date();
+  const currentDay = today.getDay();
+  const monday = new Date(today);
+
+  const diff = currentDay === 0 ? -6 : 1 - currentDay;
+  monday.setDate(today.getDate() + diff);
+
+  const weekDays = [];
+  const dayLabels = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+
+    weekDays.push({
+      key: dayLabels[day.getDay()],
+      label: dayLabels[day.getDay()],
+      date: day.getDate().toString(),
+      fullDate: day,
+      isToday: day.toDateString() === today.toDateString(),
+    });
+  }
+
+  return weekDays;
+};
+
+// bornes de la semaine (lundi 00:00 à dimanche 23:59)
+const getWeekBounds = () => {
+  const today = new Date();
+  const currentDay = today.getDay();
+
+  const startOfWeek = new Date(today);
+  const diff = currentDay === 0 ? -6 : 1 - currentDay;
+  startOfWeek.setDate(today.getDate() + diff);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  return { startOfWeek, endOfWeek };
+};
+
 const HomeScreen = () => {
-  const [selectedDay, setSelectedDay] = useState("Lun");
+  const weekDays = getCurrentWeekDays();
+  const [selectedDay, setSelectedDay] = useState(
+    weekDays.find((d) => d.isToday)?.key || "Lun",
+  );
+  const [myEvents, setEvents] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(true);
 
-  const todayEvents = SCHEDULE_DATA.filter((e) => e.day === selectedDay);
-  const daysWithEvents = new Set(SCHEDULE_DATA.map((e) => e.day));
+  // ✅ Récupérer les événements de la semaine
+  useEffect(() => {
+    const { startOfWeek, endOfWeek } = getWeekBounds();
 
-  // BACKEND: Replace with navigation.navigate("Chat", { chatId })
-  const openChat = (id: string) => console.log("[NAV] Chat →", id);
+    const eventsQuery = query(
+      collection(db, "events"),
+      where("date", ">=", Timestamp.fromDate(startOfWeek)),
+      where("date", "<=", Timestamp.fromDate(endOfWeek)),
+      orderBy("date", "asc"),
+    );
+
+    const unsubscribe = onSnapshot(
+      eventsQuery,
+      (snapshot) => {
+        const fetchedEvents = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          const dateObj = data.date?.toDate() || new Date();
+
+          return {
+            id: doc.id,
+            title: data.title || "Sans titre",
+            time: formatTime(dateObj),
+            location: data.location || "Non spécifié",
+            day: getDayKey(dateObj),
+            color: data.type === "Shift" ? "#FF9500" : "#007AFF",
+            isNow: isEventNow(dateObj),
+            dateObj,
+            type: data.type,
+            assignee: data.assignee,
+            pending: doc.metadata.hasPendingWrites,
+          };
+        });
+
+        setEvents(fetchedEvents);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("❌ Erreur événements:", error);
+        setLoading(false);
+      },
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Récupérer les channels avec leur dernier message
+  useEffect(() => {
+    const channelsQuery = query(
+      collection(db, "channels"),
+      orderBy("createdAt", "desc"),
+      limit(5), // Limiter à 5 derniers channels actifs
+    );
+
+    const unsubscribe = onSnapshot(
+      channelsQuery,
+      (snapshot) => {
+        const fetchedChannels = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          const lastMessageAt = data.lastMessageAt?.toDate() || new Date();
+
+          return {
+            id: doc.id,
+            name: data.name || "Canal sans nom",
+            lastMessage: data.lastMessage || "Aucun message",
+            lastMessageAt,
+            time: formatMessageTime(lastMessageAt),
+            isGroup: true, // Tous les channels sont des groupes
+            isOnline: false,
+            unread: data.unreadCount || 0, // Vous pouvez implémenter un système de compteur
+          };
+        });
+
+        setChannels(fetchedChannels);
+        setLoadingMessages(false);
+        console.log(`✅ ${fetchedChannels.length} channels chargés`);
+      },
+      (error) => {
+        console.error("❌ Erreur channels:", error);
+        setLoadingMessages(false);
+      },
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Filtrer les événements du jour sélectionné
+  const todayEvents = myEvents.filter((e) => e.day === selectedDay);
+
+  // Jours avec événements
+  const daysWithEvents = new Set(myEvents.map((e) => e.day));
+
+  // ✅ Navigation vers le channel
+  const openChat = (id: string) => {
+    console.log("[NAV] Ouvrir channel:", id);
+    router.push(`/channel/${id}`);
+  };
 
   return (
     <>
@@ -62,13 +236,9 @@ const HomeScreen = () => {
         contentContainerStyle={styles.screenContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─────────────────────────────────────────────────────────────── */}
-        {/* GRADIENT HEADER                                                   */}
-        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* GRADIENT HEADER */}
         <View style={styles.headerGradient}>
-          {/* Decorative blobs */}
           <View style={styles.blob1} />
-          {/* <View style={styles.blob2} /> */}
 
           <View style={styles.headerInner}>
             <View style={styles.headerTopRow}>
@@ -86,10 +256,6 @@ const HomeScreen = () => {
                 </Text>
                 <Text style={styles.headerOrgBold}>Yira du Québec</Text>
               </View>
-              {/* <TouchableOpacity style={styles.headerNotifBtn}>
-                <Icon name="bell-outline" size={22} color="#FFFFFF" />
-                <Badge dot color="#EC4899" size="sm" />
-              </TouchableOpacity> */}
             </View>
 
             <View style={styles.headerBadgeRow}>
@@ -105,29 +271,30 @@ const HomeScreen = () => {
           </View>
         </View>
 
-        {/* ─────────────────────────────────────────────────────────────── */}
-        {/* HORAIRE (SCHEDULE)                                                */}
-        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* HORAIRE (SCHEDULE) */}
         <View style={styles.section}>
           <SectionHeader
             icon="calendar-check-outline"
-            title="Horaire"
+            title="Horaire de la semaine"
             onViewAll={() => console.log("[NAV] Horaire complet")}
           />
 
-          {/* Day pills */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.dayScroll}
           >
-            {DAYS.map((d) => {
+            {weekDays.map((d) => {
               const active = selectedDay === d.key;
               const hasEvents = daysWithEvents.has(d.key);
               return (
                 <TouchableOpacity
                   key={d.key}
-                  style={[styles.dayPill, active && styles.dayPill_active]}
+                  style={[
+                    styles.dayPill,
+                    active && styles.dayPill_active,
+                    d.isToday && !active && styles.dayPill_today,
+                  ]}
                   onPress={() => setSelectedDay(d.key)}
                   activeOpacity={0.7}
                 >
@@ -135,6 +302,7 @@ const HomeScreen = () => {
                     style={[
                       styles.dayPill_label,
                       active && styles.dayPill_label_active,
+                      d.isToday && !active && styles.dayPill_label_today,
                     ]}
                   >
                     {d.label}
@@ -143,12 +311,16 @@ const HomeScreen = () => {
                     style={[
                       styles.dayPill_date,
                       active && styles.dayPill_date_active,
+                      d.isToday && !active && styles.dayPill_date_today,
                     ]}
                   >
                     {d.date}
                   </Text>
                   {hasEvents && !active && (
                     <Badge dot color={T.colors.primary} size="sm" />
+                  )}
+                  {d.isToday && !active && (
+                    <View style={styles.todayIndicator} />
                   )}
                 </TouchableOpacity>
               );
@@ -157,7 +329,13 @@ const HomeScreen = () => {
 
           {/* Events */}
           <View style={styles.eventList}>
-            {todayEvents.length === 0 ? (
+            {loading ? (
+              <Card variant="default">
+                <View style={styles.emptyWrap}>
+                  <Text style={styles.emptyText}>Chargement...</Text>
+                </View>
+              </Card>
+            ) : todayEvents.length === 0 ? (
               <Card variant="default">
                 <View style={styles.emptyWrap}>
                   <Icon
@@ -171,7 +349,6 @@ const HomeScreen = () => {
             ) : (
               todayEvents.map((ev) => (
                 <Card key={ev.id} variant="default" style={styles.eventCard}>
-                  {/* Color stripe */}
                   <View
                     style={[styles.eventStripe, { backgroundColor: ev.color }]}
                   />
@@ -183,7 +360,6 @@ const HomeScreen = () => {
                       </Text>
                       {ev.isNow && (
                         <View style={styles.eventNowBadge}>
-                          {/* <Badge dot color={T.colors.online} size="sm" /> */}
                           <Text style={styles.eventNowText}>En cours</Text>
                         </View>
                       )}
@@ -197,6 +373,17 @@ const HomeScreen = () => {
                       />
                       <Text style={styles.eventLocation}>{ev.location}</Text>
                     </View>
+
+                    {ev.type === "Shift" && ev.assignee && (
+                      <View style={styles.eventAssigneeRow}>
+                        <Icon
+                          name="account-outline"
+                          size={13}
+                          color={T.colors.textTertiary}
+                        />
+                        <Text style={styles.eventAssignee}>{ev.assignee}</Text>
+                      </View>
+                    )}
                   </View>
                 </Card>
               ))
@@ -204,9 +391,7 @@ const HomeScreen = () => {
           </View>
         </View>
 
-        {/* ─────────────────────────────────────────────────────────────── */}
-        {/* MESSAGERIE (CHAT)                                                 */}
-        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* MESSAGERIE (CHAT) */}
         <View style={styles.section}>
           <SectionHeader
             icon="chat-outline"
@@ -215,65 +400,77 @@ const HomeScreen = () => {
           />
 
           <Card variant="elevated" style={styles.chatListCard}>
-            {CHATS_DATA.map((chat, i) => (
-              <View key={chat.id}>
-                <TouchableOpacity
-                  style={styles.chatRow}
-                  onPress={() => openChat(chat.id)}
-                  activeOpacity={0.88}
-                >
-                  <Avatar
-                    name={chat.name}
-                    isGroup={chat.isGroup}
-                    isOnline={chat.isOnline}
-                  />
+            {loadingMessages ? (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyText}>Chargement...</Text>
+              </View>
+            ) : channels.length === 0 ? (
+              <View style={styles.emptyWrap}>
+                <Icon
+                  name="chat-remove-outline"
+                  size={28}
+                  color={T.colors.textTertiary}
+                />
+                <Text style={styles.emptyText}>Aucun message</Text>
+              </View>
+            ) : (
+              channels.map((chat, i) => (
+                <View key={chat.id}>
+                  <TouchableOpacity
+                    style={styles.chatRow}
+                    onPress={() => openChat(chat.id)}
+                    activeOpacity={0.88}
+                  >
+                    <Avatar
+                      name={chat.name}
+                      isGroup={chat.isGroup}
+                      isOnline={chat.isOnline}
+                    />
 
-                  <View style={styles.chatMeta}>
-                    <View style={styles.chatMetaTop}>
+                    <View style={styles.chatMeta}>
+                      <View style={styles.chatMetaTop}>
+                        <Text
+                          style={[
+                            styles.chatName,
+                            chat.unread > 0 && styles.chatName_bold,
+                          ]}
+                        >
+                          {chat.name}
+                        </Text>
+                        <Text style={styles.chatTime}>{chat.time}</Text>
+                      </View>
                       <Text
                         style={[
-                          styles.chatName,
-                          chat.unread > 0 && styles.chatName_bold,
+                          styles.chatPreview,
+                          chat.unread > 0 && styles.chatPreview_bold,
                         ]}
+                        numberOfLines={1}
                       >
-                        {chat.name}
+                        {chat.lastMessage}
                       </Text>
-                      <Text style={styles.chatTime}>{chat.time}</Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.chatPreview,
-                        chat.unread > 0 && styles.chatPreview_bold,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {chat.lastMessage}
-                    </Text>
-                  </View>
 
-                  {chat.unread > 0 ? (
-                    <Badge count={chat.unread} />
-                  ) : (
-                    <Icon
-                      name="check-all"
-                      size={16}
-                      color={T.colors.textTertiary}
-                    />
+                    {chat.unread > 0 ? (
+                      <Badge count={chat.unread} />
+                    ) : (
+                      <Icon
+                        name="check-all"
+                        size={16}
+                        color={T.colors.textTertiary}
+                      />
+                    )}
+                  </TouchableOpacity>
+
+                  {i < channels.length - 1 && (
+                    <View style={styles.chatDivider} />
                   )}
-                </TouchableOpacity>
-
-                {/* Divider (not after last) */}
-                {i < CHATS_DATA.length - 1 && (
-                  <View style={styles.chatDivider} />
-                )}
-              </View>
-            ))}
+                </View>
+              ))
+            )}
           </Card>
         </View>
 
-        {/* ─────────────────────────────────────────────────────────────── */}
-        {/* DOCUMENTS                                                         */}
-        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* DOCUMENTS */}
         <View style={styles.section}>
           <SectionHeader icon="folder-outline" title="Documents" />
 
@@ -305,9 +502,7 @@ const HomeScreen = () => {
           </Card>
         </View>
 
-        {/* ─────────────────────────────────────────────────────────────── */}
-        {/* CONTACT                                                           */}
-        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* CONTACT */}
         <View style={styles.section}>
           <SectionHeader icon="contacts-outline" title="Contact" />
 
@@ -372,9 +567,7 @@ const HomeScreen = () => {
           </Card>
         </View>
 
-        {/* ─────────────────────────────────────────────────────────────── */}
-        {/* FOOTER                                                            */}
-        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* FOOTER */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             © 2026 Organisation de la jeunesse Yira du Québec
@@ -386,15 +579,10 @@ const HomeScreen = () => {
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════════════════════════════════
+// STYLES (identiques)
 const styles = StyleSheet.create({
-  // ── Screen ──
   screen: { flex: 1, backgroundColor: T.colors.surfaceDim },
   screenContent: { paddingBottom: 48 },
-
-  // ── Gradient Header ──
   headerGradient: {
     backgroundColor: T.colors.primaryDark,
     paddingTop: Platform.OS === "ios" ? 58 : 44,
@@ -411,16 +599,6 @@ const styles = StyleSheet.create({
     borderRadius: 80,
     backgroundColor: T.colors.primaryLight,
     opacity: 0.25,
-  },
-  blob2: {
-    position: "absolute",
-    bottom: -30,
-    left: -50,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: T.colors.accent1,
-    opacity: 0.12,
   },
   headerInner: {
     paddingHorizontal: T.space.xl,
@@ -453,7 +631,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.3,
   },
-  headerNotifBtn: { position: "relative", padding: 6 },
   headerBadgeRow: { marginTop: T.space.md },
   headerBadge: {
     flexDirection: "row",
@@ -471,11 +648,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.8,
   },
-
-  // ── Section shared ──
   section: { paddingHorizontal: T.space.xl, marginTop: T.space.xxl },
-
-  // ── Day pills ──
   dayScroll: {
     marginBottom: T.space.md,
     marginHorizontal: -T.space.xl,
@@ -492,6 +665,7 @@ const styles = StyleSheet.create({
     minWidth: 54,
     gap: 2,
     marginRight: T.space.sm,
+    position: "relative",
   },
   dayPill_active: {
     backgroundColor: T.colors.primary,
@@ -502,20 +676,33 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
+  dayPill_today: {
+    borderColor: T.colors.primary,
+    borderWidth: 2,
+  },
   dayPill_label: {
     fontSize: T.font.sm,
     fontWeight: "600",
     color: T.colors.textSecondary,
   },
   dayPill_label_active: { color: "#FFFFFF" },
+  dayPill_label_today: { color: T.colors.primary },
   dayPill_date: {
     fontSize: T.font.lg,
     fontWeight: "700",
     color: T.colors.textPrimary,
   },
   dayPill_date_active: { color: "#FFFFFF" },
-
-  // ── Events ──
+  dayPill_date_today: { color: T.colors.primary },
+  todayIndicator: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: T.colors.primary,
+  },
   eventList: { gap: T.space.sm },
   eventCard: { flexDirection: "row", overflow: "hidden", minHeight: 72 },
   eventStripe: { width: 4, minHeight: 72 },
@@ -542,16 +729,23 @@ const styles = StyleSheet.create({
   },
   eventLocationRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   eventLocation: { fontSize: T.font.sm, color: T.colors.textTertiary },
-
-  // ── Empty ──
+  eventAssigneeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  eventAssignee: {
+    fontSize: T.font.sm,
+    color: T.colors.textTertiary,
+    fontStyle: "italic",
+  },
   emptyWrap: { alignItems: "center", gap: T.space.sm, padding: T.space.xl },
   emptyText: {
     fontSize: T.font.base,
     color: T.colors.textTertiary,
     fontStyle: "italic",
   },
-
-  // ── Chat list ──
   chatListCard: { overflow: "hidden" },
   chatRow: {
     flexDirection: "row",
@@ -584,8 +778,6 @@ const styles = StyleSheet.create({
     backgroundColor: T.colors.borderLight,
     marginLeft: 60,
   },
-
-  // ── Documents list ──
   docListCard: { overflow: "hidden" },
   docRow: {
     flexDirection: "row",
@@ -607,8 +799,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: T.colors.textPrimary,
   },
-
-  // ── Contact ──
   contactRow: {
     flexDirection: "row",
     gap: T.space.sm,
@@ -636,8 +826,6 @@ const styles = StyleSheet.create({
     color: T.colors.primary,
     textAlign: "center",
   },
-
-  // ── Facebook card ──
   fbCard: {
     backgroundColor: T.colors.facebook,
     borderColor: T.colors.facebook,
@@ -660,8 +848,6 @@ const styles = StyleSheet.create({
   fbTextBlock: { flex: 1 },
   fbTitle: { fontSize: T.font.md, fontWeight: "700", color: "#FFFFFF" },
   fbSub: { fontSize: T.font.sm, color: "rgba(255,255,255,0.7)" },
-
-  // ── Footer ──
   footer: {
     alignItems: "center",
     paddingTop: T.space.xxl,
