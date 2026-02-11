@@ -481,5 +481,3 @@ const styles = StyleSheet.create({
   textCancel: { color: "red", fontWeight: "600" },
   textSave: { color: "white", fontWeight: "bold" },
 });
-
-export default Calendar;
