@@ -402,7 +402,7 @@ const openTimePicker = () => {
       </Modal>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9f9f9" },

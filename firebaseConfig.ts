@@ -1,9 +1,9 @@
 // firebaseConfig.ts
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApps, initializeApp } from "firebase/app";
+import { Auth, getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Remplacez ces valeurs par celles de votre console Firebase (Section "Web App")
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -14,9 +14,23 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialisation
-const app = initializeApp(firebaseConfig);
+// Simple approach: just check if app exists, don't try to be too clever
+const apps = getApps();
+const app = apps.length === 0 ? initializeApp(firebaseConfig) : apps[0];
 
-// Export des services pour les utiliser ailleurs dans l'app
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// For auth, ONLY use initializeAuth on first run
+let auth: Auth;
+if (apps.length === 0) {
+  // First time - initialize with AsyncStorage
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+} else {
+  // Already initialized - just get it
+  auth = getAuth(app);
+}
+
+const db = getFirestore(app);
+
+export { auth, db };
+
