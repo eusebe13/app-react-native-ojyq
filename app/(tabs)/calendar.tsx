@@ -1,16 +1,13 @@
 /**
  * CalendarScreen - Agenda OJYQ
- * 
- * Vue unifiée affichant:
+ * * Vue unifiée affichant:
  * - Événements généraux
  * - Quarts de travail (Shifts)
- * 
- * Fonctionnalités:
+ * * Fonctionnalités:
  * - Mode Administrateur (création/modification/suppression)
  * - Distinction visuelle événement/quart
  * - Fonctionnement optimiste (sync Firestore)
- * 
- * @module Calendar
+ * * @module Calendar
  * @author OJYQ Dev Team
  */
 
@@ -24,14 +21,11 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
-  StyleSheet,
   Platform,
   ScrollView,
   KeyboardAvoidingView,
-  NativeSyntheticEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   collection,
   addDoc,
@@ -44,7 +38,6 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-import { useTheme } from '../../hooks/useTheme';
 import { CalendarEvent, EventType, eventFromFirestore } from '../../types/models';
 import { EventCard } from '../../components/calendar/EventCard';
 
@@ -73,48 +66,27 @@ const MEMBERS = [
   { id: 'linda', name: 'Linda Muzibaziba' },
 ];
 
-/**
- * Écran principal du calendrier
- */
 export default function CalendarScreen(): ReactElement {
-  const { colors, isDark } = useTheme();
-
-  // ═══════════════════════════════════════════════════════════════════════════
   // ÉTATS
-  // ═══════════════════════════════════════════════════════════════════════════
-
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Champs du formulaire
+  // Champs du formulaire (remplacement du DateTimePicker par des strings formidables)
   const [title, setTitle] = useState<string>('');
   const [location, setLocation] = useState<string>('');
   const [eventType, setEventType] = useState<EventType>('general');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [dateStr, setDateStr] = useState<string>(new Date().toISOString().split('T')[0]); // AAAA-MM-JJ
+  const [timeStr, setTimeStr] = useState<string>('12:00'); // HH:MM
   const [assignee, setAssignee] = useState<string>('');
-
-  // Pickers
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
 
   // Filtre
   const [filterType, setFilterType] = useState<'all' | EventType>('all');
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // EFFETS - Chargement des événements depuis Firestore
-  // ═══════════════════════════════════════════════════════════════════════════
-
+  // EFFETS
   useEffect(() => {
-    /**
-     * Écoute en temps réel avec gestion du cache optimiste.
-     * includeMetadataChanges permet de détecter les écritures en attente.
-     */
-    const eventsQuery = query(
-      collection(db, 'events'),
-      orderBy('date', 'asc')
-    );
+    const eventsQuery = query(collection(db, 'events'), orderBy('date', 'asc'));
 
     const unsubscribe = onSnapshot(
       eventsQuery,
@@ -134,30 +106,19 @@ export default function CalendarScreen(): ReactElement {
     return () => unsubscribe();
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // HANDLERS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Vérifie si un événement est dans le passé
-   */
-  const isEventPast = (date: Date): boolean => {
-    return date < new Date();
-  };
-
-  /**
-   * Sauvegarde un événement (création ou modification)
-   */
   const handleSaveEvent = useCallback(async (): Promise<void> => {
     const trimmedTitle = title.trim();
 
-    if (!trimmedTitle) {
-      Alert.alert('Erreur', 'Le titre est obligatoire');
+    if (!trimmedTitle || !dateStr.trim() || !timeStr.trim()) {
+      Alert.alert('Erreur', 'Le titre, la date et l\'heure sont obligatoires');
       return;
     }
 
-    // Empêcher la création d'événements dans le passé
-    if (!editingId && selectedDate < new Date()) {
+    // Reconstitution de la date à partir des inputs textes
+    const combinedDate = new Date(`${dateStr}T${timeStr}:00`);
+
+    if (!editingId && combinedDate < new Date()) {
       Alert.alert('Action impossible', "L'événement ne peut pas être dans le passé.");
       return;
     }
@@ -165,7 +126,7 @@ export default function CalendarScreen(): ReactElement {
     const eventData = {
       title: trimmedTitle,
       type: eventType,
-      date: Timestamp.fromDate(selectedDate),
+      date: Timestamp.fromDate(combinedDate),
       location: location.trim() || (eventType === 'shift' ? 'QG' : 'À définir'),
       assignee: eventType === 'shift' ? assignee || 'À assigner' : null,
       assigneeName: eventType === 'shift' 
@@ -174,29 +135,6 @@ export default function CalendarScreen(): ReactElement {
       updatedAt: Timestamp.now(),
     };
 
-    // 3. UI INSTANTANÉE : On ferme et on vide AVANT d'envoyer
-    // C'est ça le secret : on ne bloque pas l'utilisateur
-    setModalVisible(false);
-    setTitle("");
-    setLocation("");
-
-    // 4. Envoi à Firebase en arrière-plan
-    // On n'utilise pas "await" ici pour ne pas geler l'écran si le réseau est lent
-    addDoc(collection(db, "events"), newEvent)
-      .then(() => {
-        console.log("Événement synchronisé avec le serveur !");
-      })
-      .catch((error) => {
-        console.error("Erreur d'envoi:", error);
-        Alert.alert("Oups", "Erreur lors de la sauvegarde.");
-      });
-
-    // Grâce à votre useEffect avec { includeMetadataChanges: true },
-    // l'événement apparaîtra immédiatement dans la liste (en local) !
-  };
-
-  // --- 3. FORMATAGE ---
-  const formatDate = (date: Date) => {
     try {
       if (editingId) {
         await updateDoc(doc(db, 'events', editingId), eventData);
@@ -204,7 +142,7 @@ export default function CalendarScreen(): ReactElement {
         await addDoc(collection(db, 'events'), {
           ...eventData,
           createdAt: Timestamp.now(),
-          createdBy: 'admin', // À remplacer par l'ID utilisateur réel
+          createdBy: 'admin', 
         });
       }
 
@@ -213,11 +151,8 @@ export default function CalendarScreen(): ReactElement {
       console.error('[Calendar] Erreur sauvegarde:', error);
       Alert.alert('Erreur', "Impossible de sauvegarder l'événement");
     }
-  }, [title, location, eventType, selectedDate, assignee, editingId]);
+  }, [title, location, eventType, dateStr, timeStr, assignee, editingId]);
 
-  /**
-   * Gère l'appui long sur un événement
-   */
   const handleLongPress = useCallback((item: CalendarEvent): void => {
     Alert.alert(
       "Options de l'événement",
@@ -231,7 +166,13 @@ export default function CalendarScreen(): ReactElement {
             setTitle(item.title);
             setLocation(item.location);
             setEventType(item.type);
-            setSelectedDate(item.dateObj || new Date());
+            
+            // Formatage des dates pour les inputs
+            if (item.dateObj) {
+               setDateStr(item.dateObj.toISOString().split('T')[0]);
+               setTimeStr(item.dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
+            }
+
             if ('assignee' in item && typeof (item as any).assignee === 'string') {
               setAssignee((item as any).assignee);
             }
@@ -253,96 +194,45 @@ export default function CalendarScreen(): ReactElement {
     );
   }, []);
 
-  /**
-   * Ferme le modal et réinitialise les champs
-   */
   const closeModal = useCallback((): void => {
     setModalVisible(false);
     setEditingId(null);
     setTitle('');
     setLocation('');
     setEventType('general');
-    setSelectedDate(new Date());
+    setDateStr(new Date().toISOString().split('T')[0]);
+    setTimeStr('12:00');
     setAssignee('');
-    setShowDatePicker(false);
-    setShowTimePicker(false);
   }, []);
-
-  /**
-   * Gère le changement de date
-   */
-  const handleDateChange = (_event: any, date?: Date): void => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (date) {
-      const newDate = new Date(selectedDate);
-      newDate.setFullYear(date.getFullYear());
-      newDate.setMonth(date.getMonth());
-      newDate.setDate(date.getDate());
-      setSelectedDate(newDate);
-    }
-  };
-
-  /**
-   * Gère le changement d'heure
-   */
-  const handleTimeChange = (_event: any, time?: Date): void => {
-    if (Platform.OS === 'android') setShowTimePicker(false);
-    if (time) {
-      const newDate = new Date(selectedDate);
-      newDate.setHours(time.getHours());
-      newDate.setMinutes(time.getMinutes());
-      setSelectedDate(newDate);
-    }
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FILTRAGE
-  // ═══════════════════════════════════════════════════════════════════════════
 
   const filteredEvents = events.filter((event) => {
     if (filterType === 'all') return true;
     return event.type === filterType;
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENDU
-  // ═══════════════════════════════════════════════════════════════════════════
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+      
       {/* En-tête */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+      <View className="pt-16 px-5 pb-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <Text className="text-3xl font-extrabold text-gray-900 dark:text-white">
           Agenda OJYQ
         </Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
+        <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           {events.length} événement{events.length > 1 ? 's' : ''}
         </Text>
       </View>
 
       {/* Filtres */}
-      <View style={[styles.filterContainer, { backgroundColor: colors.surface }]}>
+      <View className="px-4 py-3 bg-white dark:bg-gray-800">
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['all', 'general', 'shift'] as const).map((type) => (
             <TouchableOpacity
               key={type}
-              style={[
-                styles.filterChip,
-                {
-                  backgroundColor: filterType === type ? colors.primary : colors.backgroundSecondary,
-                },
-              ]}
+              className={`px-4 py-2 rounded-full mr-2 ${filterType === type ? 'bg-blue-600' : 'bg-gray-100 dark:bg-gray-700'}`}
               onPress={() => setFilterType(type)}
-              data-testid={`filter-${type}`}
             >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  {
-                    color: filterType === type ? '#fff' : colors.textSecondary,
-                  },
-                ]}
-              >
+              <Text className={`text-sm font-semibold ${filterType === type ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
                 {type === 'all' ? 'Tous' : type === 'general' ? 'Événements' : 'Quarts'}
               </Text>
             </TouchableOpacity>
@@ -352,267 +242,126 @@ export default function CalendarScreen(): ReactElement {
 
       {/* Liste des événements */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textTertiary }]}>
-            Chargement...
-          </Text>
+        <View className="flex-1 justify-center items-center gap-3">
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text className="text-gray-500 dark:text-gray-400">Chargement...</Text>
         </View>
       ) : filteredEvents.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={48} color={colors.textTertiary} />
-          <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-            Aucun événement
-          </Text>
-          <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
-            Appuyez sur + pour en créer un
-          </Text>
+        <View className="flex-1 justify-center items-center p-10 gap-2">
+          <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
+          <Text className="text-lg font-semibold text-gray-500 mt-2">Aucun événement</Text>
+          <Text className="text-sm text-center text-gray-400">Appuyez sur + pour en créer un</Text>
         </View>
       ) : (
         <FlatList
           data={filteredEvents}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <EventCard
-              event={item}
-              onLongPress={() => handleLongPress(item)}
-            />
+            <EventCard event={item} onLongPress={() => handleLongPress(item)} />
           )}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* FAB - Bouton d'ajout */}
+      {/* Bouton d'ajout flottant (FAB) */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
+        className="absolute right-5 bottom-8 w-14 h-14 rounded-full bg-blue-600 flex justify-center items-center shadow-lg shadow-blue-500/50"
         onPress={() => setModalVisible(true)}
         activeOpacity={0.8}
-        data-testid="add-event-fab"
       >
-        <Ionicons name="add" size={28} color="#fff" />
+        <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
 
       {/* Modal de création/édition */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={closeModal}
-      >
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          className="flex-1 bg-black/50 justify-center p-5"
         >
-          <View style={[styles.modalContent, { backgroundColor: colors.modalBackground }]}>
+          <View className="bg-white dark:bg-gray-800 rounded-3xl p-6 max-h-[85%]">
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+              
+              <Text className="text-xl font-bold text-center text-gray-900 dark:text-white mb-5">
                 {editingId ? "Modifier l'événement" : 'Nouvel Événement'}
               </Text>
 
               {/* Sélecteur de type */}
-              <View style={styles.typeSelector}>
+              <View className="flex-row gap-3 mb-5">
                 <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    {
-                      backgroundColor: eventType === 'general' ? colors.primary : colors.backgroundSecondary,
-                    },
-                  ]}
+                  className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl ${eventType === 'general' ? 'bg-blue-600' : 'bg-gray-100 dark:bg-gray-700'}`}
                   onPress={() => setEventType('general')}
-                  data-testid="type-general-btn"
                 >
-                  <Ionicons
-                    name="calendar"
-                    size={16}
-                    color={eventType === 'general' ? '#fff' : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      { color: eventType === 'general' ? '#fff' : colors.textSecondary },
-                    ]}
-                  >
+                  <Ionicons name="calendar" size={16} color={eventType === 'general' ? '#fff' : '#6B7280'} />
+                  <Text className={`font-semibold ${eventType === 'general' ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
                     Événement
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    {
-                      backgroundColor: eventType === 'shift' ? colors.eventShift : colors.backgroundSecondary,
-                    },
-                  ]}
+                  className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl ${eventType === 'shift' ? 'bg-orange-500' : 'bg-gray-100 dark:bg-gray-700'}`}
                   onPress={() => setEventType('shift')}
-                  data-testid="type-shift-btn"
                 >
-                  <Ionicons
-                    name="time"
-                    size={16}
-                    color={eventType === 'shift' ? '#fff' : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      { color: eventType === 'shift' ? '#fff' : colors.textSecondary },
-                    ]}
-                  >
-                    Quart de travail
+                  <Ionicons name="time" size={16} color={eventType === 'shift' ? '#fff' : '#6B7280'} />
+                  <Text className={`font-semibold ${eventType === 'shift' ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+                    Quart
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Titre */}
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
-                Titre *
-              </Text>
+              {/* Formulaire */}
+              <Text className="text-xs font-semibold text-gray-500 mb-1 ml-1">Titre *</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.backgroundSecondary,
-                    color: colors.textPrimary,
-                    borderColor: colors.border,
-                  },
-                ]}
+                className="border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-3 text-base mb-4"
                 placeholder="Nom de l'activité"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor="#9CA3AF"
                 value={title}
                 onChangeText={setTitle}
-                data-testid="event-title-input"
               />
 
-              {/* Date et Heure */}
-              <View style={styles.row}>
-                <View style={styles.halfInput}>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    Date
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickerButton,
-                      {
-                        backgroundColor: colors.backgroundSecondary,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      setShowTimePicker(false);
-                      setShowDatePicker(true);
-                    }}
-                    data-testid="date-picker-btn"
-                  >
-                    <Text style={{ color: colors.textPrimary }}>
-                      {selectedDate.toLocaleDateString('fr-FR')}
-                    </Text>
-                    <Ionicons name="calendar-outline" size={18} color={colors.textTertiary} />
-                  </TouchableOpacity>
+              <View className="flex-row gap-3 mb-4">
+                <View className="flex-1">
+                  <Text className="text-xs font-semibold text-gray-500 mb-1 ml-1">Date (AAAA-MM-JJ)</Text>
+                  <TextInput
+                    className="border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-3 text-base"
+                    placeholder="2026-02-28"
+                    placeholderTextColor="#9CA3AF"
+                    value={dateStr}
+                    onChangeText={setDateStr}
+                  />
                 </View>
-
-                <View style={styles.halfInput}>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    Heure
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickerButton,
-                      {
-                        backgroundColor: colors.backgroundSecondary,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      setShowDatePicker(false);
-                      setShowTimePicker(true);
-                    }}
-                    data-testid="time-picker-btn"
-                  >
-                    <Text style={{ color: colors.textPrimary }}>
-                      {selectedDate.toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                    <Ionicons name="time-outline" size={18} color={colors.textTertiary} />
-                  </TouchableOpacity>
+                <View className="flex-1">
+                  <Text className="text-xs font-semibold text-gray-500 mb-1 ml-1">Heure (HH:MM)</Text>
+                  <TextInput
+                    className="border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-3 text-base"
+                    placeholder="14:00"
+                    placeholderTextColor="#9CA3AF"
+                    value={timeStr}
+                    onChangeText={setTimeStr}
+                  />
                 </View>
               </View>
 
-              {/* Date Picker */}
-              {showDatePicker && (
-                <DateTimePicker
-                  value={selectedDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  onChange={handleDateChange}
-                  minimumDate={new Date()}
-                />
-              )}
-
-              {/* Time Picker */}
-              {showTimePicker && (
-                <DateTimePicker
-                  value={selectedDate}
-                  mode="time"
-                  is24Hour
-                  display="spinner"
-                  onChange={handleTimeChange}
-                />
-              )}
-
-              {/* Lieu */}
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
-                Lieu
-              </Text>
+              <Text className="text-xs font-semibold text-gray-500 mb-1 ml-1">Lieu</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.backgroundSecondary,
-                    color: colors.textPrimary,
-                    borderColor: colors.border,
-                  },
-                ]}
+                className="border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-3 text-base mb-4"
                 placeholder="Lieu de l'événement"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor="#9CA3AF"
                 value={location}
                 onChangeText={setLocation}
-                data-testid="event-location-input"
               />
 
-              {/* Assigné (pour les quarts) */}
               {eventType === 'shift' && (
                 <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    Assigner à
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.membersScroll}
-                  >
+                  <Text className="text-xs font-semibold text-gray-500 mb-2 ml-1">Assigner à</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
                     {MEMBERS.map((member) => (
                       <TouchableOpacity
                         key={member.id}
-                        style={[
-                          styles.memberChip,
-                          {
-                            backgroundColor:
-                              assignee === member.id ? colors.eventShift : colors.backgroundSecondary,
-                          },
-                        ]}
+                        className={`px-4 py-2 rounded-full mr-2 ${assignee === member.id ? 'bg-orange-500' : 'bg-gray-100 dark:bg-gray-700'}`}
                         onPress={() => setAssignee(member.id)}
                       >
-                        <Text
-                          style={[
-                            styles.memberChipText,
-                            {
-                              color: assignee === member.id ? '#fff' : colors.textSecondary,
-                            },
-                          ]}
-                          numberOfLines={1}
-                        >
+                        <Text className={`text-xs font-medium ${assignee === member.id ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
                           {member.name.split(' ')[0]}
                         </Text>
                       </TouchableOpacity>
@@ -621,28 +370,25 @@ export default function CalendarScreen(): ReactElement {
                 </>
               )}
 
-              {/* Boutons */}
-              <View style={styles.modalButtons}>
+              {/* Boutons d'actions */}
+              <View className="flex-row gap-3 mt-2">
                 <TouchableOpacity
                   onPress={closeModal}
-                  style={[styles.cancelButton, { borderColor: colors.border }]}
-                  data-testid="modal-cancel-btn"
+                  className="flex-1 p-3 rounded-xl border border-red-500 items-center justify-center"
                 >
-                  <Text style={[styles.cancelButtonText, { color: colors.error }]}>
-                    Annuler
-                  </Text>
+                  <Text className="text-red-500 text-base font-semibold">Annuler</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={handleSaveEvent}
-                  style={[styles.saveButton, { backgroundColor: colors.primary }]}
-                  data-testid="modal-save-btn"
+                  className="flex-1 p-3 rounded-xl bg-blue-600 items-center justify-center"
                 >
-                  <Text style={styles.saveButtonText}>
+                  <Text className="text-white text-base font-bold">
                     {editingId ? 'Mettre à jour' : 'Ajouter'}
                   </Text>
                 </TouchableOpacity>
               </View>
+
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -650,190 +396,3 @@ export default function CalendarScreen(): ReactElement {
     </View>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════════════════════════════════
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  filterContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 30,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-
-  // Styles du Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    borderRadius: 20,
-    padding: 24,
-    maxHeight: '85%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  typeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  typeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-    marginLeft: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    marginBottom: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  halfInput: {
-    flex: 1,
-  },
-  pickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  membersScroll: {
-    marginBottom: 16,
-  },
-  memberChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  memberChipText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  saveButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
