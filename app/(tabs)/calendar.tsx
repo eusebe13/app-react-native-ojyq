@@ -209,8 +209,8 @@ export default function CalendarScreen(): ReactElement {
             setLocation(item.location);
             setEventType(item.type);
             setSelectedDate(item.dateObj || new Date());
-            if ('assignee' in item) {
-              setAssignee(item.assignee || '');
+            if ('assignee' in item && typeof (item as any).assignee === 'string') {
+              setAssignee((item as any).assignee);
             }
             setModalVisible(true);
           },
