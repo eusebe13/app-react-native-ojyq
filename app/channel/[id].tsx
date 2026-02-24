@@ -319,12 +319,17 @@ export default function ChannelScreen(): ReactElement {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Rendu des bulles de message avec support des sondages
+   * Rendu des bulles de message avec support des sondages et long press
    */
   const renderBubble = (props: any): ReactElement => {
     return (
       <Bubble
         {...props}
+        onLongPress={() => {
+          if (props.currentMessage?.user?._id === currentUser._id) {
+            handleLongPress(null, props.currentMessage);
+          }
+        }}
         wrapperStyle={{
           left: {
             backgroundColor: colors.messageBubble,
