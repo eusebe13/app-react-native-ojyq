@@ -174,6 +174,29 @@ export default function CalendarScreen(): ReactElement {
       updatedAt: Timestamp.now(),
     };
 
+    // 3. UI INSTANTANÉE : On ferme et on vide AVANT d'envoyer
+    // C'est ça le secret : on ne bloque pas l'utilisateur
+    setModalVisible(false);
+    setTitle("");
+    setLocation("");
+
+    // 4. Envoi à Firebase en arrière-plan
+    // On n'utilise pas "await" ici pour ne pas geler l'écran si le réseau est lent
+    addDoc(collection(db, "events"), newEvent)
+      .then(() => {
+        console.log("Événement synchronisé avec le serveur !");
+      })
+      .catch((error) => {
+        console.error("Erreur d'envoi:", error);
+        Alert.alert("Oups", "Erreur lors de la sauvegarde.");
+      });
+
+    // Grâce à votre useEffect avec { includeMetadataChanges: true },
+    // l'événement apparaîtra immédiatement dans la liste (en local) !
+  };
+
+  // --- 3. FORMATAGE ---
+  const formatDate = (date: Date) => {
     try {
       if (editingId) {
         await updateDoc(doc(db, 'events', editingId), eventData);
@@ -435,7 +458,7 @@ export default function CalendarScreen(): ReactElement {
                       { color: eventType === 'shift' ? '#fff' : colors.textSecondary },
                     ]}
                   >
-                    Quart
+                    Quart de travail
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -707,6 +730,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
+
+  // Styles du Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
