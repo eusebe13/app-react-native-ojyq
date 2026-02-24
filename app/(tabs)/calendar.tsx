@@ -248,7 +248,7 @@ export default function CalendarScreen(): ReactElement {
   /**
    * Gère le changement de date
    */
-  const handleDateChange = (event: any, date?: Date): void => {
+  const handleDateChange = (_event: any, date?: Date): void => {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (date) {
       const newDate = new Date(selectedDate);
@@ -262,7 +262,7 @@ export default function CalendarScreen(): ReactElement {
   /**
    * Gère le changement d'heure
    */
-  const handleTimeChange = (event: any, time?: Date): void => {
+  const handleTimeChange = (_event: any, time?: Date): void => {
     if (Platform.OS === 'android') setShowTimePicker(false);
     if (time) {
       const newDate = new Date(selectedDate);
