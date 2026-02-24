@@ -12,7 +12,7 @@
  * @author OJYQ Dev Team
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, ReactElement } from 'react';
 import {
   View,
   StyleSheet,
@@ -54,7 +54,7 @@ interface ExtendedMessage extends IMessage {
 /**
  * Écran de conversation d'un canal
  */
-export default function ChannelScreen(): JSX.Element {
+export default function ChannelScreen(): ReactElement {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const navigation = useNavigation();
   const { colors, isDark } = useTheme();
@@ -321,7 +321,7 @@ export default function ChannelScreen(): JSX.Element {
   /**
    * Rendu des bulles de message avec support des sondages
    */
-  const renderBubble = (props: any): JSX.Element => {
+  const renderBubble = (props: any): ReactElement => {
     return (
       <Bubble
         {...props}
@@ -348,7 +348,7 @@ export default function ChannelScreen(): JSX.Element {
   /**
    * Rendu personnalisé pour les sondages
    */
-  const renderCustomView = (props: any): JSX.Element | null => {
+  const renderCustomView = (props: any): ReactElement | null => {
     const { currentMessage } = props;
 
     if (currentMessage.poll) {
@@ -368,7 +368,7 @@ export default function ChannelScreen(): JSX.Element {
   /**
    * Rendu des actions (bouton +)
    */
-  const renderActions = (props: any): JSX.Element => (
+  const renderActions = (props: any): ReactElement => (
     <Actions
       {...props}
       options={{
@@ -388,7 +388,7 @@ export default function ChannelScreen(): JSX.Element {
   /**
    * Rendu du bouton d'envoi
    */
-  const renderSend = (props: any): JSX.Element => (
+  const renderSend = (props: any): ReactElement => (
     <Send {...props} containerStyle={styles.sendContainer}>
       <View style={[styles.sendButton, { backgroundColor: colors.primary }]}>
         <Ionicons name="send" size={18} color="#fff" />
@@ -399,7 +399,7 @@ export default function ChannelScreen(): JSX.Element {
   /**
    * Rendu de la barre d'input
    */
-  const renderInputToolbar = (props: any): JSX.Element => (
+  const renderInputToolbar = (props: any): ReactElement => (
     <InputToolbar
       {...props}
       containerStyle={[
