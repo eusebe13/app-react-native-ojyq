@@ -277,14 +277,22 @@ class OJYQTester:
             with open(config_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 
-            # Vérifier les credentials fournis
-            required_fields = [
-                "apiKey: \"AIzaSyCG5BvCYM0jIRtWh55wCjjn1tjTK0T481Y\"",
-                "projectId: \"ojyq-ec4e3\"", 
-                "authDomain: \"ojyq-ec4e3.firebaseapp.com\""
+            # Vérifier que la configuration utilise bien les variables d'environnement
+            required_patterns = [
+                "process.env.EXPO_PUBLIC_FIREBASE_API_KEY",
+                "process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID", 
+                "process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"
             ]
             
-            config_ok = all(field in content for field in required_fields)
+            config_ok = all(pattern in content for pattern in required_patterns)
+            
+            # Vérifier aussi le fichier .env
+            env_path = os.path.join(self.project_root, ".env")
+            if os.path.exists(env_path):
+                with open(env_path, 'r', encoding='utf-8') as env_file:
+                    env_content = env_file.read()
+                    env_ok = "EXPO_PUBLIC_FIREBASE_API_KEY=AIzaSyCG5BvCYM0jIRtWh55wCjjn1tjTK0T481Y" in env_content
+                    config_ok = config_ok and env_ok
             
             if config_ok:
                 self.log_test("Firebase Config", True, "Configuration Firebase correcte")
