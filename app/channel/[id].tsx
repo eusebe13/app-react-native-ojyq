@@ -424,6 +424,7 @@ export default function ChannelScreen(): ReactElement {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* @ts-expect-error GiftedChat props types issue with this version */}
       <GiftedChat
         messages={messages}
         onSend={onSend}
