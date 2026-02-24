@@ -10,7 +10,7 @@
  * @author OJYQ Dev Team
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, ReactElement } from 'react';
 import {
   View,
   Text,
@@ -45,7 +45,7 @@ import { ChannelItem } from '../../components/chat/ChannelItem';
 /**
  * Écran principal de la liste des discussions
  */
-export default function ChatListScreen(): JSX.Element {
+export default function ChatListScreen(): ReactElement {
   const router = useRouter();
   const { colors, isDark } = useTheme();
 

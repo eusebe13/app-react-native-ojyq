@@ -14,7 +14,7 @@
  * @author OJYQ Dev Team
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, ReactElement } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import {
   Platform,
   ScrollView,
   KeyboardAvoidingView,
+  NativeSyntheticEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -75,7 +76,7 @@ const MEMBERS = [
 /**
  * Écran principal du calendrier
  */
-export default function CalendarScreen(): JSX.Element {
+export default function CalendarScreen(): ReactElement {
   const { colors, isDark } = useTheme();
 
   // ═══════════════════════════════════════════════════════════════════════════
