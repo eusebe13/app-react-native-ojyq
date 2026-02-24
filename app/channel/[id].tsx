@@ -422,40 +422,42 @@ export default function ChannelScreen(): ReactElement {
   // RENDU PRINCIPAL
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // Props pour GiftedChat avec types étendus
+  const chatProps = {
+    messages,
+    onSend,
+    user: currentUser,
+    renderBubble,
+    renderCustomView,
+    renderActions,
+    renderSend,
+    renderInputToolbar,
+    placeholder: "Écrivez un message...",
+    alwaysShowSend: true,
+    scrollToBottom: true,
+    scrollToBottomComponent: () => (
+      <Ionicons name="chevron-down" size={24} color={colors.primary} />
+    ),
+    timeTextStyle: {
+      left: { color: colors.textTertiary },
+      right: { color: 'rgba(255,255,255,0.7)' },
+    },
+    textInputStyle: {
+      color: colors.textPrimary,
+      backgroundColor: colors.backgroundSecondary,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingTop: Platform.OS === 'ios' ? 10 : 8,
+      marginRight: 8,
+    },
+    textInputProps: {
+      placeholderTextColor: colors.textTertiary,
+    },
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* @ts-expect-error GiftedChat props types issue with this version */}
-      <GiftedChat
-        messages={messages}
-        onSend={onSend}
-        user={currentUser}
-        renderBubble={renderBubble}
-        renderCustomView={renderCustomView}
-        renderActions={renderActions}
-        renderSend={renderSend}
-        renderInputToolbar={renderInputToolbar}
-        placeholder="Écrivez un message..."
-        alwaysShowSend
-        scrollToBottom
-        scrollToBottomComponent={() => (
-          <Ionicons name="chevron-down" size={24} color={colors.primary} />
-        )}
-        timeTextStyle={{
-          left: { color: colors.textTertiary },
-          right: { color: 'rgba(255,255,255,0.7)' },
-        }}
-        textInputStyle={{
-          color: colors.textPrimary,
-          backgroundColor: colors.backgroundSecondary,
-          borderRadius: 20,
-          paddingHorizontal: 12,
-          paddingTop: Platform.OS === 'ios' ? 10 : 8,
-          marginRight: 8,
-        }}
-        textInputProps={{
-          placeholderTextColor: colors.textTertiary,
-        }}
-      />
+      <GiftedChat {...chatProps as any} />
 
       {/* Info WebRTC */}
       {Platform.OS === 'ios' && (
