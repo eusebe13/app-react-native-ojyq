@@ -433,7 +433,6 @@ export default function ChannelScreen(): ReactElement {
         renderActions={renderActions}
         renderSend={renderSend}
         renderInputToolbar={renderInputToolbar}
-        onLongPress={(context: any, message: IMessage) => handleLongPress(context, message)}
         renderUsernameOnMessage
         placeholder="Écrivez un message..."
         alwaysShowSend
