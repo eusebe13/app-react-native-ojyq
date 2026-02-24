@@ -104,11 +104,11 @@ export const EventCard: React.FC<EventCardProps> = ({
         </View>
 
         {/* Assigné (pour les quarts) */}
-        {isShift && 'assigneeName' in event && event.assigneeName && (
+        {isShift && 'assigneeName' in event && (event as any).assigneeName && (
           <View style={styles.assigneeRow}>
             <Ionicons name="person-outline" size={12} color={colors.eventShift} />
             <Text style={[styles.assigneeText, { color: colors.eventShift }]}>
-              {event.assigneeName}
+              {(event as any).assigneeName}
             </Text>
           </View>
         )}
