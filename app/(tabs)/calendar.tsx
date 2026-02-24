@@ -1,19 +1,36 @@
-import React, { useState, useEffect } from "react";
+/**
+ * CalendarScreen - Agenda OJYQ
+ * 
+ * Vue unifiée affichant:
+ * - Événements généraux
+ * - Quarts de travail (Shifts)
+ * 
+ * Fonctionnalités:
+ * - Mode Administrateur (création/modification/suppression)
+ * - Distinction visuelle événement/quart
+ * - Fonctionnement optimiste (sync Firestore)
+ * 
+ * @module Calendar
+ * @author OJYQ Dev Team
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
   View,
+  Text,
+  FlatList,
   TouchableOpacity,
-  ActivityIndicator,
+  TextInput,
   Modal,
   Alert,
-  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
   Platform,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+  ScrollView,
+  KeyboardAvoidingView,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   collection,
   addDoc,
@@ -24,288 +41,397 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-} from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+} from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
+import { useTheme } from '../../hooks/useTheme';
+import { CalendarEvent, EventType, eventFromFirestore } from '../../types/models';
+import { EventCard } from '../../components/calendar/EventCard';
 
-export default function FirebaseCalendarScreen() {
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+// Liste des membres pour l'assignation des quarts
+const MEMBERS = [
+  { id: 'cyrille', name: 'Cyrille Ndungo Kamabu' },
+  { id: 'eusebe', name: 'Eusèbe Hangi Kisoni' },
+  { id: 'givia', name: 'Givia Kavira Tumbura' },
+  { id: 'christian', name: 'Christian Kasereka Ngavo' },
+  { id: 'rose', name: 'Rose Ajabu Nzanzu' },
+  { id: 'robert', name: 'Robert Nzanzu' },
+  { id: 'precieuse', name: 'Précieuse Masika Vindu' },
+  { id: 'peguy', name: 'Péguy K. Tumbura' },
+  { id: 'maggie', name: 'Maggie Tumbura' },
+  { id: 'aurelie', name: 'Aurélie Kavira Kawaya' },
+  { id: 'anitha', name: 'Anitha Furaha Vindu' },
+  { id: 'ghislaine', name: 'Ghislaine Malyabo Vyavuwa' },
+  { id: 'lumiere', name: 'Lumière K. Vitsange' },
+  { id: 'annie', name: 'Sikiminywa Annie Kavugho' },
+  { id: 'prince', name: 'Mumbere Prince Kahanga' },
+  { id: 'ushindi', name: 'Ushindi Sahani Kambale' },
+  { id: 'samuel', name: 'Lwanzo Nzoli Samuel' },
+  { id: 'jacquiline', name: 'Jacquiline Mwenge Katungu' },
+  { id: 'neige', name: 'Neige Hangi' },
+  { id: 'lea', name: 'Kavhugho Wahemukire Lea' },
+  { id: 'linda', name: 'Linda Muzibaziba' },
+];
 
-  // États pour le Modal et le Formulaire
-  const [modalVisible, setModalVisible] = useState(false);
+/**
+ * Écran principal du calendrier
+ */
+export default function CalendarScreen(): JSX.Element {
+  const { colors, isDark } = useTheme();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ÉTATS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [isShiftMode, setIsShiftMode] = useState(false);
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const onChangeDate = (event, selectedDate) => {
+  // Champs du formulaire
+  const [title, setTitle] = useState<string>('');
+  const [location, setLocation] = useState<string>('');
+  const [eventType, setEventType] = useState<EventType>('general');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [assignee, setAssignee] = useState<string>('');
 
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    
-    if (selectedDate) {
-      const currentDate = new Date(date);
-      currentDate.setFullYear(selectedDate.getFullYear());
-      currentDate.setMonth(selectedDate.getMonth());
-      currentDate.setDate(selectedDate.getDate());
-      setDate(currentDate);
-    }
-  };
+  // Pickers
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
 
-  const onChangeTime = (event, selectedTime) => {
-    if (Platform.OS === 'android') setShowTimePicker(false);
+  // Filtre
+  const [filterType, setFilterType] = useState<'all' | EventType>('all');
 
-    if (selectedTime) {
-      const currentTime = new Date(date);
-      currentTime.setHours(selectedTime.getHours());
-      currentTime.setMinutes(selectedTime.getMinutes());
-      setDate(currentTime);
-    }
-  };
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EFFETS - Chargement des événements depuis Firestore
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // --- OPTIMISATION DES PICKERS (iOS focus) ---
-const openDatePicker = () => {
-  setShowTimePicker(false);
-  setShowDatePicker(true);
-};
-
-const openTimePicker = () => {
-  setShowDatePicker(false);
-  setShowTimePicker(true);
-};
-
-  // --- 1. ÉCOUTER LES DONNÉES ---
   useEffect(() => {
-    const q = query(collection(db, "events"), orderBy("date", "asc"));
+    /**
+     * Écoute en temps réel avec gestion du cache optimiste.
+     * includeMetadataChanges permet de détecter les écritures en attente.
+     */
+    const eventsQuery = query(
+      collection(db, 'events'),
+      orderBy('date', 'asc')
+    );
+
     const unsubscribe = onSnapshot(
-      q,
+      eventsQuery,
       { includeMetadataChanges: true },
       (snapshot) => {
-        const fetchedEvents = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            dateObj: data.date ? data.date.toDate() : new Date(),
-            pending: doc.metadata.hasPendingWrites,
-          };
-        });
+        const fetchedEvents = snapshot.docs.map(eventFromFirestore);
         setEvents(fetchedEvents);
         setLoading(false);
       },
+      (error) => {
+        console.error('[Calendar] Erreur Firestore:', error);
+        setLoading(false);
+        Alert.alert('Erreur', 'Impossible de charger les événements');
+      }
     );
+
     return () => unsubscribe();
   }, []);
 
-  // --- 2. LOGIQUE DE DATE PASSÉE ---
-  const isEventPast = (date: Date) => {
-    const now = new Date();
-    return date < now;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Vérifie si un événement est dans le passé
+   */
+  const isEventPast = (date: Date): boolean => {
+    return date < new Date();
   };
 
-  // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
-  const handleSaveEvent = async () => {
-    if (!title.trim()) {
-      Alert.alert("Erreur", "Le titre est obligatoire");
+  /**
+   * Sauvegarde un événement (création ou modification)
+   */
+  const handleSaveEvent = useCallback(async (): Promise<void> => {
+    const trimmedTitle = title.trim();
+
+    if (!trimmedTitle) {
+      Alert.alert('Erreur', 'Le titre est obligatoire');
       return;
     }
 
-    // On utilise directement l'objet 'date' qui contient tout (jour + heure)
-    if (!editingId && date < new Date()) {
-      Alert.alert("Action impossible", "L'événement est dans le passé.");
+    // Empêcher la création d'événements dans le passé
+    if (!editingId && selectedDate < new Date()) {
+      Alert.alert('Action impossible', "L'événement ne peut pas être dans le passé.");
       return;
     }
 
     const eventData = {
-      title: title,
-      type: isShiftMode ? "Shift" : "General",
-      date: Timestamp.fromDate(date), // On utilise l'objet Date directement ici
-      location: location || (isShiftMode ? "QG" : "À définir"),
-      assignee: isShiftMode ? "À assigner" : null,
+      title: trimmedTitle,
+      type: eventType,
+      date: Timestamp.fromDate(selectedDate),
+      location: location.trim() || (eventType === 'shift' ? 'QG' : 'À définir'),
+      assignee: eventType === 'shift' ? assignee || 'À assigner' : null,
+      assigneeName: eventType === 'shift' 
+        ? MEMBERS.find(m => m.id === assignee)?.name || 'À assigner'
+        : null,
+      updatedAt: Timestamp.now(),
     };
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, "events", editingId), eventData);
+        await updateDoc(doc(db, 'events', editingId), eventData);
       } else {
-        await addDoc(collection(db, "events"), eventData);
+        await addDoc(collection(db, 'events'), {
+          ...eventData,
+          createdAt: Timestamp.now(),
+          createdBy: 'admin', // À remplacer par l'ID utilisateur réel
+        });
       }
+
       closeModal();
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de sauvegarder.");
+      console.error('[Calendar] Erreur sauvegarde:', error);
+      Alert.alert('Erreur', "Impossible de sauvegarder l'événement");
+    }
+  }, [title, location, eventType, selectedDate, assignee, editingId]);
+
+  /**
+   * Gère l'appui long sur un événement
+   */
+  const handleLongPress = useCallback((item: CalendarEvent): void => {
+    Alert.alert(
+      "Options de l'événement",
+      `Que souhaitez-vous faire pour "${item.title}" ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Modifier',
+          onPress: () => {
+            setEditingId(item.id);
+            setTitle(item.title);
+            setLocation(item.location);
+            setEventType(item.type);
+            setSelectedDate(item.dateObj || new Date());
+            if ('assignee' in item) {
+              setAssignee(item.assignee || '');
+            }
+            setModalVisible(true);
+          },
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'events', item.id));
+            } catch (error) {
+              Alert.alert('Erreur', "Impossible de supprimer l'événement");
+            }
+          },
+        },
+      ]
+    );
+  }, []);
+
+  /**
+   * Ferme le modal et réinitialise les champs
+   */
+  const closeModal = useCallback((): void => {
+    setModalVisible(false);
+    setEditingId(null);
+    setTitle('');
+    setLocation('');
+    setEventType('general');
+    setSelectedDate(new Date());
+    setAssignee('');
+    setShowDatePicker(false);
+    setShowTimePicker(false);
+  }, []);
+
+  /**
+   * Gère le changement de date
+   */
+  const handleDateChange = (event: any, date?: Date): void => {
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (date) {
+      const newDate = new Date(selectedDate);
+      newDate.setFullYear(date.getFullYear());
+      newDate.setMonth(date.getMonth());
+      newDate.setDate(date.getDate());
+      setSelectedDate(newDate);
     }
   };
 
-  // N'oubliez pas de mettre à jour closeModal pour réinitialiser la date
-  const closeModal = () => {
-    setModalVisible(false);
-    setEditingId(null);
-    setTitle("");
-    setLocation("");
-    setDate(new Date()); // Réinitialise à maintenant
+  /**
+   * Gère le changement d'heure
+   */
+  const handleTimeChange = (event: any, time?: Date): void => {
+    if (Platform.OS === 'android') setShowTimePicker(false);
+    if (time) {
+      const newDate = new Date(selectedDate);
+      newDate.setHours(time.getHours());
+      newDate.setMinutes(time.getMinutes());
+      setSelectedDate(newDate);
+    }
   };
 
-  // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
-  const handleLongPress = (item: any) => {
-  Alert.alert(
-    "Options de l'événement",
-    `Que souhaitez-vous faire pour "${item.title}" ?`,
-    [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Modifier",
-        onPress: () => {
-          setEditingId(item.id);
-          setTitle(item.title);
-          setLocation(item.location);
-          setIsShiftMode(item.type === "Shift");
-          
-          // On met à jour l'objet date directement
-          setDate(item.dateObj); 
-          
-          setModalVisible(true);
-        },
-      },
-      {
-        text: "Supprimer",
-        style: "destructive",
-        onPress: async () => {
-          await deleteDoc(doc(db, "events", item.id));
-        },
-      },
-    ]
-  );
-};
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FILTRAGE
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // --- 5. FORMATAGE ---
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-  };
+  const filteredEvents = events.filter((event) => {
+    if (filterType === 'all') return true;
+    return event.type === filterType;
+  });
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("fr-FR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDU
+  // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Agenda OJYQ</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* En-tête */}
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          Agenda OJYQ
+        </Text>
+        <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
+          {events.length} événement{events.length > 1 ? 's' : ''}
+        </Text>
       </View>
 
+      {/* Filtres */}
+      <View style={[styles.filterContainer, { backgroundColor: colors.surface }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {(['all', 'general', 'shift'] as const).map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: filterType === type ? colors.primary : colors.backgroundSecondary,
+                },
+              ]}
+              onPress={() => setFilterType(type)}
+              data-testid={`filter-${type}`}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: filterType === type ? '#fff' : colors.textSecondary,
+                  },
+                ]}
+              >
+                {type === 'all' ? 'Tous' : type === 'general' ? 'Événements' : 'Quarts'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Liste des événements */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textTertiary }]}>
+            Chargement...
+          </Text>
+        </View>
+      ) : filteredEvents.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="calendar-outline" size={48} color={colors.textTertiary} />
+          <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+            Aucun événement
+          </Text>
+          <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
+            Appuyez sur + pour en créer un
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={events}
+          data={filteredEvents}
           keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <EventCard
+              event={item}
+              onLongPress={() => handleLongPress(item)}
+            />
+          )}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => {
-            const past = isEventPast(item.dateObj);
-            return (
-              <TouchableOpacity
-                onLongPress={() => handleLongPress(item)}
-                delayLongPress={500}
-                style={[
-                  styles.eventCard,
-                  {
-                    borderLeftColor:
-                      item.type === "Shift" ? "#FF9500" : "#007AFF",
-                  },
-                  past && styles.pastEventCard,
-                  { opacity: item.pending ? 0.6 : 1 },
-                ]}
-              >
-                <View style={styles.dateContainer}>
-                  <Text style={[styles.dateText, past && styles.pastText]}>
-                    {formatDate(item.dateObj)}
-                  </Text>
-                  <Text style={styles.timeText}>
-                    {formatTime(item.dateObj)}
-                  </Text>
-                </View>
-
-                <View style={styles.contentContainer}>
-                  <Text style={[styles.eventTitle, past && styles.pastText]}>
-                    {item.title} {past && "(Terminé)"}
-                  </Text>
-                  <View style={styles.detailsRow}>
-                    <Text
-                      style={[
-                        styles.eventType,
-                        {
-                          color: past
-                            ? "#888"
-                            : item.type === "Shift"
-                              ? "#FF9500"
-                              : "#007AFF",
-                        },
-                      ]}
-                    >
-                      {item.type === "Shift" ? "QUART" : "ÉVÉNEMENT"}
-                    </Text>
-                    {item.location && (
-                      <Text style={styles.locationText}>
-                        📍 {item.location}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
+          showsVerticalScrollIndicator={false}
         />
       )}
 
+      {/* FAB - Bouton d'ajout */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() => setModalVisible(true)}
+        activeOpacity={0.8}
+        data-testid="add-event-fab"
       >
-        <Ionicons name="add" size={30} color="white" />
+        <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>
-              {editingId ? "Modifier l'événement" : "Nouvel Événement"}
-            </Text>
-            <ScrollView style={{ width: "100%" }}>
-              {/* Type Selector */}
+      {/* Modal de création/édition */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.modalBackground }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+                {editingId ? "Modifier l'événement" : 'Nouvel Événement'}
+              </Text>
+
+              {/* Sélecteur de type */}
               <View style={styles.typeSelector}>
                 <TouchableOpacity
                   style={[
                     styles.typeButton,
-                    !isShiftMode && styles.typeButtonActive,
+                    {
+                      backgroundColor: eventType === 'general' ? colors.primary : colors.backgroundSecondary,
+                    },
                   ]}
-                  onPress={() => setIsShiftMode(false)}
+                  onPress={() => setEventType('general')}
+                  data-testid="type-general-btn"
                 >
+                  <Ionicons
+                    name="calendar"
+                    size={16}
+                    color={eventType === 'general' ? '#fff' : colors.textSecondary}
+                  />
                   <Text
                     style={[
-                      styles.typeText,
-                      !isShiftMode && styles.typeTextActive,
+                      styles.typeButtonText,
+                      { color: eventType === 'general' ? '#fff' : colors.textSecondary },
                     ]}
                   >
-                    Général
+                    Événement
                   </Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   style={[
                     styles.typeButton,
-                    isShiftMode && styles.typeButtonActiveShift,
+                    {
+                      backgroundColor: eventType === 'shift' ? colors.eventShift : colors.backgroundSecondary,
+                    },
                   ]}
-                  onPress={() => setIsShiftMode(true)}
+                  onPress={() => setEventType('shift')}
+                  data-testid="type-shift-btn"
                 >
+                  <Ionicons
+                    name="time"
+                    size={16}
+                    color={eventType === 'shift' ? '#fff' : colors.textSecondary}
+                  />
                   <Text
                     style={[
-                      styles.typeText,
-                      isShiftMode && styles.typeTextActive,
+                      styles.typeButtonText,
+                      { color: eventType === 'shift' ? '#fff' : colors.textSecondary },
                     ]}
                   >
                     Quart
@@ -313,236 +439,375 @@ const openTimePicker = () => {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.label}>Titre</Text>
+              {/* Titre */}
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Titre *
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.backgroundSecondary,
+                    color: colors.textPrimary,
+                    borderColor: colors.border,
+                  },
+                ]}
+                placeholder="Nom de l'activité"
+                placeholderTextColor={colors.textTertiary}
                 value={title}
                 onChangeText={setTitle}
-                placeholder="Nom de l'activité"
+                data-testid="event-title-input"
               />
 
+              {/* Date et Heure */}
               <View style={styles.row}>
-                {/* Sélecteur de DATE */}
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={styles.label}>Date</Text>
+                <View style={styles.halfInput}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    Date
+                  </Text>
                   <TouchableOpacity
-                    style={styles.inputPicker}
-                    onPress={openDatePicker}
+                    style={[
+                      styles.pickerButton,
+                      {
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      setShowTimePicker(false);
+                      setShowDatePicker(true);
+                    }}
+                    data-testid="date-picker-btn"
                   >
-                    <Text>{date.toLocaleDateString("fr-FR")}</Text>
-                    <Ionicons name="calendar-outline" size={18} color="#666" />
+                    <Text style={{ color: colors.textPrimary }}>
+                      {selectedDate.toLocaleDateString('fr-FR')}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={18} color={colors.textTertiary} />
                   </TouchableOpacity>
-
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "inline" : "default"}
-                      onChange={onChangeDate}
-                      minimumDate={new Date()} // Empêche de choisir une date passée
-                    />
-                  )}
                 </View>
 
-                {/* Sélecteur d'HEURE */}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Heure</Text>
+                <View style={styles.halfInput}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    Heure
+                  </Text>
                   <TouchableOpacity
-                    style={styles.inputPicker}
-                    onPress={openTimePicker}
+                    style={[
+                      styles.pickerButton,
+                      {
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      setShowDatePicker(false);
+                      setShowTimePicker(true);
+                    }}
+                    data-testid="time-picker-btn"
                   >
-                    <Text>
-                      {date.toLocaleTimeString("fr-FR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
+                    <Text style={{ color: colors.textPrimary }}>
+                      {selectedDate.toLocaleTimeString('fr-FR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
                       })}
                     </Text>
-                    <Ionicons name="time-outline" size={18} color="#666" />
+                    <Ionicons name="time-outline" size={18} color={colors.textTertiary} />
                   </TouchableOpacity>
-
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode="time"
-                      is24Hour={true}
-                      display="spinner" // Sélection défilante
-                      onChange={onChangeTime}
-                    />
-                  )}
                 </View>
               </View>
 
-              <Text style={styles.label}>Lieu</Text>
+              {/* Date Picker */}
+              {showDatePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                />
+              )}
+
+              {/* Time Picker */}
+              {showTimePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="time"
+                  is24Hour
+                  display="spinner"
+                  onChange={handleTimeChange}
+                />
+              )}
+
+              {/* Lieu */}
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Lieu
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.backgroundSecondary,
+                    color: colors.textPrimary,
+                    borderColor: colors.border,
+                  },
+                ]}
+                placeholder="Lieu de l'événement"
+                placeholderTextColor={colors.textTertiary}
                 value={location}
                 onChangeText={setLocation}
-                placeholder="Lieu"
+                data-testid="event-location-input"
               />
-            </ScrollView>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={closeModal}
-                style={styles.buttonCancel}
-              >
-                <Text style={styles.textCancel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSaveEvent}
-                style={styles.buttonSave}
-              >
-                <Text style={styles.textSave}>
-                  {editingId ? "Mettre à jour" : "Ajouter"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+              {/* Assigné (pour les quarts) */}
+              {eventType === 'shift' && (
+                <>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    Assigner à
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.membersScroll}
+                  >
+                    {MEMBERS.map((member) => (
+                      <TouchableOpacity
+                        key={member.id}
+                        style={[
+                          styles.memberChip,
+                          {
+                            backgroundColor:
+                              assignee === member.id ? colors.eventShift : colors.backgroundSecondary,
+                          },
+                        ]}
+                        onPress={() => setAssignee(member.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.memberChipText,
+                            {
+                              color: assignee === member.id ? '#fff' : colors.textSecondary,
+                            },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {member.name.split(' ')[0]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Boutons */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  onPress={closeModal}
+                  style={[styles.cancelButton, { borderColor: colors.border }]}
+                  data-testid="modal-cancel-btn"
+                >
+                  <Text style={[styles.cancelButtonText, { color: colors.error }]}>
+                    Annuler
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleSaveEvent}
+                  style={[styles.saveButton, { backgroundColor: colors.primary }]}
+                  data-testid="modal-save-btn"
+                >
+                  <Text style={styles.saveButtonText}>
+                    {editingId ? 'Mettre à jour' : 'Ajouter'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
-};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f9f9f9" },
+  container: {
+    flex: 1,
+  },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingHorizontal: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    paddingBottom: 12,
   },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
-  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  listContent: { padding: 16, paddingBottom: 100 },
-  eventCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-    borderLeftWidth: 5,
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: '800',
   },
-  pastEventCard: { backgroundColor: "#f0f0f0", borderLeftColor: "#ccc" }, // Style grisé
-  pastText: { color: "#888", textDecorationLine: "none" },
-  dateContainer: {
-    marginRight: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRightWidth: 1,
-    borderRightColor: "#eee",
-    paddingRight: 15,
-    minWidth: 60,
+  headerSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
   },
-  dateText: { fontSize: 15, fontWeight: "bold", color: "#333" },
-  timeText: { fontSize: 12, color: "#888", marginTop: 4 },
-  contentContainer: { flex: 1, justifyContent: "center" },
-  eventTitle: {
+  filterContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    gap: 8,
+  },
+  emptyText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    fontWeight: '600',
+    marginTop: 8,
   },
-  detailsRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  eventType: {
-    fontSize: 10,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    marginRight: 10,
+  emptySubtext: {
+    fontSize: 13,
+    textAlign: 'center',
   },
-  locationText: { fontSize: 12, color: "#666" },
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
   fab: {
-    position: "absolute",
+    position: 'absolute',
     right: 20,
     bottom: 30,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#007AFF",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
   },
-  modalView: {
-    width: "90%",
-    backgroundColor: "white",
+  modalContent: {
     borderRadius: 20,
-    padding: 25,
-    alignItems: "center",
+    padding: 24,
+    maxHeight: '85%',
   },
-  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 20 },
-  label: {
-    alignSelf: "flex-start",
-    color: "#666",
-    marginBottom: 5,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  input: {
-    width: "100%",
-    height: 45,
-    borderColor: "#ddd",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#f9f9f9",
-  },
-  row: { flexDirection: "row", width: "100%", justifyContent: "space-between" },
-  typeSelector: {
-    flexDirection: "row",
-    width: "100%",
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
     marginBottom: 20,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    padding: 4,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
   },
   typeButton: {
     flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  typeButtonActive: { backgroundColor: "#fff", elevation: 1 },
-  typeButtonActiveShift: { backgroundColor: "#fff", elevation: 1 },
-  typeText: { fontSize: 14, color: "#666" },
-  typeTextActive: { color: "#000", fontWeight: "bold" },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 10,
+  typeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
-  buttonCancel: { flex: 1, padding: 12, marginRight: 10, alignItems: "center" },
-  buttonSave: {
-    flex: 1,
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    padding: 12,
-    alignItems: "center",
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 4,
   },
-  textCancel: { color: "red", fontWeight: "600" },
-  textSave: { color: "white", fontWeight: "bold" },
-  inputPicker: {
-    width: "100%",
-    height: 45,
-    borderColor: "#ddd",
+  input: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#f9f9f9",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    marginBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfInput: {
+    flex: 1,
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  membersScroll: {
+    marginBottom: 16,
+  },
+  memberChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  memberChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  saveButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
