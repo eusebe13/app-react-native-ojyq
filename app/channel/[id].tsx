@@ -428,14 +428,14 @@ export default function ChannelScreen(): ReactElement {
         renderActions={renderActions}
         renderSend={renderSend}
         renderInputToolbar={renderInputToolbar}
-        onLongPress={handleLongPress}
+        onLongPress={(context: any, message: IMessage) => handleLongPress(context, message)}
         renderUsernameOnMessage
         placeholder="Écrivez un message..."
         alwaysShowSend
         scrollToBottom
         scrollToBottomComponent={() => (
           <Ionicons name="chevron-down" size={24} color={colors.primary} />
-        )}
+        )}}
         timeTextStyle={{
           left: { color: colors.textTertiary },
           right: { color: 'rgba(255,255,255,0.7)' },
