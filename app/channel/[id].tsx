@@ -433,7 +433,6 @@ export default function ChannelScreen(): ReactElement {
         renderActions={renderActions}
         renderSend={renderSend}
         renderInputToolbar={renderInputToolbar}
-        showUserAvatar
         placeholder="Écrivez un message..."
         alwaysShowSend
         scrollToBottom
