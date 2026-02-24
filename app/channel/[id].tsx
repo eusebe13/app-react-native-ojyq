@@ -435,7 +435,7 @@ export default function ChannelScreen(): ReactElement {
         scrollToBottom
         scrollToBottomComponent={() => (
           <Ionicons name="chevron-down" size={24} color={colors.primary} />
-        )}}
+        )}
         timeTextStyle={{
           left: { color: colors.textTertiary },
           right: { color: 'rgba(255,255,255,0.7)' },
