@@ -1,42 +1,40 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useNavigation } from "expo-router";
+import { getAuth } from "firebase/auth";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
 import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
   ReactElement,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
 } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
   FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
   useColorScheme,
-  Image,
-  ActivityIndicator,
-  SafeAreaView,
-  Modal,
-  PermissionsAndroid,
+  View,
 } from "react-native";
-import { useLocalSearchParams, useNavigation } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import {
-  collection,
-  addDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  doc,
-  deleteDoc,
-  updateDoc,
-  Timestamp,
-} from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import * as ImagePicker from "expo-image-picker";
 import { db } from "../../firebaseConfig";
 import { Message, Poll } from "../../types/models";
 /**import { 
@@ -45,7 +43,6 @@ import { Message, Poll } from "../../types/models";
   ClientRoleType, 
   RtcSurfaceView 
 } from '../../components/chat/agora';*/
-import type { IRtcEngine } from "react-native-agora";
 
 // Utilisation de la variable d'environnement (assure-toi qu'elle est dans ton fichier .env)
 const AGORA_APP_ID = process.env.EXPO_PUBLIC_AGORA_APP_ID || "";
@@ -106,14 +103,14 @@ export default function ChannelScreen(): ReactElement {
   const [isJoined, setIsJoined] = useState(false);
   const [remoteUid, setRemoteUid] = useState<number>(0);*/
 
-// Utilisateur courant
+  // Utilisateur courant
   const auth = getAuth();
   const user = auth.currentUser;
-  
-  const currentUser = { 
-    _id: user?.uid || "anonyme", 
-    name: user?.displayName || user?.email?.split('@')[0] || "Utilisateur",
-    avatar: user?.photoURL || null // 🟢 CORRECTION ICI : null au lieu de undefined
+
+  const currentUser = {
+    _id: user?.uid || "anonyme",
+    name: user?.displayName || user?.email?.split("@")[0] || "Utilisateur",
+    avatar: user?.photoURL || null, // 🟢 CORRECTION ICI : null au lieu de undefined
   };
 
   const bg = dark ? C.gray900 : C.gray50;
@@ -152,10 +149,10 @@ export default function ChannelScreen(): ReactElement {
     async (text?: string, imageUri?: string) => {
       const content = (text ?? inputText).trim();
       if ((!content && !imageUri) || !id) return;
-      
+
       setSending(true);
       setInputText("");
-      
+
       try {
         await addDoc(collection(db, "channels", id, "messages"), {
           text: content,
@@ -163,14 +160,14 @@ export default function ChannelScreen(): ReactElement {
           user: currentUser, // Utilise le currentUser avec le "null"
           image: imageUri || null,
         });
-        
+
         await updateDoc(doc(db, "channels", id), {
           lastMessage: content || "Photo",
           lastMessageAt: Timestamp.now(),
         });
       } catch (error) {
         // 🟢 AJOUT : Ceci t'affichera la VRAIE erreur dans ton terminal
-        console.error("Erreur Firestore lors de l'envoi :", error); 
+        console.error("Erreur Firestore lors de l'envoi :", error);
         Alert.alert("Erreur", "Message non envoyé");
         setInputText(content);
       } finally {
@@ -586,7 +583,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === "android" ? 14 : 10,
+    paddingBottom: Platform.OS === "android" ? 45 : 10,
   },
   inputAction: {
     width: 38,
