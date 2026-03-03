@@ -1,143 +1,548 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from "react";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  Alert,
+  ScrollView,
+  Platform,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from "firebase/firestore";
+import { db } from "../../firebaseConfig";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function FirebaseCalendarScreen() {
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const events = [
-  { id: '1', title: 'Meeting with Team', time: '10:00 AM' },
-  { id: '2', title: 'Lunch with Client', time: '1:00 PM' },
-  { id: '3', title: 'Project Deadline', time: '5:00 PM' },
-];
+  // États pour le Modal et le Formulaire
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [location, setLocation] = useState("");
+  const [isShiftMode, setIsShiftMode] = useState(false);
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-export default function TabTwoScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+  const onChangeDate = (event, selectedDate) => {
+
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    
+    if (selectedDate) {
+      const currentDate = new Date(date);
+      currentDate.setFullYear(selectedDate.getFullYear());
+      currentDate.setMonth(selectedDate.getMonth());
+      currentDate.setDate(selectedDate.getDate());
+      setDate(currentDate);
+    }
+  };
+
+  const onChangeTime = (event, selectedTime) => {
+    if (Platform.OS === 'android') setShowTimePicker(false);
+
+    if (selectedTime) {
+      const currentTime = new Date(date);
+      currentTime.setHours(selectedTime.getHours());
+      currentTime.setMinutes(selectedTime.getMinutes());
+      setDate(currentTime);
+    }
+  };
+
+  // --- OPTIMISATION DES PICKERS (iOS focus) ---
+const openDatePicker = () => {
+  setShowTimePicker(false);
+  setShowDatePicker(true);
+};
+
+const openTimePicker = () => {
+  setShowDatePicker(false);
+  setShowTimePicker(true);
+};
+
+  // --- 1. ÉCOUTER LES DONNÉES ---
+  useEffect(() => {
+    const q = query(collection(db, "events"), orderBy("date", "asc"));
+    const unsubscribe = onSnapshot(
+      q,
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        const fetchedEvents = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            dateObj: data.date ? data.date.toDate() : new Date(),
+            pending: doc.metadata.hasPendingWrites,
+          };
+        });
+        setEvents(fetchedEvents);
+        setLoading(false);
+      },
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // --- 2. LOGIQUE DE DATE PASSÉE ---
+  const isEventPast = (date: Date) => {
+    const now = new Date();
+    return date < now;
+  };
+
+  // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
+  const handleSaveEvent = async () => {
+    if (!title.trim()) {
+      Alert.alert("Erreur", "Le titre est obligatoire");
+      return;
+    }
+
+    // On utilise directement l'objet 'date' qui contient tout (jour + heure)
+    if (!editingId && date < new Date()) {
+      Alert.alert("Action impossible", "L'événement est dans le passé.");
+      return;
+    }
+
+    const eventData = {
+      title: title,
+      type: isShiftMode ? "Shift" : "General",
+      date: Timestamp.fromDate(date), // On utilise l'objet Date directement ici
+      location: location || (isShiftMode ? "QG" : "À définir"),
+      assignee: isShiftMode ? "À assigner" : null,
+    };
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "events", editingId), eventData);
+      } else {
+        await addDoc(collection(db, "events"), eventData);
+      }
+      closeModal();
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de sauvegarder.");
+    }
+  };
+
+  // N'oubliez pas de mettre à jour closeModal pour réinitialiser la date
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingId(null);
+    setTitle("");
+    setLocation("");
+    setDate(new Date()); // Réinitialise à maintenant
+  };
+
+  // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
+  const handleLongPress = (item: any) => {
+  Alert.alert(
+    "Options de l'événement",
+    `Que souhaitez-vous faire pour "${item.title}" ?`,
+    [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Modifier",
+        onPress: () => {
+          setEditingId(item.id);
+          setTitle(item.title);
+          setLocation(item.location);
+          setIsShiftMode(item.type === "Shift");
+          
+          // On met à jour l'objet date directement
+          setDate(item.dateObj); 
+          
+          setModalVisible(true);
+        },
+      },
+      {
+        text: "Supprimer",
+        style: "destructive",
+        onPress: async () => {
+          await deleteDoc(doc(db, "events", item.id));
+        },
+      },
+    ]
   );
-}
+};
+
+  // --- 5. FORMATAGE ---
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Agenda OJYQ</Text>
+      </View>
+
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      ) : (
+        <FlatList
+          data={events}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const past = isEventPast(item.dateObj);
+            return (
+              <TouchableOpacity
+                onLongPress={() => handleLongPress(item)}
+                delayLongPress={500}
+                style={[
+                  styles.eventCard,
+                  {
+                    borderLeftColor:
+                      item.type === "Shift" ? "#FF9500" : "#007AFF",
+                  },
+                  past && styles.pastEventCard,
+                  { opacity: item.pending ? 0.6 : 1 },
+                ]}
+              >
+                <View style={styles.dateContainer}>
+                  <Text style={[styles.dateText, past && styles.pastText]}>
+                    {formatDate(item.dateObj)}
+                  </Text>
+                  <Text style={styles.timeText}>
+                    {formatTime(item.dateObj)}
+                  </Text>
+                </View>
+
+                <View style={styles.contentContainer}>
+                  <Text style={[styles.eventTitle, past && styles.pastText]}>
+                    {item.title} {past && "(Terminé)"}
+                  </Text>
+                  <View style={styles.detailsRow}>
+                    <Text
+                      style={[
+                        styles.eventType,
+                        {
+                          color: past
+                            ? "#888"
+                            : item.type === "Shift"
+                              ? "#FF9500"
+                              : "#007AFF",
+                        },
+                      ]}
+                    >
+                      {item.type === "Shift" ? "QUART" : "ÉVÉNEMENT"}
+                    </Text>
+                    {item.location && (
+                      <Text style={styles.locationText}>
+                        📍 {item.location}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      )}
+
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setModalVisible(true)}
+      >
+        <Ionicons name="add" size={30} color="white" />
+      </TouchableOpacity>
+
+      <Modal visible={modalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>
+              {editingId ? "Modifier l'événement" : "Nouvel Événement"}
+            </Text>
+            <ScrollView style={{ width: "100%" }}>
+              {/* Type Selector */}
+              <View style={styles.typeSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    !isShiftMode && styles.typeButtonActive,
+                  ]}
+                  onPress={() => setIsShiftMode(false)}
+                >
+                  <Text
+                    style={[
+                      styles.typeText,
+                      !isShiftMode && styles.typeTextActive,
+                    ]}
+                  >
+                    Général
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    isShiftMode && styles.typeButtonActiveShift,
+                  ]}
+                  onPress={() => setIsShiftMode(true)}
+                >
+                  <Text
+                    style={[
+                      styles.typeText,
+                      isShiftMode && styles.typeTextActive,
+                    ]}
+                  >
+                    Quart
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>Titre</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Nom de l'activité"
+              />
+
+              <View style={styles.row}>
+                {/* Sélecteur de DATE */}
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={styles.label}>Date</Text>
+                  <TouchableOpacity
+                    style={styles.inputPicker}
+                    onPress={openDatePicker}
+                  >
+                    <Text>{date.toLocaleDateString("fr-FR")}</Text>
+                    <Ionicons name="calendar-outline" size={18} color="#666" />
+                  </TouchableOpacity>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "inline" : "default"}
+                      onChange={onChangeDate}
+                      minimumDate={new Date()} // Empêche de choisir une date passée
+                    />
+                  )}
+                </View>
+
+                {/* Sélecteur d'HEURE */}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Heure</Text>
+                  <TouchableOpacity
+                    style={styles.inputPicker}
+                    onPress={openTimePicker}
+                  >
+                    <Text>
+                      {date.toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                    <Ionicons name="time-outline" size={18} color="#666" />
+                  </TouchableOpacity>
+
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner" // Sélection défilante
+                      onChange={onChangeTime}
+                    />
+                  )}
+                </View>
+              </View>
+
+              <Text style={styles.label}>Lieu</Text>
+              <TextInput
+                style={styles.input}
+                value={location}
+                onChangeText={setLocation}
+                placeholder="Lieu"
+              />
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={closeModal}
+                style={styles.buttonCancel}
+              >
+                <Text style={styles.textCancel}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveEvent}
+                style={styles.buttonSave}
+              >
+                <Text style={styles.textSave}>
+                  {editingId ? "Mettre à jour" : "Ajouter"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: { flex: 1, backgroundColor: "#f9f9f9" },
+  header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  eventContainer: {
-    backgroundColor: '#f9f9f9',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 16,
-  },
-  eventHeader: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
+  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
+  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  listContent: { padding: 16, paddingBottom: 100 },
   eventCard: {
-    backgroundColor: '#e1f5fe',
-    padding: 16,
-    borderRadius: 8,
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 12,
     marginBottom: 12,
+    elevation: 2,
+    borderLeftWidth: 5,
   },
+  pastEventCard: { backgroundColor: "#f0f0f0", borderLeftColor: "#ccc" }, // Style grisé
+  pastText: { color: "#888", textDecorationLine: "none" },
+  dateContainer: {
+    marginRight: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#eee",
+    paddingRight: 15,
+    minWidth: 60,
+  },
+  dateText: { fontSize: 15, fontWeight: "bold", color: "#333" },
+  timeText: { fontSize: 12, color: "#888", marginTop: 4 },
+  contentContainer: { flex: 1, justifyContent: "center" },
   eventTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  eventTime: {
     fontSize: 16,
-    color: '#666',
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  detailsRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  eventType: {
+    fontSize: 10,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    marginRight: 10,
+  },
+  locationText: { fontSize: 12, color: "#666" },
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalView: {
+    width: "90%",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 25,
+    alignItems: "center",
+  },
+  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 20 },
+  label: {
+    alignSelf: "flex-start",
+    color: "#666",
+    marginBottom: 5,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  input: {
+    width: "100%",
+    height: 45,
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+    backgroundColor: "#f9f9f9",
+  },
+  row: { flexDirection: "row", width: "100%", justifyContent: "space-between" },
+  typeSelector: {
+    flexDirection: "row",
+    width: "100%",
+    marginBottom: 20,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    padding: 4,
+  },
+  typeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 6,
+  },
+  typeButtonActive: { backgroundColor: "#fff", elevation: 1 },
+  typeButtonActiveShift: { backgroundColor: "#fff", elevation: 1 },
+  typeText: { fontSize: 14, color: "#666" },
+  typeTextActive: { color: "#000", fontWeight: "bold" },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 10,
+  },
+  buttonCancel: { flex: 1, padding: 12, marginRight: 10, alignItems: "center" },
+  buttonSave: {
+    flex: 1,
+    backgroundColor: "#007AFF",
+    borderRadius: 8,
+    padding: 12,
+    alignItems: "center",
+  },
+  textCancel: { color: "red", fontWeight: "600" },
+  textSave: { color: "white", fontWeight: "bold" },
+  inputPicker: {
+    width: "100%",
+    height: 45,
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+    backgroundColor: "#f9f9f9",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 });
