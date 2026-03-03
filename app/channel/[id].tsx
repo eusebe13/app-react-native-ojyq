@@ -1,30 +1,29 @@
-/**
- * ChannelScreen - Écran de conversation
- * 
- * Fonctionnalités:
- * - Messagerie instantanée avec GiftedChat
- * - Sondages interactifs (Pour/Contre)
- * - UI préparée pour appels Audio/Vidéo (WebRTC)
- * - Envoi de photos
- * - Suppression de messages
- * 
- * @module Chat
- * @author OJYQ Dev Team
- */
-
-import React, { useState, useEffect, useCallback, ReactElement } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  ReactElement,
+} from "react";
 import {
   View,
-  StyleSheet,
-  TouchableOpacity,
   Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
   Alert,
   Platform,
   KeyboardAvoidingView,
-} from 'react-native';
-import { GiftedChat, Bubble, InputToolbar, Actions, Send, IMessage } from 'react-native-gifted-chat';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+  useColorScheme,
+  Image,
+  ActivityIndicator,
+  SafeAreaView,
+  Modal,
+  PermissionsAndroid,
+} from "react-native";
+import { useLocalSearchParams, useNavigation } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   collection,
   addDoc,
@@ -35,471 +34,637 @@ import {
   deleteDoc,
   updateDoc,
   Timestamp,
-} from 'firebase/firestore';
-import * as ImagePicker from 'expo-image-picker';
-import { db } from '../../firebaseConfig';
-import { useTheme } from '../../hooks/useTheme';
-import { Message, Poll, messageFromFirestore } from '../../types/models';
-import { PollBubble } from '../../components/chat/PollBubble';
-import { CallControls } from '../../components/chat/CallControls';
-import { Colors } from '../../theme/colors';
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import * as ImagePicker from "expo-image-picker";
+import { db } from "../../firebaseConfig";
+import { Message, Poll } from "../../types/models";
+/**import { 
+  createAgoraRtcEngine, 
+  ChannelProfileType, 
+  ClientRoleType, 
+  RtcSurfaceView 
+} from '../../components/chat/agora';*/
+import type { IRtcEngine } from "react-native-agora";
 
-/**
- * Type étendu pour les messages avec sondage
- */
-interface ExtendedMessage extends IMessage {
-  poll?: Poll;
+// Utilisation de la variable d'environnement (assure-toi qu'elle est dans ton fichier .env)
+const AGORA_APP_ID = process.env.EXPO_PUBLIC_AGORA_APP_ID || "";
+
+// ─── Palette ─────────────────────────────────────────────────────────────────
+const C = {
+  blue: "#2563EB",
+  blueLight: "#DBEAFE",
+  green: "#22C55E",
+  red: "#EF4444",
+  white: "#FFFFFF",
+  gray50: "#F9FAFB",
+  gray100: "#F3F4F6",
+  gray200: "#E5E7EB",
+  gray300: "#D1D5DB",
+  gray400: "#9CA3AF",
+  gray500: "#6B7280",
+  gray700: "#374151",
+  gray800: "#1F2937",
+  gray900: "#111827",
+  overlay: "rgba(0,0,0,0.6)",
+};
+
+const isWeb = Platform.OS === "web";
+const FS = {
+  xs: isWeb ? 13 : 11,
+  sm: isWeb ? 15 : 13,
+  base: isWeb ? 17 : 15,
+  lg: isWeb ? 19 : 17,
+  xl: isWeb ? 22 : 19,
+};
+
+interface ExtendedMessage extends Message {
+  _id: string;
 }
+type CallType = "audio" | "video" | null;
 
-/**
- * Écran de conversation d'un canal
- */
+// ═════════════════════════════════════════════════════════════════════════════
+// COMPOSANT PRINCIPAL
+// ═════════════════════════════════════════════════════════════════════════════
 export default function ChannelScreen(): ReactElement {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const navigation = useNavigation();
-  const { colors, isDark } = useTheme();
+  const scheme = useColorScheme();
+  const dark = scheme === "dark";
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ÉTATS
-  // ═══════════════════════════════════════════════════════════════════════════
-
+  // ── Messages ──────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
-  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [inputText, setInputText] = useState("");
+  const [sending, setSending] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
 
-  /**
-   * Utilisateur actuel (à remplacer par Auth réel)
-   * TODO: Intégrer avec Firebase Auth
-   */
-  const currentUser = {
-    _id: 'user_1',
-    name: 'Moi',
-    avatar: undefined,
+  // ── Agora (WebRTC) ────────────────────────────────────────────────────────
+  /* const agoraEngineRef = useRef<IRtcEngine | null>(null);
+  const [callType, setCallType] = useState<CallType>(null);
+  const [callActive, setCallActive] = useState(false);
+  const [isJoined, setIsJoined] = useState(false);
+  const [remoteUid, setRemoteUid] = useState<number>(0);*/
+
+// Utilisateur courant
+  const auth = getAuth();
+  const user = auth.currentUser;
+  
+  const currentUser = { 
+    _id: user?.uid || "anonyme", 
+    name: user?.displayName || user?.email?.split('@')[0] || "Utilisateur",
+    avatar: user?.photoURL || null // 🟢 CORRECTION ICI : null au lieu de undefined
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONFIGURATION NAVIGATION
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  useEffect(() => {
-    navigation.setOptions({
-      title: name || 'Discussion',
-      headerStyle: {
-        backgroundColor: colors.surface,
-      },
-      headerTintColor: colors.textPrimary,
-      headerRight: () => (
-        <CallControls
-          channelId={id || ''}
-          channelName={name || 'Discussion'}
-        />
-      ),
-    });
-  }, [navigation, name, id, colors]);
+  const bg = dark ? C.gray900 : C.gray50;
+  const surface = dark ? C.gray800 : C.white;
+  const border = dark ? C.gray700 : C.gray200;
+  const textPrim = dark ? C.white : C.gray900;
+  const textSec = dark ? C.gray400 : C.gray500;
+  const inputBg = dark ? C.gray700 : C.gray100;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // CHARGEMENT DES MESSAGES
+  // FIRESTORE — MESSAGES
   // ═══════════════════════════════════════════════════════════════════════════
-
   useEffect(() => {
     if (!id) return;
-
-    const messagesRef = collection(db, 'channels', id, 'messages');
-    const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(
-      messagesQuery,
-      (snapshot) => {
-        const fetchedMessages: ExtendedMessage[] = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            _id: doc.id,
-            text: data.text || '',
-            createdAt: data.createdAt?.toDate() || new Date(),
-            user: data.user || { _id: 'unknown', name: 'Inconnu' },
-            image: data.image,
-            poll: data.poll,
-          };
-        });
-        setMessages(fetchedMessages);
-      },
-      (error) => {
-        console.error('[Channel] Erreur chargement messages:', error);
-      }
+    const q = query(
+      collection(db, "channels", id, "messages"),
+      orderBy("createdAt", "desc"),
     );
-
-    return () => unsubscribe();
+    const unsub = onSnapshot(q, (snap) => {
+      setMessages(
+        snap.docs.map(
+          (d) =>
+            ({
+              _id: d.id,
+              ...d.data(),
+              createdAt: d.data().createdAt?.toDate() || new Date(),
+            }) as ExtendedMessage,
+        ),
+      );
+      setLoading(false);
+    });
+    return unsub;
   }, [id]);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HANDLERS - ENVOI DE MESSAGES
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Envoie un ou plusieurs messages
-   */
-  const onSend = useCallback(
-    async (newMessages: IMessage[] = []): Promise<void> => {
-      if (!id || newMessages.length === 0) return;
-
-      const message = newMessages[0];
-
+  const sendMessage = useCallback(
+    async (text?: string, imageUri?: string) => {
+      const content = (text ?? inputText).trim();
+      if ((!content && !imageUri) || !id) return;
+      
+      setSending(true);
+      setInputText("");
+      
       try {
-        // Sauvegarder dans Firestore
-        await addDoc(collection(db, 'channels', id, 'messages'), {
-          _id: message._id,
-          text: message.text,
+        await addDoc(collection(db, "channels", id, "messages"), {
+          text: content,
           createdAt: Timestamp.now(),
-          user: message.user,
-          image: message.image || null,
+          user: currentUser, // Utilise le currentUser avec le "null"
+          image: imageUri || null,
         });
-
-        // Mettre à jour le dernier message du canal
-        await updateDoc(doc(db, 'channels', id), {
-          lastMessage: message.text || '📷 Photo',
+        
+        await updateDoc(doc(db, "channels", id), {
+          lastMessage: content || "Photo",
           lastMessageAt: Timestamp.now(),
         });
       } catch (error) {
-        console.error('[Channel] Erreur envoi message:', error);
-        Alert.alert('Erreur', "Impossible d'envoyer le message");
+        // 🟢 AJOUT : Ceci t'affichera la VRAIE erreur dans ton terminal
+        console.error("Erreur Firestore lors de l'envoi :", error); 
+        Alert.alert("Erreur", "Message non envoyé");
+        setInputText(content);
+      } finally {
+        setSending(false);
       }
     },
-    [id]
+    [inputText, id, currentUser],
   );
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HANDLERS - PHOTOS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Sélectionne et envoie une photo
-   */
-  const handlePickImage = useCallback(async (): Promise<void> => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.5,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0].base64) {
-        const imageMessage: IMessage = {
-          _id: Math.random().toString(36).substr(2, 9),
-          text: '',
-          createdAt: new Date(),
-          user: currentUser,
-          image: `data:image/jpeg;base64,${result.assets[0].base64}`,
-        };
-
-        onSend([imageMessage]);
-      }
-    } catch (error) {
-      console.error('[Channel] Erreur sélection image:', error);
-      Alert.alert('Erreur', 'Impossible de charger l\'image');
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      await sendMessage(
+        "",
+        `data:image/jpeg;base64,${result.assets[0].base64}`,
+      );
     }
-  }, [currentUser, onSend]);
+  };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HANDLERS - SONDAGES
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Crée un nouveau sondage
-   */
-  const handleCreatePoll = useCallback((): void => {
+  const handleCreatePoll = () => {
     Alert.prompt(
-      'Créer un sondage',
-      'Quelle est votre question ?',
+      "Créer un sondage",
+      "Votre question :",
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: "Annuler", style: "cancel" },
         {
-          text: 'Créer',
+          text: "Créer",
           onPress: async (question?: string) => {
             if (!question?.trim() || !id) return;
-
-            try {
-              await addDoc(collection(db, 'channels', id, 'messages'), {
-                _id: Math.random().toString(36).substr(2, 9),
-                text: `📊 SONDAGE : ${question}`,
-                createdAt: Timestamp.now(),
-                user: currentUser,
-                poll: {
-                  question: question,
-                  yes: 0,
-                  no: 0,
-                  voters: [],
-                  createdAt: new Date(),
-                  isActive: true,
-                },
-              });
-
-              await updateDoc(doc(db, 'channels', id), {
-                lastMessage: `📊 Sondage : ${question}`,
-                lastMessageAt: Timestamp.now(),
-              });
-            } catch (error) {
-              console.error('[Channel] Erreur création sondage:', error);
-              Alert.alert('Erreur', 'Impossible de créer le sondage');
-            }
+            await addDoc(collection(db, "channels", id, "messages"), {
+              text: `📊 ${question}`,
+              createdAt: Timestamp.now(),
+              user: currentUser,
+              poll: {
+                question,
+                yes: 0,
+                no: 0,
+                voters: [],
+                createdAt: new Date(),
+                isActive: true,
+              },
+            });
           },
         },
       ],
-      'plain-text',
-      "Êtes-vous d'accord ?"
-    );
-  }, [id, currentUser]);
-
-  /**
-   * Gère un vote sur un sondage
-   */
-  const handleVote = useCallback(
-    async (messageId: string, poll: Poll, voteType: 'yes' | 'no'): Promise<void> => {
-      if (!id) return;
-
-      // Vérifier si l'utilisateur a déjà voté
-      if (poll.voters?.includes(currentUser._id)) {
-        Alert.alert('Déjà voté', 'Vous avez déjà participé à ce sondage');
-        return;
-      }
-
-      const updatedPoll: Poll = {
-        ...poll,
-        yes: voteType === 'yes' ? poll.yes + 1 : poll.yes,
-        no: voteType === 'no' ? poll.no + 1 : poll.no,
-        voters: [...(poll.voters || []), currentUser._id],
-      };
-
-      try {
-        await updateDoc(doc(db, 'channels', id, 'messages', messageId), {
-          poll: updatedPoll,
-        });
-      } catch (error) {
-        console.error('[Channel] Erreur vote:', error);
-        Alert.alert('Erreur', 'Impossible d\'enregistrer votre vote');
-      }
-    },
-    [id, currentUser._id]
-  );
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HANDLERS - SUPPRESSION
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Gère l'appui long sur un message (suppression)
-   */
-  const handleLongPress = useCallback(
-    (context: any, message: IMessage): void => {
-      if (message.user._id !== currentUser._id) return;
-
-      Alert.alert(
-        'Options du message',
-        'Que voulez-vous faire ?',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Supprimer',
-            style: 'destructive',
-            onPress: async () => {
-              if (!id) return;
-              try {
-                await deleteDoc(doc(db, 'channels', id, 'messages', message._id.toString()));
-              } catch (error) {
-                Alert.alert('Erreur', 'Impossible de supprimer le message');
-              }
-            },
-          },
-        ]
-      );
-    },
-    [id, currentUser._id]
-  );
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENDUS PERSONNALISÉS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Rendu des bulles de message avec support des sondages et long press
-   */
-  const renderBubble = (props: any): ReactElement => {
-    return (
-      <Bubble
-        {...props}
-        onLongPress={() => {
-          if (props.currentMessage?.user?._id === currentUser._id) {
-            handleLongPress(null, props.currentMessage);
-          }
-        }}
-        wrapperStyle={{
-          left: {
-            backgroundColor: colors.messageBubble,
-          },
-          right: {
-            backgroundColor: colors.messageBubbleOwn,
-          },
-        }}
-        textStyle={{
-          left: {
-            color: colors.messageText,
-          },
-          right: {
-            color: colors.messageTextOwn,
-          },
-        }}
-      />
+      "plain-text",
+      "Êtes-vous d'accord ?",
     );
   };
 
-  /**
-   * Rendu personnalisé pour les sondages
-   */
-  const renderCustomView = (props: any): ReactElement | null => {
-    const { currentMessage } = props;
-
-    if (currentMessage.poll) {
-      return (
-        <PollBubble
-          poll={currentMessage.poll}
-          messageId={currentMessage._id.toString()}
-          currentUserId={currentUser._id}
-          onVote={handleVote}
-        />
-      );
+  const handleVote = async (msgId: string, poll: Poll, vote: "yes" | "no") => {
+    if (!id) return;
+    if (poll.voters?.includes(currentUser._id)) {
+      Alert.alert("Déjà voté", "Vous avez déjà participé à ce sondage.");
+      return;
     }
-
-    return null;
+    await updateDoc(doc(db, "channels", id, "messages", msgId), {
+      poll: {
+        ...poll,
+        yes: vote === "yes" ? poll.yes + 1 : poll.yes,
+        no: vote === "no" ? poll.no + 1 : poll.no,
+        voters: [...(poll.voters || []), currentUser._id],
+      },
+    });
   };
 
-  /**
-   * Rendu des actions (bouton +)
-   */
-  const renderActions = (props: any): ReactElement => (
-    <Actions
-      {...props}
-      options={{
-        'Envoyer une Photo': handlePickImage,
-        'Créer un Sondage': handleCreatePoll,
-        Annuler: () => {},
-      }}
-      icon={() => (
-        <View style={[styles.actionsButton, { backgroundColor: colors.primaryTint }]}>
-          <Ionicons name="add" size={24} color={colors.primary} />
+  const handleLongPress = (msg: ExtendedMessage) => {
+    if (msg.user._id !== currentUser._id) return;
+    Alert.alert("Supprimer ?", "Ce message sera définitivement supprimé.", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Supprimer",
+        style: "destructive",
+        onPress: async () =>
+          await deleteDoc(doc(db, "channels", id!, "messages", msg._id)),
+      },
+    ]);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDU — BULLE DE MESSAGE
+  // ═══════════════════════════════════════════════════════════════════════════
+  const renderMessage = ({ item }: { item: ExtendedMessage }) => {
+    const isMe = item.user._id === currentUser._id;
+    const time =
+      item.createdAt instanceof Date
+        ? item.createdAt.toLocaleTimeString("fr-FR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "";
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onLongPress={() => handleLongPress(item)}
+        style={[s.msgRow, isMe ? s.msgRowRight : s.msgRowLeft]}
+      >
+        {!isMe && (
+          <View style={[s.avatar, { backgroundColor: C.blue }]}>
+            <Text style={s.avatarText}>
+              {(item.user.name || "?")[0].toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={[s.msgWrap, { maxWidth: isWeb ? "60%" : "78%" }]}>
+          {!isMe && (
+            <Text style={[s.senderName, { color: C.blue, fontSize: FS.xs }]}>
+              {item.user.name}
+            </Text>
+          )}
+          <View
+            style={[
+              s.bubble,
+              isMe
+                ? [s.bubbleRight, { backgroundColor: C.blue }]
+                : [
+                    s.bubbleLeft,
+                    { backgroundColor: surface, borderColor: border },
+                  ],
+            ]}
+          >
+            {item.image && (
+              <Image
+                source={{ uri: item.image }}
+                style={s.msgImage}
+                resizeMode="cover"
+              />
+            )}
+            {item.poll && (
+              <View style={s.pollContainer}>
+                <Text
+                  style={[
+                    s.pollQuestion,
+                    { color: isMe ? C.white : textPrim, fontSize: FS.sm },
+                  ]}
+                >
+                  📊 {item.poll.question}
+                </Text>
+                {item.poll.isActive ? (
+                  <View style={s.pollButtons}>
+                    <TouchableOpacity
+                      style={[s.pollBtn, { backgroundColor: C.green }]}
+                      onPress={() => handleVote(item._id, item.poll!, "yes")}
+                    >
+                      <Text style={[s.pollBtnText, { fontSize: FS.xs }]}>
+                        👍 Pour ({item.poll.yes})
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.pollBtn, { backgroundColor: C.red }]}
+                      onPress={() => handleVote(item._id, item.poll!, "no")}
+                    >
+                      <Text style={[s.pollBtnText, { fontSize: FS.xs }]}>
+                        👎 Contre ({item.poll.no})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      {
+                        color: isMe ? "rgba(255,255,255,0.7)" : C.gray400,
+                        fontSize: FS.xs,
+                        marginTop: 4,
+                      },
+                    ]}
+                  >
+                    Sondage terminé · {item.poll.yes} pour / {item.poll.no}{" "}
+                    contre
+                  </Text>
+                )}
+              </View>
+            )}
+            {!!item.text && !item.poll && (
+              <Text
+                style={[
+                  s.msgText,
+                  { fontSize: FS.base },
+                  isMe ? { color: C.white } : { color: textPrim },
+                ]}
+              >
+                {item.text}
+              </Text>
+            )}
+            <Text
+              style={[
+                s.msgTime,
+                { fontSize: FS.xs - 1 },
+                isMe
+                  ? { color: "rgba(255,255,255,0.65)", textAlign: "right" }
+                  : { color: textSec },
+              ]}
+            >
+              {time}
+            </Text>
+          </View>
         </View>
-      )}
-      onSend={() => {}}
-    />
+      </TouchableOpacity>
+    );
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDU — BARRE D'INPUT
+  // ═══════════════════════════════════════════════════════════════════════════
+  const renderInput = () => (
+    <View
+      style={[s.inputBar, { backgroundColor: surface, borderTopColor: border }]}
+    >
+      <TouchableOpacity
+        style={[s.inputAction, { backgroundColor: C.blueLight }]}
+        onPress={() =>
+          Alert.alert("Actions", "Choisissez", [
+            { text: "Photo", onPress: handlePickImage },
+            { text: "Sondage", onPress: handleCreatePoll },
+            { text: "Annuler", style: "cancel" },
+          ])
+        }
+      >
+        <Ionicons name="add" size={22} color={C.blue} />
+      </TouchableOpacity>
+      <TextInput
+        style={[
+          s.textInput,
+          { backgroundColor: inputBg, color: textPrim, fontSize: FS.base },
+        ]}
+        placeholder="Message..."
+        placeholderTextColor={dark ? C.gray500 : C.gray400}
+        value={inputText}
+        onChangeText={setInputText}
+        multiline
+        onSubmitEditing={() => sendMessage()}
+        blurOnSubmit={false}
+        returnKeyType="send"
+        enablesReturnKeyAutomatically
+      />
+      <TouchableOpacity
+        style={[
+          s.sendBtn,
+          { backgroundColor: inputText.trim() ? C.blue : C.gray300 },
+        ]}
+        onPress={() => sendMessage()}
+        disabled={!inputText.trim() || sending}
+        activeOpacity={0.8}
+      >
+        {sending ? (
+          <ActivityIndicator size="small" color={C.white} />
+        ) : (
+          <Ionicons name="send" size={18} color={C.white} />
+        )}
+      </TouchableOpacity>
+    </View>
   );
 
-  /**
-   * Rendu du bouton d'envoi
-   */
-  const renderSend = (props: any): ReactElement => (
-    <Send {...props} containerStyle={styles.sendContainer}>
-      <View style={[styles.sendButton, { backgroundColor: colors.primary }]}>
-        <Ionicons name="send" size={18} color="#fff" />
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDU — MODAL APPEL AGORA
+  // ═══════════════════════════════════════════════════════════════════════════
+  /** const renderCallModal = () => (
+    <Modal visible={callActive} animationType="slide" transparent>
+      <View style={s.callOverlay}>
+        <View style={[s.callSheet, { backgroundColor: C.gray900 }]}>
+          {callType === "video" ? (
+            <View style={s.videoFull}>
+              {remoteUid !== 0 ? (
+                <RtcSurfaceView
+                  canvas={{ uid: remoteUid }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+              ) : (
+                <View
+                  style={[
+                    s.videoFull,
+                    { justifyContent: "center", alignItems: "center" },
+                  ]}
+                >
+                  <ActivityIndicator size="large" color={C.blue} />
+                  <Text style={{ color: C.white, marginTop: 10 }}>
+                    En attente de l'interlocuteur...
+                  </Text>
+                </View>
+              )}
+              {isJoined && (
+                <View style={s.localVideoContainer}>
+                  <RtcSurfaceView
+                    canvas={{ uid: 0 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={s.audioCallDisplay}>
+              <View style={[s.callAvatar, { backgroundColor: C.blue }]}>
+                <Ionicons name="call" size={48} color={C.white} />
+              </View>
+              <Text style={[s.callName, { fontSize: FS.xl }]}>
+                {name || "Discussion"}
+              </Text>
+              <Text style={[s.callStatus, { fontSize: FS.sm }]}>
+                {remoteUid !== 0 ? "En communication" : "En attente..."}
+              </Text>
+            </View>
+          )}
+          <View style={s.callControls}>
+            <TouchableOpacity
+              style={[s.callBtn, { backgroundColor: C.red }]}
+              onPress={endCall}
+            >
+              <Ionicons
+                name="call"
+                size={24}
+                color={C.white}
+                style={{ transform: [{ rotate: "135deg" }] }}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
-    </Send>
-  );
-
-  /**
-   * Rendu de la barre d'input
-   */
-  const renderInputToolbar = (props: any): ReactElement => (
-    <InputToolbar
-      {...props}
-      containerStyle={[
-        styles.inputToolbar,
-        {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-        },
-      ]}
-      primaryStyle={styles.inputPrimary}
-    />
-  );
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENDU PRINCIPAL
-  // ═══════════════════════════════════════════════════════════════════════════
+    </Modal>
+  );*/
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* @ts-expect-error GiftedChat props types issue with this version */}
-      <GiftedChat
-        messages={messages}
-        onSend={onSend}
-        user={currentUser}
-        renderBubble={renderBubble}
-        renderCustomView={renderCustomView}
-        renderActions={renderActions}
-        renderSend={renderSend}
-        renderInputToolbar={renderInputToolbar}
-        placeholder="Écrivez un message..."
-        alwaysShowSend
-        scrollToBottom
-        scrollToBottomComponent={() => (
-          <Ionicons name="chevron-down" size={24} color={colors.primary} />
+    <SafeAreaView style={[s.flex1, { backgroundColor: bg }]}>
+      <KeyboardAvoidingView
+        style={s.flex1}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // 🟢 C'est ici que la magie opère avec Platform.select :
+        keyboardVerticalOffset={Platform.select({
+          ios: 90,
+          android: 80,
+          default: 0,
+        })}
+      >
+        {loading ? (
+          <View style={s.centered}>
+            <ActivityIndicator size="large" color={C.blue} />
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item._id}
+            renderItem={renderMessage}
+            inverted
+            contentContainerStyle={s.msgList}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          />
         )}
-        timeTextStyle={{
-          left: { color: colors.textTertiary },
-          right: { color: 'rgba(255,255,255,0.7)' },
-        }}
-        textInputStyle={{
-          color: colors.textPrimary,
-          backgroundColor: colors.backgroundSecondary,
-          borderRadius: 20,
-          paddingHorizontal: 12,
-          paddingTop: Platform.OS === 'ios' ? 10 : 8,
-          marginRight: 8,
-        }}
-        textInputProps={{
-          placeholderTextColor: colors.textTertiary,
-        }}
-      />
-
-      {/* Info WebRTC */}
-      {Platform.OS === 'ios' && (
-        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={90} />
-      )}
-    </View>
+        {renderInput()}
+      </KeyboardAvoidingView>
+      {/* renderCallModal()*/}
+    </SafeAreaView>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // STYLES
-// ═══════════════════════════════════════════════════════════════════════════
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  actionsButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-    marginBottom: 5,
-  },
-  sendContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+// ═════════════════════════════════════════════════════════════════════════════
+const s = StyleSheet.create({
+  flex1: { flex: 1 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  headerButtons: { flexDirection: "row", marginRight: 8 },
+  headerBtn: { padding: 6, marginLeft: 4 },
+  msgList: { paddingHorizontal: 12, paddingVertical: 16 },
+  msgRow: { flexDirection: "row", marginBottom: 12, alignItems: "flex-end" },
+  msgRowRight: { justifyContent: "flex-end" },
+  msgRowLeft: { justifyContent: "flex-start" },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 8,
-    marginBottom: 5,
   },
-  sendButton: {
-    width: 36,
-    height: 36,
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  msgWrap: { flexShrink: 1 },
+  senderName: { marginBottom: 3, marginLeft: 4, fontWeight: "600" },
+  bubble: {
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  inputToolbar: {
+  bubbleRight: { borderBottomRightRadius: 4 },
+  bubbleLeft: { borderBottomLeftRadius: 4, borderWidth: 1 },
+  msgText: { lineHeight: 22 },
+  msgTime: { marginTop: 4 },
+  msgImage: { width: 220, height: 160, borderRadius: 10, marginBottom: 4 },
+  pollContainer: { paddingBottom: 4 },
+  pollQuestion: { fontWeight: "700", marginBottom: 10 },
+  pollButtons: { flexDirection: "row", gap: 8 },
+  pollBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  pollBtnText: { color: "#fff", fontWeight: "700" },
+  inputBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
-    paddingVertical: 6,
+    paddingBottom: Platform.OS === "android" ? 14 : 10,
   },
-  inputPrimary: {
-    alignItems: 'center',
+  inputAction: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+    marginBottom: 1,
+  },
+  textInput: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 10,
+    maxHeight: 120,
+    lineHeight: 20,
+  },
+  sendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    marginBottom: 1,
+  },
+  callOverlay: {
+    flex: 1,
+    backgroundColor: C.overlay,
+    justifyContent: "flex-end",
+  },
+  callSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    minHeight: "55%",
+  },
+  audioCallDisplay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  callAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  callName: { color: C.white, fontWeight: "700", marginBottom: 8 },
+  callStatus: { color: C.gray400 },
+  videoFull: { flex: 1 },
+  callControls: {
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingVertical: 24,
+    gap: 20,
+  },
+  callBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  localVideoContainer: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    width: 100,
+    height: 150,
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
 });

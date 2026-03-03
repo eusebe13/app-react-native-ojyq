@@ -193,16 +193,45 @@ export interface ChatPreview {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Convertit un document Firestore en CalendarEvent
+ * Convertit un document Firestore en CalendarEvent (ou Shift)
  */
-export const eventFromFirestore = (doc: any): CalendarEvent => {
+export const eventFromFirestore = (doc: any): CalendarItem => {
   const data = doc.data();
-  return {
+  
+  // Base commune
+  const baseEvent = {
     id: doc.id,
-    ...data,
-    dateObj: data.date?.toDate?.() || new Date(),
+    title: data.title || 'Sans titre',
+    description: data.description,
+    type: (data.type as EventType) || 'general',
+    date: data.date,
+    dateObj: data.date && typeof data.date.toDate === 'function' ? data.date.toDate() : new Date(),
+    location: data.location || 'Lieu à définir',
+    createdBy: data.createdBy || 'admin',
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
     pending: doc.metadata?.hasPendingWrites || false,
   };
+
+  // Si c'est un quart de travail (Shift)
+  if (baseEvent.type === 'shift') {
+    return {
+      ...baseEvent,
+      type: 'shift',
+      assignee: data.assignee || null,
+      assigneeName: data.assigneeName || null,
+      confirmed: data.confirmed || false,
+      notes: data.notes,
+    } as Shift;
+  }
+
+  // Si c'est un événement général
+  return {
+    ...baseEvent,
+    type: 'general',
+    attendees: data.attendees || [],
+    isRecurring: data.isRecurring || false,
+  } as GeneralEvent;
 };
 
 /**
