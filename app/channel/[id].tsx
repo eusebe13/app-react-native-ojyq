@@ -17,6 +17,7 @@ import React, {
   ReactElement,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -32,48 +33,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 import { db } from "../../firebaseConfig";
 import { Message, Poll } from "../../types/models";
-/**import { 
-  createAgoraRtcEngine, 
-  ChannelProfileType, 
-  ClientRoleType, 
-  RtcSurfaceView 
-} from '../../components/chat/agora';*/
+import { useAppTheme } from "../../contexts/ThemeContext";
 
-// Utilisation de la variable d'environnement (assure-toi qu'elle est dans ton fichier .env)
 const AGORA_APP_ID = process.env.EXPO_PUBLIC_AGORA_APP_ID || "";
-
-// ─── Palette ─────────────────────────────────────────────────────────────────
-const C = {
-  blue: "#2563EB",
-  blueLight: "#DBEAFE",
-  green: "#22C55E",
-  red: "#EF4444",
-  white: "#FFFFFF",
-  gray50: "#F9FAFB",
-  gray100: "#F3F4F6",
-  gray200: "#E5E7EB",
-  gray300: "#D1D5DB",
-  gray400: "#9CA3AF",
-  gray500: "#6B7280",
-  gray700: "#374151",
-  gray800: "#1F2937",
-  gray900: "#111827",
-  overlay: "rgba(0,0,0,0.6)",
-};
-
-const isWeb = Platform.OS === "web";
-const FS = {
-  xs: isWeb ? 13 : 11,
-  sm: isWeb ? 15 : 13,
-  base: isWeb ? 17 : 15,
-  lg: isWeb ? 19 : 17,
-  xl: isWeb ? 22 : 19,
-};
 
 interface ExtendedMessage extends Message {
   _id: string;
@@ -86,8 +52,7 @@ type CallType = "audio" | "video" | null;
 export default function ChannelScreen(): ReactElement {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const navigation = useNavigation();
-  const scheme = useColorScheme();
-  const dark = scheme === "dark";
+  const { colors, tokens } = useAppTheme();
 
   // ── Messages ──────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
@@ -96,29 +61,15 @@ export default function ChannelScreen(): ReactElement {
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // ── Agora (WebRTC) ────────────────────────────────────────────────────────
-  /* const agoraEngineRef = useRef<IRtcEngine | null>(null);
-  const [callType, setCallType] = useState<CallType>(null);
-  const [callActive, setCallActive] = useState(false);
-  const [isJoined, setIsJoined] = useState(false);
-  const [remoteUid, setRemoteUid] = useState<number>(0);*/
-
   // Utilisateur courant
   const auth = getAuth();
   const user = auth.currentUser;
 
-  const currentUser = {
+  const currentUser = useMemo(() => ({
     _id: user?.uid || "anonyme",
     name: user?.displayName || user?.email?.split("@")[0] || "Utilisateur",
-    avatar: user?.photoURL || null, // 🟢 CORRECTION ICI : null au lieu de undefined
-  };
-
-  const bg = dark ? C.gray900 : C.gray50;
-  const surface = dark ? C.gray800 : C.white;
-  const border = dark ? C.gray700 : C.gray200;
-  const textPrim = dark ? C.white : C.gray900;
-  const textSec = dark ? C.gray400 : C.gray500;
-  const inputBg = dark ? C.gray700 : C.gray100;
+    avatar: user?.photoURL || null,
+  }), [user?.uid, user?.displayName, user?.email, user?.photoURL]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FIRESTORE — MESSAGES
@@ -157,7 +108,7 @@ export default function ChannelScreen(): ReactElement {
         await addDoc(collection(db, "channels", id, "messages"), {
           text: content,
           createdAt: Timestamp.now(),
-          user: currentUser, // Utilise le currentUser avec le "null"
+          user: currentUser,
           image: imageUri || null,
         });
 
@@ -166,7 +117,6 @@ export default function ChannelScreen(): ReactElement {
           lastMessageAt: Timestamp.now(),
         });
       } catch (error) {
-        // 🟢 AJOUT : Ceci t'affichera la VRAIE erreur dans ton terminal
         console.error("Erreur Firestore lors de l'envoi :", error);
         Alert.alert("Erreur", "Message non envoyé");
         setInputText(content);
@@ -251,6 +201,8 @@ export default function ChannelScreen(): ReactElement {
     ]);
   };
 
+  const styles = getStyles(colors, tokens);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDU — BULLE DE MESSAGE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -268,77 +220,72 @@ export default function ChannelScreen(): ReactElement {
       <TouchableOpacity
         activeOpacity={0.85}
         onLongPress={() => handleLongPress(item)}
-        style={[s.msgRow, isMe ? s.msgRowRight : s.msgRowLeft]}
+        style={[styles.msgRow, isMe ? styles.msgRowRight : styles.msgRowLeft]}
       >
         {!isMe && (
-          <View style={[s.avatar, { backgroundColor: C.blue }]}>
-            <Text style={s.avatarText}>
+          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+            <Text style={styles.avatarText}>
               {(item.user.name || "?")[0].toUpperCase()}
             </Text>
           </View>
         )}
-        <View style={[s.msgWrap, { maxWidth: isWeb ? "60%" : "78%" }]}>
+        <View style={styles.msgWrap}>
           {!isMe && (
-            <Text style={[s.senderName, { color: C.blue, fontSize: FS.xs }]}>
+            <Text style={[styles.senderName, { color: colors.primary }]}>
               {item.user.name}
             </Text>
           )}
           <View
             style={[
-              s.bubble,
+              styles.bubble,
               isMe
-                ? [s.bubbleRight, { backgroundColor: C.blue }]
-                : [
-                    s.bubbleLeft,
-                    { backgroundColor: surface, borderColor: border },
-                  ],
+                ? [styles.bubbleRight, { backgroundColor: colors.primary }]
+                : [styles.bubbleLeft, { backgroundColor: colors.surface, borderColor: colors.border }],
             ]}
           >
             {item.image && (
               <Image
                 source={{ uri: item.image }}
-                style={s.msgImage}
+                style={styles.msgImage}
                 resizeMode="cover"
               />
             )}
             {item.poll && (
-              <View style={s.pollContainer}>
+              <View style={styles.pollContainer}>
                 <Text
                   style={[
-                    s.pollQuestion,
-                    { color: isMe ? C.white : textPrim, fontSize: FS.sm },
+                    styles.pollQuestion,
+                    { color: isMe ? "#FFFFFF" : colors.textPrimary },
                   ]}
                 >
                   📊 {item.poll.question}
                 </Text>
                 {item.poll.isActive ? (
-                  <View style={s.pollButtons}>
+                  <View style={styles.pollButtons}>
                     <TouchableOpacity
-                      style={[s.pollBtn, { backgroundColor: C.green }]}
+                      style={[styles.pollBtn, { backgroundColor: colors.online }]}
                       onPress={() => handleVote(item._id, item.poll!, "yes")}
                     >
-                      <Text style={[s.pollBtnText, { fontSize: FS.xs }]}>
+                      <Text style={styles.pollBtnText}>
                         👍 Pour ({item.poll.yes})
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[s.pollBtn, { backgroundColor: C.red }]}
+                      style={[styles.pollBtn, { backgroundColor: colors.accent6 }]}
                       onPress={() => handleVote(item._id, item.poll!, "no")}
                     >
-                      <Text style={[s.pollBtnText, { fontSize: FS.xs }]}>
+                      <Text style={styles.pollBtnText}>
                         👎 Contre ({item.poll.no})
                       </Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <Text
-                    style={[
-                      {
-                        color: isMe ? "rgba(255,255,255,0.7)" : C.gray400,
-                        fontSize: FS.xs,
-                        marginTop: 4,
-                      },
-                    ]}
+                    style={{
+                      color: isMe ? "rgba(255,255,255,0.7)" : colors.textTertiary,
+                      fontSize: tokens.font.xs,
+                      marginTop: 4,
+                    }}
                   >
                     Sondage terminé · {item.poll.yes} pour / {item.poll.no}{" "}
                     contre
@@ -349,9 +296,8 @@ export default function ChannelScreen(): ReactElement {
             {!!item.text && !item.poll && (
               <Text
                 style={[
-                  s.msgText,
-                  { fontSize: FS.base },
-                  isMe ? { color: C.white } : { color: textPrim },
+                  styles.msgText,
+                  isMe ? { color: "#FFFFFF" } : { color: colors.textPrimary },
                 ]}
               >
                 {item.text}
@@ -359,11 +305,10 @@ export default function ChannelScreen(): ReactElement {
             )}
             <Text
               style={[
-                s.msgTime,
-                { fontSize: FS.xs - 1 },
+                styles.msgTime,
                 isMe
                   ? { color: "rgba(255,255,255,0.65)", textAlign: "right" }
-                  : { color: textSec },
+                  : { color: colors.textTertiary },
               ]}
             >
               {time}
@@ -378,11 +323,9 @@ export default function ChannelScreen(): ReactElement {
   // RENDU — BARRE D'INPUT
   // ═══════════════════════════════════════════════════════════════════════════
   const renderInput = () => (
-    <View
-      style={[s.inputBar, { backgroundColor: surface, borderTopColor: border }]}
-    >
+    <View style={styles.inputBar}>
       <TouchableOpacity
-        style={[s.inputAction, { backgroundColor: C.blueLight }]}
+        style={[styles.inputAction, { backgroundColor: colors.primaryTint }]}
         onPress={() =>
           Alert.alert("Actions", "Choisissez", [
             { text: "Photo", onPress: handlePickImage },
@@ -391,15 +334,12 @@ export default function ChannelScreen(): ReactElement {
           ])
         }
       >
-        <Ionicons name="add" size={22} color={C.blue} />
+        <Ionicons name="add" size={22} color={colors.primary} />
       </TouchableOpacity>
       <TextInput
-        style={[
-          s.textInput,
-          { backgroundColor: inputBg, color: textPrim, fontSize: FS.base },
-        ]}
+        style={styles.textInput}
         placeholder="Message..."
-        placeholderTextColor={dark ? C.gray500 : C.gray400}
+        placeholderTextColor={colors.textTertiary}
         value={inputText}
         onChangeText={setInputText}
         multiline
@@ -410,95 +350,27 @@ export default function ChannelScreen(): ReactElement {
       />
       <TouchableOpacity
         style={[
-          s.sendBtn,
-          { backgroundColor: inputText.trim() ? C.blue : C.gray300 },
+          styles.sendBtn,
+          { backgroundColor: inputText.trim() ? colors.primary : colors.border },
         ]}
         onPress={() => sendMessage()}
         disabled={!inputText.trim() || sending}
         activeOpacity={0.8}
       >
         {sending ? (
-          <ActivityIndicator size="small" color={C.white} />
+          <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
-          <Ionicons name="send" size={18} color={C.white} />
+          <Ionicons name="send" size={18} color="#FFFFFF" />
         )}
       </TouchableOpacity>
     </View>
   );
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENDU — MODAL APPEL AGORA
-  // ═══════════════════════════════════════════════════════════════════════════
-  /** const renderCallModal = () => (
-    <Modal visible={callActive} animationType="slide" transparent>
-      <View style={s.callOverlay}>
-        <View style={[s.callSheet, { backgroundColor: C.gray900 }]}>
-          {callType === "video" ? (
-            <View style={s.videoFull}>
-              {remoteUid !== 0 ? (
-                <RtcSurfaceView
-                  canvas={{ uid: remoteUid }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-              ) : (
-                <View
-                  style={[
-                    s.videoFull,
-                    { justifyContent: "center", alignItems: "center" },
-                  ]}
-                >
-                  <ActivityIndicator size="large" color={C.blue} />
-                  <Text style={{ color: C.white, marginTop: 10 }}>
-                    En attente de l'interlocuteur...
-                  </Text>
-                </View>
-              )}
-              {isJoined && (
-                <View style={s.localVideoContainer}>
-                  <RtcSurfaceView
-                    canvas={{ uid: 0 }}
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={s.audioCallDisplay}>
-              <View style={[s.callAvatar, { backgroundColor: C.blue }]}>
-                <Ionicons name="call" size={48} color={C.white} />
-              </View>
-              <Text style={[s.callName, { fontSize: FS.xl }]}>
-                {name || "Discussion"}
-              </Text>
-              <Text style={[s.callStatus, { fontSize: FS.sm }]}>
-                {remoteUid !== 0 ? "En communication" : "En attente..."}
-              </Text>
-            </View>
-          )}
-          <View style={s.callControls}>
-            <TouchableOpacity
-              style={[s.callBtn, { backgroundColor: C.red }]}
-              onPress={endCall}
-            >
-              <Ionicons
-                name="call"
-                size={24}
-                color={C.white}
-                style={{ transform: [{ rotate: "135deg" }] }}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );*/
-
   return (
-    <SafeAreaView style={[s.flex1, { backgroundColor: bg }]}>
+    <SafeAreaView style={[styles.flex1, { backgroundColor: colors.surfaceDim }]}>
       <KeyboardAvoidingView
-        style={s.flex1}
+        style={styles.flex1}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        // 🟢 C'est ici que la magie opère avec Platform.select :
         keyboardVerticalOffset={Platform.select({
           ios: 90,
           android: 80,
@@ -506,8 +378,8 @@ export default function ChannelScreen(): ReactElement {
         })}
       >
         {loading ? (
-          <View style={s.centered}>
-            <ActivityIndicator size="large" color={C.blue} />
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
           <FlatList
@@ -516,7 +388,7 @@ export default function ChannelScreen(): ReactElement {
             keyExtractor={(item) => item._id}
             renderItem={renderMessage}
             inverted
-            contentContainerStyle={s.msgList}
+            contentContainerStyle={styles.msgList}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
@@ -524,7 +396,6 @@ export default function ChannelScreen(): ReactElement {
         )}
         {renderInput()}
       </KeyboardAvoidingView>
-      {/* renderCallModal()*/}
     </SafeAreaView>
   );
 }
@@ -532,136 +403,103 @@ export default function ChannelScreen(): ReactElement {
 // ═════════════════════════════════════════════════════════════════════════════
 // STYLES
 // ═════════════════════════════════════════════════════════════════════════════
-const s = StyleSheet.create({
-  flex1: { flex: 1 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  headerButtons: { flexDirection: "row", marginRight: 8 },
-  headerBtn: { padding: 6, marginLeft: 4 },
-  msgList: { paddingHorizontal: 12, paddingVertical: 16 },
-  msgRow: { flexDirection: "row", marginBottom: 12, alignItems: "flex-end" },
-  msgRowRight: { justifyContent: "flex-end" },
-  msgRowLeft: { justifyContent: "flex-start" },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  avatarText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  msgWrap: { flexShrink: 1 },
-  senderName: { marginBottom: 3, marginLeft: 4, fontWeight: "600" },
-  bubble: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  bubbleRight: { borderBottomRightRadius: 4 },
-  bubbleLeft: { borderBottomLeftRadius: 4, borderWidth: 1 },
-  msgText: { lineHeight: 22 },
-  msgTime: { marginTop: 4 },
-  msgImage: { width: 220, height: 160, borderRadius: 10, marginBottom: 4 },
-  pollContainer: { paddingBottom: 4 },
-  pollQuestion: { fontWeight: "700", marginBottom: 10 },
-  pollButtons: { flexDirection: "row", gap: 8 },
-  pollBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  pollBtnText: { color: "#fff", fontWeight: "700" },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    paddingBottom: Platform.OS === "android" ? 45 : 10,
-  },
-  inputAction: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-    marginBottom: 1,
-  },
-  textInput: {
-    flex: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 10,
-    maxHeight: 120,
-    lineHeight: 20,
-  },
-  sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-    marginBottom: 1,
-  },
-  callOverlay: {
-    flex: 1,
-    backgroundColor: C.overlay,
-    justifyContent: "flex-end",
-  },
-  callSheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    overflow: "hidden",
-    minHeight: "55%",
-  },
-  audioCallDisplay: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-  },
-  callAvatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  callName: { color: C.white, fontWeight: "700", marginBottom: 8 },
-  callStatus: { color: C.gray400 },
-  videoFull: { flex: 1 },
-  callControls: {
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingVertical: 24,
-    gap: 20,
-  },
-  callBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  localVideoContainer: {
-    position: "absolute",
-    top: 20,
-    right: 20,
-    width: 100,
-    height: 150,
-    borderRadius: 10,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-});
+const getStyles = (colors: any, tokens: any) =>
+  StyleSheet.create({
+    flex1:   { flex: 1 },
+    centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+    msgList: { paddingHorizontal: tokens.space.md, paddingVertical: tokens.space.lg },
+    msgRow:      { flexDirection: "row", marginBottom: tokens.space.md, alignItems: "flex-end" },
+    msgRowRight: { justifyContent: "flex-end" },
+    msgRowLeft:  { justifyContent: "flex-start" },
+    avatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: tokens.space.sm,
+    },
+    avatarText: { color: "#FFFFFF", fontWeight: "700", fontSize: tokens.font.sm },
+    msgWrap:    { flexShrink: 1, maxWidth: "78%" },
+    senderName: { marginBottom: 3, marginLeft: 4, fontWeight: "600", fontSize: tokens.font.xs },
+    bubble: {
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.07,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    bubbleRight: { borderBottomRightRadius: 4 },
+    bubbleLeft:  { borderBottomLeftRadius: 4, borderWidth: 1 },
+    msgText:     { lineHeight: 22, fontSize: tokens.font.md },
+    msgTime:     { marginTop: 4, fontSize: tokens.font.xs },
+    msgImage:    { width: 220, height: 160, borderRadius: 10, marginBottom: 4 },
+    pollContainer: { paddingBottom: 4 },
+    pollQuestion:  { fontWeight: "700", marginBottom: 10, fontSize: tokens.font.sm },
+    pollButtons:   { flexDirection: "row", gap: tokens.space.sm },
+    pollBtn: {
+      flex: 1,
+      paddingVertical: tokens.space.sm,
+      borderRadius: 10,
+      alignItems: "center",
+    },
+    pollBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: tokens.font.xs },
+    inputBar: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      paddingHorizontal: tokens.space.md,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      paddingBottom: Platform.OS === "android" ? 45 : 10,
+      backgroundColor: colors.surface,
+      borderTopColor: colors.border,
+    },
+    inputAction: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: tokens.space.sm,
+      marginBottom: 1,
+    },
+    textInput: {
+      flex: 1,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 10,
+      maxHeight: 120,
+      lineHeight: 20,
+      fontSize: tokens.font.md,
+      backgroundColor: colors.surfaceDim,
+      color: colors.textPrimary,
+    },
+    sendBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: tokens.space.sm,
+      marginBottom: 1,
+    },
+    // Call modal styles (kept for future use)
+    callOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+    callSheet:   { borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: "hidden", minHeight: "55%" },
+    audioCallDisplay: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 48 },
+    callAvatar: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: 20 },
+    callName:     { color: "#FFFFFF", fontWeight: "700", marginBottom: 8, fontSize: tokens.font.xl },
+    callStatus:   { color: "#9CA3AF", fontSize: tokens.font.sm },
+    videoFull:    { flex: 1 },
+    callControls: { flexDirection: "row", justifyContent: "center", paddingVertical: 24, gap: 20 },
+    callBtn:      { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
+    localVideoContainer: {
+      position: "absolute", top: 20, right: 20,
+      width: 100, height: 150, borderRadius: 10,
+      overflow: "hidden", borderWidth: 2, borderColor: "#FFFFFF",
+    },
+  });

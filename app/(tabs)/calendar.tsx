@@ -1,7 +1,5 @@
 /**
  * CalendarScreen - Agenda OJYQ
- * Réécrit avec StyleSheet React Native pur (sans NativeWind / className)
- * Compatible iOS, Android et Web.
  */
 
 import React, { useState, useEffect, useCallback, ReactElement } from 'react';
@@ -18,7 +16,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   StyleSheet,
-  useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -34,6 +31,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { CalendarItem, EventType, eventFromFirestore } from '../../types/models';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 // ─── Membres ─────────────────────────────────────────────────────────────────
 const MEMBERS = [
@@ -68,35 +66,9 @@ function toHHMM(date: Date): string {
   ].join(':');
 }
 
-// ─── Palette de couleurs ──────────────────────────────────────────────────────
-const COLORS = {
-  blue:        '#2563EB',
-  blueLight:   '#DBEAFE',
-  orange:      '#F97316',
-  orangeLight: '#FFEDD5',
-  red:         '#EF4444',
-  white:       '#FFFFFF',
-  gray50:      '#F9FAFB',
-  gray100:     '#F3F4F6',
-  gray200:     '#E5E7EB',
-  gray300:     '#D1D5DB',
-  gray400:     '#9CA3AF',
-  gray500:     '#6B7280',
-  gray600:     '#4B5563',
-  gray700:     '#374151',
-  gray800:     '#1F2937',
-  gray900:     '#111827',
-  // Dark
-  dark800:     '#1F2937',
-  dark700:     '#374151',
-  dark900:     '#111827',
-  black50:     'rgba(0,0,0,0.5)',
-};
-
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function CalendarScreen(): ReactElement {
-  const scheme = useColorScheme();
-  const dark = scheme === 'dark';
+  const { colors, tokens } = useAppTheme();
 
   const [events,       setEvents]       = useState<CalendarItem[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -220,41 +192,33 @@ export default function CalendarScreen(): ReactElement {
 
   const filteredEvents = events.filter(e => filterType === 'all' || e.type === filterType);
 
-  // ── Styles dynamiques (dark/light) ────────────────────────────────────────
-  const bg        = dark ? COLORS.dark900 : COLORS.gray50;
-  const surface   = dark ? COLORS.dark800 : COLORS.white;
-  const border    = dark ? COLORS.dark700 : COLORS.gray200;
-  const textPrim  = dark ? COLORS.white   : COLORS.gray900;
-  const textSecond= dark ? COLORS.gray400 : COLORS.gray500;
-  const inputBg   = dark ? COLORS.dark700 : COLORS.gray50;
-  const inputBorder = dark ? COLORS.dark700 : COLORS.gray300;
-  const chipBg    = dark ? COLORS.dark700 : COLORS.gray100;
-  const chipText  = dark ? COLORS.gray300 : COLORS.gray600;
+  const styles = getStyles(colors, tokens);
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
-    <View style={[s.flex1, { backgroundColor: bg }]}>
+    <View style={styles.container}>
 
       {/* ── En-tête ── */}
-      <View style={[s.header, { backgroundColor: surface, borderBottomColor: border }]}>
-        <Text style={[s.headerTitle, { color: textPrim }]}>Agenda OJYQ</Text>
-        <Text style={[s.headerSub, { color: textSecond }]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Agenda OJYQ</Text>
+        <Text style={styles.headerSub}>
           {events.length} événement{events.length > 1 ? 's' : ''}
         </Text>
       </View>
 
       {/* ── Filtres ── */}
-      <View style={[s.filterBar, { backgroundColor: surface }]}>
+      <View style={styles.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['all', 'general', 'shift'] as const).map(type => {
             const active = filterType === type;
+            const activeColor = type === 'shift' ? colors.accent1 : colors.primary;
             return (
               <TouchableOpacity
                 key={type}
-                style={[s.chip, { backgroundColor: active ? COLORS.blue : chipBg, marginRight: 8 }]}
+                style={[styles.chip, { backgroundColor: active ? activeColor : colors.surfaceDim, marginRight: tokens.space.sm }]}
                 onPress={() => setFilterType(type)}
               >
-                <Text style={[s.chipText, { color: active ? COLORS.white : chipText }]}>
+                <Text style={[styles.chipText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
                   {type === 'all' ? 'Tous' : type === 'general' ? 'Événements' : 'Quarts'}
                 </Text>
               </TouchableOpacity>
@@ -265,15 +229,15 @@ export default function CalendarScreen(): ReactElement {
 
       {/* ── Liste ── */}
       {loading ? (
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color={COLORS.blue} />
-          <Text style={[s.loadingText, { color: textSecond, marginTop: 12 }]}>Chargement...</Text>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { marginTop: tokens.space.md }]}>Chargement...</Text>
         </View>
       ) : filteredEvents.length === 0 ? (
-        <View style={s.centered}>
-          <Ionicons name="calendar-outline" size={48} color={COLORS.gray400} />
-          <Text style={[s.emptyTitle, { color: textSecond, marginTop: 16 }]}>Aucun événement</Text>
-          <Text style={[s.emptySubtitle, { color: COLORS.gray400, marginTop: 4 }]}>
+        <View style={styles.centered}>
+          <Ionicons name="calendar-outline" size={48} color={colors.textTertiary} />
+          <Text style={[styles.emptyTitle, { marginTop: tokens.space.lg }]}>Aucun événement</Text>
+          <Text style={[styles.emptySubtitle, { marginTop: 4 }]}>
             Appuyez sur + pour en créer un
           </Text>
         </View>
@@ -281,11 +245,11 @@ export default function CalendarScreen(): ReactElement {
         <FlatList
           data={filteredEvents}
           keyExtractor={item => item.id}
-          contentContainerStyle={s.listContent}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const isShift = item.type === 'shift';
-            const accentColor = isShift ? COLORS.orange : COLORS.blue;
+            const accentColor = isShift ? colors.accent1 : colors.primary;
             const timeString = item.dateObj
               ? toHHMM(item.dateObj)
               : 'Heure inconnue';
@@ -294,41 +258,31 @@ export default function CalendarScreen(): ReactElement {
               <TouchableOpacity
                 activeOpacity={0.7}
                 onLongPress={() => handleLongPress(item)}
-                style={[
-                  s.card,
-                  {
-                    backgroundColor: surface,
-                    borderColor: border,
-                    opacity: item.pending ? 0.6 : 1,
-                  },
-                ]}
+                style={[styles.card, { opacity: item.pending ? 0.6 : 1 }]}
               >
                 {/* Bande de couleur latérale */}
-                <View style={[s.cardAccent, { backgroundColor: accentColor }]} />
+                <View style={[styles.cardAccent, { backgroundColor: accentColor }]} />
 
-                <View style={s.cardBody}>
+                <View style={styles.cardBody}>
                   {/* Titre + icône sync */}
-                  <View style={s.cardHeader}>
-                    <Text
-                      style={[s.cardTitle, { color: textPrim }]}
-                      numberOfLines={1}
-                    >
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>
                       {item.title}
                     </Text>
                     {item.pending && (
-                      <Ionicons name="cloud-upload-outline" size={16} color={COLORS.gray400} />
+                      <Ionicons name="cloud-upload-outline" size={16} color={colors.textTertiary} />
                     )}
                   </View>
 
                   {/* Heure + Lieu */}
-                  <View style={[s.row, { marginTop: 8 }]}>
-                    <View style={[s.row, { alignItems: 'center', marginRight: 16 }]}>
-                      <Ionicons name="time-outline" size={15} color={COLORS.gray500} style={{ marginRight: 4 }} />
-                      <Text style={[s.cardMeta, { color: textSecond }]}>{timeString}</Text>
+                  <View style={[styles.row, { marginTop: tokens.space.sm }]}>
+                    <View style={[styles.row, { alignItems: 'center', marginRight: tokens.space.lg }]}>
+                      <Ionicons name="time-outline" size={15} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                      <Text style={styles.cardMeta}>{timeString}</Text>
                     </View>
-                    <View style={[s.row, { alignItems: 'center', flex: 1 }]}>
-                      <Ionicons name="location-outline" size={15} color={COLORS.gray500} style={{ marginRight: 4 }} />
-                      <Text style={[s.cardMeta, { color: textSecond, flex: 1 }]} numberOfLines={1}>
+                    <View style={[styles.row, { alignItems: 'center', flex: 1 }]}>
+                      <Ionicons name="location-outline" size={15} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                      <Text style={[styles.cardMeta, { flex: 1 }]} numberOfLines={1}>
                         {item.location}
                       </Text>
                     </View>
@@ -336,10 +290,10 @@ export default function CalendarScreen(): ReactElement {
 
                   {/* Badge quart */}
                   {isShift && (
-                    <View style={s.cardBadgeRow}>
-                      <View style={[s.cardBadge, { backgroundColor: isShift && dark ? 'rgba(249,115,22,0.2)' : COLORS.orangeLight }]}>
-                        <Ionicons name="person" size={13} color={COLORS.orange} style={{ marginRight: 5 }} />
-                        <Text style={s.cardBadgeText}>
+                    <View style={styles.cardBadgeRow}>
+                      <View style={[styles.cardBadge, { backgroundColor: colors.accent1 + "20" }]}>
+                        <Ionicons name="person" size={13} color={colors.accent1} style={{ marginRight: 5 }} />
+                        <Text style={[styles.cardBadgeText, { color: colors.accent1 }]}>
                           Assigné à : {(item as any).assigneeName || 'À assigner'}
                         </Text>
                       </View>
@@ -354,84 +308,84 @@ export default function CalendarScreen(): ReactElement {
 
       {/* ── FAB ── */}
       <TouchableOpacity
-        style={s.fab}
+        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.8}
       >
-        <Ionicons name="add" size={30} color={COLORS.white} />
+        <Ionicons name="add" size={30} color="#FFFFFF" />
       </TouchableOpacity>
 
       {/* ── Modal création / édition ── */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={s.modalOverlay}
+          style={styles.modalOverlay}
         >
-          <View style={[s.modalSheet, { backgroundColor: surface }]}>
+          <View style={styles.modalSheet}>
             <ScrollView showsVerticalScrollIndicator={false}>
 
               {/* Titre modal */}
-              <Text style={[s.modalTitle, { color: textPrim }]}>
+              <Text style={styles.modalTitle}>
                 {editingId ? "Modifier l'événement" : 'Nouvel Événement'}
               </Text>
 
               {/* Sélecteur de type */}
-              <View style={s.row}>
+              <View style={styles.row}>
                 <TouchableOpacity
                   style={[
-                    s.typeBtn,
-                    { backgroundColor: eventType === 'general' ? COLORS.blue : chipBg, marginRight: 12 },
+                    styles.typeBtn,
+                    { backgroundColor: eventType === 'general' ? colors.primary : colors.surfaceDim, marginRight: tokens.space.md },
                   ]}
                   onPress={() => setEventType('general')}
                 >
-                  <Ionicons name="calendar" size={16} color={eventType === 'general' ? COLORS.white : COLORS.gray500} style={{ marginRight: 6 }} />
-                  <Text style={[s.typeBtnText, { color: eventType === 'general' ? COLORS.white : chipText }]}>
+                  <Ionicons name="calendar" size={16} color={eventType === 'general' ? '#FFFFFF' : colors.textSecondary} style={{ marginRight: 6 }} />
+                  <Text style={[styles.typeBtnText, { color: eventType === 'general' ? '#FFFFFF' : colors.textSecondary }]}>
                     Événement
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[
-                    s.typeBtn,
-                    { backgroundColor: eventType === 'shift' ? COLORS.orange : chipBg },
+                    styles.typeBtn,
+                    { backgroundColor: eventType === 'shift' ? colors.accent1 : colors.surfaceDim },
                   ]}
                   onPress={() => setEventType('shift')}
                 >
-                  <Ionicons name="time" size={16} color={eventType === 'shift' ? COLORS.white : COLORS.gray500} style={{ marginRight: 6 }} />
-                  <Text style={[s.typeBtnText, { color: eventType === 'shift' ? COLORS.white : chipText }]}>
+                  <Ionicons name="time" size={16} color={eventType === 'shift' ? '#FFFFFF' : colors.textSecondary} style={{ marginRight: 6 }} />
+                  <Text style={[styles.typeBtnText, { color: eventType === 'shift' ? '#FFFFFF' : colors.textSecondary }]}>
                     Quart
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {/* Titre */}
-              <Text style={[s.label, { color: textSecond }]}>Titre *</Text>
+              <Text style={styles.label}>Titre *</Text>
               <TextInput
-                style={[s.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }]}
+                style={styles.input}
                 placeholder="Nom de l'activité"
-                placeholderTextColor={COLORS.gray400}
+                placeholderTextColor={colors.textTertiary}
                 value={title}
                 onChangeText={setTitle}
               />
 
               {/* Date + Heure */}
-              <View style={s.row}>
-                <View style={s.flex1}>
-                  <Text style={[s.label, { color: textSecond }]}>Date (AAAA-MM-JJ)</Text>
+              <View style={styles.row}>
+                <View style={styles.flex1}>
+                  <Text style={styles.label}>Date (AAAA-MM-JJ)</Text>
                   <TextInput
-                    style={[s.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }]}
+                    style={styles.input}
                     placeholder="2026-02-28"
-                    placeholderTextColor={COLORS.gray400}
+                    placeholderTextColor={colors.textTertiary}
                     value={dateStr}
                     onChangeText={setDateStr}
                   />
                 </View>
-                <View style={[s.flex1, { marginLeft: 12 }]}>
-                  <Text style={[s.label, { color: textSecond }]}>Heure (HH:MM)</Text>
+                <View style={[styles.flex1, { marginLeft: tokens.space.md }]}>
+                  <Text style={styles.label}>Heure (HH:MM)</Text>
                   <TextInput
-                    style={[s.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }]}
+                    style={styles.input}
                     placeholder="14:00"
-                    placeholderTextColor={COLORS.gray400}
+                    placeholderTextColor={colors.textTertiary}
                     value={timeStr}
                     onChangeText={setTimeStr}
                   />
@@ -439,11 +393,11 @@ export default function CalendarScreen(): ReactElement {
               </View>
 
               {/* Lieu */}
-              <Text style={[s.label, { color: textSecond }]}>Lieu</Text>
+              <Text style={styles.label}>Lieu</Text>
               <TextInput
-                style={[s.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textPrim, marginBottom: 16 }]}
+                style={[styles.input, { marginBottom: tokens.space.lg }]}
                 placeholder="Lieu de l'événement"
-                placeholderTextColor={COLORS.gray400}
+                placeholderTextColor={colors.textTertiary}
                 value={location}
                 onChangeText={setLocation}
               />
@@ -451,17 +405,17 @@ export default function CalendarScreen(): ReactElement {
               {/* Assignation quart */}
               {eventType === 'shift' && (
                 <>
-                  <Text style={[s.label, { color: textSecond }]}>Assigner à</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                  <Text style={styles.label}>Assigner à</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: tokens.space.lg }}>
                     {MEMBERS.map(member => {
                       const sel = assignee === member.id;
                       return (
                         <TouchableOpacity
                           key={member.id}
-                          style={[s.chip, { backgroundColor: sel ? COLORS.orange : chipBg, marginRight: 8 }]}
+                          style={[styles.chip, { backgroundColor: sel ? colors.accent1 : colors.surfaceDim, marginRight: tokens.space.sm }]}
                           onPress={() => setAssignee(member.id)}
                         >
-                          <Text style={[s.chipText, { color: sel ? COLORS.white : chipText }]}>
+                          <Text style={[styles.chipText, { color: sel ? '#FFFFFF' : colors.textSecondary }]}>
                             {member.name.split(' ')[0]}
                           </Text>
                         </TouchableOpacity>
@@ -472,19 +426,19 @@ export default function CalendarScreen(): ReactElement {
               )}
 
               {/* Actions */}
-              <View style={[s.row, { marginTop: 8 }]}>
+              <View style={[styles.row, { marginTop: tokens.space.sm }]}>
                 <TouchableOpacity
-                  style={[s.actionBtn, s.cancelBtn, { marginRight: 12 }]}
+                  style={[styles.actionBtn, styles.cancelBtn, { marginRight: tokens.space.md }]}
                   onPress={closeModal}
                 >
-                  <Text style={s.cancelBtnText}>Annuler</Text>
+                  <Text style={styles.cancelBtnText}>Annuler</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[s.actionBtn, s.saveBtn]}
+                  style={[styles.actionBtn, { backgroundColor: colors.primary }]}
                   onPress={handleSaveEvent}
                 >
-                  <Text style={s.saveBtnText}>
+                  <Text style={styles.saveBtnText}>
                     {editingId ? 'Mettre à jour' : 'Ajouter'}
                   </Text>
                 </TouchableOpacity>
@@ -499,169 +453,172 @@ export default function CalendarScreen(): ReactElement {
 }
 
 // ─── StyleSheet ───────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  flex1:       { flex: 1 },
-  row:         { flexDirection: 'row' },
+const getStyles = (colors: any, tokens: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.surfaceDim },
+    row:       { flexDirection: 'row' },
+    flex1:     { flex: 1 },
 
-  // En-tête
-  header: {
-    paddingTop: 64,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 28, fontWeight: '800' },
-  headerSub:   { fontSize: 13, marginTop: 4 },
+    // En-tête
+    header: {
+      paddingTop: 64,
+      paddingHorizontal: tokens.space.xl,
+      paddingBottom: tokens.space.md,
+      borderBottomWidth: 1,
+      backgroundColor: colors.surface,
+      borderBottomColor: colors.border,
+    },
+    headerTitle: { fontSize: tokens.font.xxxl, fontWeight: '800', color: colors.textPrimary },
+    headerSub:   { fontSize: tokens.font.sm, marginTop: 4, color: colors.textSecondary },
 
-  // Filtres
-  filterBar: { paddingHorizontal: 16, paddingVertical: 12 },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  chipText: { fontSize: 13, fontWeight: '600' },
+    // Filtres
+    filterBar: { paddingHorizontal: tokens.space.lg, paddingVertical: tokens.space.md, backgroundColor: colors.surface },
+    chip: {
+      paddingHorizontal: tokens.space.lg,
+      paddingVertical: tokens.space.sm,
+      borderRadius: tokens.radius.pill,
+    },
+    chipText: { fontSize: tokens.font.sm, fontWeight: '600' },
 
-  // États vide / chargement
-  centered:     { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  loadingText:  { fontSize: 14 },
-  emptyTitle:   { fontSize: 17, fontWeight: '600' },
-  emptySubtitle:{ fontSize: 13, textAlign: 'center' },
+    // États vide / chargement
+    centered:     { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+    loadingText:  { fontSize: tokens.font.base, color: colors.textSecondary },
+    emptyTitle:   { fontSize: tokens.font.lg, fontWeight: '600', color: colors.textSecondary },
+    emptySubtitle:{ fontSize: tokens.font.sm, textAlign: 'center', color: colors.textTertiary },
 
-  // Liste
-  listContent: { padding: 16, paddingBottom: 100 },
+    // Liste
+    listContent: { padding: tokens.space.lg, paddingBottom: 100 },
 
-  // FAB
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 32,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.blue,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.blue,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
+    // FAB
+    fab: {
+      position: 'absolute',
+      right: tokens.space.xl,
+      bottom: 32,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 8,
+    },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: COLORS.black50,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalSheet: {
-    borderRadius: 24,
-    padding: 24,
-    maxHeight: '85%',
-  },
-  modalTitle: {
-    fontSize: 19,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
+    // Modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      padding: tokens.space.xl,
+    },
+    modalSheet: {
+      borderRadius: tokens.radius.xl,
+      padding: 24,
+      maxHeight: '85%',
+      backgroundColor: colors.surface,
+    },
+    modalTitle: {
+      fontSize: tokens.font.lg,
+      fontWeight: '700',
+      textAlign: 'center',
+      marginBottom: tokens.space.xl,
+      color: colors.textPrimary,
+    },
 
-  // Sélecteur de type
-  typeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  typeBtnText: { fontWeight: '600', fontSize: 14 },
+    // Sélecteur de type
+    typeBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: tokens.space.md,
+      borderRadius: tokens.radius.md,
+      marginBottom: tokens.space.xl,
+    },
+    typeBtnText: { fontWeight: '600', fontSize: tokens.font.base },
 
-  // Formulaire
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 4,
-    marginLeft: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 15,
-    marginBottom: 16,
-  },
+    // Formulaire
+    label: {
+      fontSize: tokens.font.xs,
+      fontWeight: '600',
+      marginBottom: 4,
+      marginLeft: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      color: colors.textSecondary,
+    },
+    input: {
+      borderWidth: 1,
+      borderRadius: tokens.radius.md,
+      padding: tokens.space.md,
+      fontSize: tokens.font.md,
+      marginBottom: tokens.space.lg,
+      backgroundColor: colors.surfaceDim,
+      borderColor: colors.border,
+      color: colors.textPrimary,
+    },
 
-  // ── Carte événement inline ────────────────────────────────────────────────
-  card: {
-    flexDirection: 'row',
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-    minHeight: 80,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardAccent: {
-    width: 4,
-  },
-  cardBody: {
-    flex: 1,
-    padding: 14,
-    justifyContent: 'center',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    marginRight: 8,
-  },
-  cardMeta: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  cardBadgeRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-  },
-  cardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  cardBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.orange,
-  },
+    // Carte événement
+    card: {
+      flexDirection: 'row',
+      borderRadius: tokens.radius.lg,
+      marginBottom: tokens.space.md,
+      borderWidth: 1,
+      overflow: 'hidden',
+      minHeight: 80,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    cardAccent: { width: 4 },
+    cardBody: { flex: 1, padding: 14, justifyContent: 'center' },
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    cardTitle: {
+      flex: 1,
+      fontSize: tokens.font.lg,
+      fontWeight: '700',
+      marginRight: tokens.space.sm,
+      color: colors.textPrimary,
+    },
+    cardMeta: {
+      fontSize: tokens.font.sm,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    cardBadgeRow: {
+      marginTop: 10,
+      flexDirection: 'row',
+    },
+    cardBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: tokens.radius.sm,
+    },
+    cardBadgeText: {
+      fontSize: tokens.font.sm,
+      fontWeight: '700',
+    },
 
-
-  // Boutons modal
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtn:     { borderWidth: 1.5, borderColor: COLORS.red },
-  cancelBtnText: { color: COLORS.red, fontSize: 15, fontWeight: '600' },
-  saveBtn:       { backgroundColor: COLORS.blue },
-  saveBtnText:   { color: COLORS.white, fontSize: 15, fontWeight: '700' },
-});
+    // Boutons modal
+    actionBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: tokens.radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelBtn:     { borderWidth: 1.5, borderColor: colors.accent6 },
+    cancelBtnText: { color: colors.accent6, fontSize: tokens.font.md, fontWeight: '600' },
+    saveBtnText:   { color: '#FFFFFF', fontSize: tokens.font.md, fontWeight: '700' },
+  });

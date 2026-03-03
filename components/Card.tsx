@@ -9,13 +9,13 @@
  * Usage:
  *   <Card>...</Card>
  *   <Card variant="elevated">...</Card>
- *   <Card variant="tinted" tintColor={T.colors.primary}>...</Card>
+ *   <Card variant="tinted" tintColor={colors.primary}>...</Card>
  *   <Card onPress={() => navigate('...')}>...</Card>
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
-import { T } from "../theme/tokens";
+import { useAppTheme } from "../contexts/ThemeContext";
 
 interface CardProps {
   children: React.ReactNode;
@@ -32,6 +32,9 @@ export const Card = ({
   style,
   onPress,
 }: CardProps) => {
+  const { colors, tokens } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
+
   const cardStyle = [
     styles.base,
     variant === "elevated" && styles.elevated,
@@ -58,22 +61,23 @@ export const Card = ({
   return <View style={cardStyle}>{children}</View>;
 };
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: T.colors.surface,
-    borderRadius: T.radius.xl,
-    borderWidth: 1,
-    borderColor: T.colors.border,
-  },
-  elevated: {
-    backgroundColor: T.colors.surface,
-    borderRadius: T.radius.xl,
-    borderWidth: 1,
-    borderColor: T.colors.borderLight,
-    shadowColor: "#070974ff",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-});
+const getStyles = (colors: any, tokens: any) =>
+  StyleSheet.create({
+    base: {
+      backgroundColor: colors.surface,
+      borderRadius: tokens.radius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    elevated: {
+      backgroundColor: colors.surface,
+      borderRadius: tokens.radius.xl,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      shadowColor: "#070974ff",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+  });

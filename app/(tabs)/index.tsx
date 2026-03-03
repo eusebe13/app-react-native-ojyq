@@ -38,9 +38,12 @@ import {
   DOCUMENTS_DATA,
   SCHEDULE_DATA,
 } from "../../constants/Mockdata";
-import { T } from "../../theme/tokens";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 const HomeScreen = () => {
+  const { colors, tokens } = useAppTheme();
+  const styles = getStyles(colors, tokens);
+
   const [selectedDay, setSelectedDay] = useState("Lun");
 
   const todayEvents = SCHEDULE_DATA.filter((e) => e.day === selectedDay);
@@ -66,9 +69,8 @@ const HomeScreen = () => {
         {/* GRADIENT HEADER                                                   */}
         {/* ─────────────────────────────────────────────────────────────── */}
         <View style={styles.headerGradient}>
-          {/* Decorative blobs */}
+          {/* Decorative blob */}
           <View style={styles.blob1} />
-          {/* <View style={styles.blob2} /> */}
 
           <View style={styles.headerInner}>
             <View style={styles.headerTopRow}>
@@ -86,10 +88,6 @@ const HomeScreen = () => {
                 </Text>
                 <Text style={styles.headerOrgBold}>Yira du Québec</Text>
               </View>
-              {/* <TouchableOpacity style={styles.headerNotifBtn}>
-                <Icon name="bell-outline" size={22} color="#FFFFFF" />
-                <Badge dot color="#EC4899" size="sm" />
-              </TouchableOpacity> */}
             </View>
 
             <View style={styles.headerBadgeRow}>
@@ -148,7 +146,7 @@ const HomeScreen = () => {
                     {d.date}
                   </Text>
                   {hasEvents && !active && (
-                    <Badge dot color={T.colors.primary} size="sm" />
+                    <Badge dot color={colors.primary} size="sm" />
                   )}
                 </TouchableOpacity>
               );
@@ -163,7 +161,7 @@ const HomeScreen = () => {
                   <Icon
                     name="calendar-remove-outline"
                     size={28}
-                    color={T.colors.textTertiary}
+                    color={colors.textTertiary}
                   />
                   <Text style={styles.emptyText}>Aucun événement ce jour</Text>
                 </View>
@@ -183,7 +181,6 @@ const HomeScreen = () => {
                       </Text>
                       {ev.isNow && (
                         <View style={styles.eventNowBadge}>
-                          {/* <Badge dot color={T.colors.online} size="sm" /> */}
                           <Text style={styles.eventNowText}>En cours</Text>
                         </View>
                       )}
@@ -193,7 +190,7 @@ const HomeScreen = () => {
                       <Icon
                         name="map-marker-outline"
                         size={13}
-                        color={T.colors.textTertiary}
+                        color={colors.textTertiary}
                       />
                       <Text style={styles.eventLocation}>{ev.location}</Text>
                     </View>
@@ -257,7 +254,7 @@ const HomeScreen = () => {
                     <Icon
                       name="check-all"
                       size={16}
-                      color={T.colors.textTertiary}
+                      color={colors.textTertiary}
                     />
                   )}
                 </TouchableOpacity>
@@ -286,7 +283,7 @@ const HomeScreen = () => {
                   activeOpacity={0.88}
                 >
                   <View style={styles.docIconWrap}>
-                    <Icon name={doc.icon} size={20} color={T.colors.primary} />
+                    <Icon name={doc.icon} size={20} color={colors.primary} />
                   </View>
                   <Text style={styles.docTitle} numberOfLines={1}>
                     {doc.title}
@@ -294,7 +291,7 @@ const HomeScreen = () => {
                   <Icon
                     name="open-in-new"
                     size={16}
-                    color={T.colors.textTertiary}
+                    color={colors.textTertiary}
                   />
                 </TouchableOpacity>
                 {i < DOCUMENTS_DATA.length - 1 && (
@@ -314,12 +311,12 @@ const HomeScreen = () => {
           <View style={styles.contactRow}>
             <Card
               variant="tinted"
-              tintColor={T.colors.primary}
+              tintColor={colors.primary}
               style={styles.contactCard}
               onPress={() => Linking.openURL("mailto:info@ojyq.org")}
             >
               <View style={styles.contactIconWrap}>
-                <Icon name="email-outline" size={22} color={T.colors.primary} />
+                <Icon name="email-outline" size={22} color={colors.primary} />
               </View>
               <Text style={styles.contactLabel}>Email</Text>
               <Text style={styles.contactValue}>info@ojyq.org</Text>
@@ -327,20 +324,20 @@ const HomeScreen = () => {
 
             <Card
               variant="tinted"
-              tintColor={T.colors.accent2}
+              tintColor={colors.accent2}
               style={styles.contactCard}
               onPress={() => Linking.openURL("tel:+14386224435")}
             >
               <View
                 style={[
                   styles.contactIconWrap,
-                  { backgroundColor: T.colors.accent2 + "12" },
+                  { backgroundColor: colors.accent2 + "12" },
                 ]}
               >
-                <Icon name="phone-outline" size={22} color={T.colors.accent2} />
+                <Icon name="phone-outline" size={22} color={colors.accent2} />
               </View>
               <Text style={styles.contactLabel}>Téléphone</Text>
-              <Text style={[styles.contactValue, { color: T.colors.accent2 }]}>
+              <Text style={[styles.contactValue, { color: colors.accent2 }]}>
                 +1 438-622-4435
               </Text>
             </Card>
@@ -389,295 +386,285 @@ const HomeScreen = () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // STYLES
 // ═══════════════════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-  // ── Screen ──
-  screen: { flex: 1, backgroundColor: T.colors.surfaceDim },
-  screenContent: { paddingBottom: 48 },
+const getStyles = (colors: any, tokens: any) =>
+  StyleSheet.create({
+    // ── Screen ──
+    screen: { flex: 1, backgroundColor: colors.surfaceDim },
+    screenContent: { paddingBottom: 48 },
 
-  // ── Gradient Header ──
-  headerGradient: {
-    backgroundColor: T.colors.primaryDark,
-    paddingTop: Platform.OS === "ios" ? 58 : 44,
-    paddingBottom: 28,
-    position: "relative",
-    overflow: "hidden",
-  },
-  blob1: {
-    position: "absolute",
-    top: -40,
-    right: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: T.colors.primaryLight,
-    opacity: 0.25,
-  },
-  blob2: {
-    position: "absolute",
-    bottom: -30,
-    left: -50,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: T.colors.accent1,
-    opacity: 0.12,
-  },
-  headerInner: {
-    paddingHorizontal: T.space.xl,
-    position: "relative",
-    zIndex: 1,
-  },
-  headerTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: T.space.md,
-  },
-  headerAvatarWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.4)",
-    overflow: "hidden",
-  },
-  headerLogo: { width: 42, height: 42, borderRadius: 21 },
-  headerTitleBlock: { flex: 1 },
-  headerOrgName: {
-    fontSize: T.font.sm,
-    color: "rgba(255,255,255,0.7)",
-    fontWeight: "500",
-  },
-  headerOrgBold: {
-    fontSize: T.font.md,
-    color: "#FFFFFF",
-    fontWeight: "700",
-    letterSpacing: -0.3,
-  },
-  headerNotifBtn: { position: "relative", padding: 6 },
-  headerBadgeRow: { marginTop: T.space.md },
-  headerBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: T.radius.pill,
-    alignSelf: "flex-start",
-  },
-  headerBadgeText: {
-    fontSize: T.font.xs,
-    color: "rgba(255,255,255,0.85)",
-    fontWeight: "700",
-    letterSpacing: 0.8,
-  },
+    // ── Gradient Header ──
+    headerGradient: {
+      backgroundColor: colors.primaryDark,
+      paddingTop: Platform.OS === "ios" ? 58 : 44,
+      paddingBottom: 28,
+      position: "relative",
+      overflow: "hidden",
+    },
+    blob1: {
+      position: "absolute",
+      top: -40,
+      right: -40,
+      width: 160,
+      height: 160,
+      borderRadius: 80,
+      backgroundColor: colors.primaryLight,
+      opacity: 0.25,
+    },
+    headerInner: {
+      paddingHorizontal: tokens.space.xl,
+      position: "relative",
+      zIndex: 1,
+    },
+    headerTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space.md,
+    },
+    headerAvatarWrap: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      borderWidth: 2,
+      borderColor: "rgba(255,255,255,0.4)",
+      overflow: "hidden",
+    },
+    headerLogo: { width: 42, height: 42, borderRadius: 21 },
+    headerTitleBlock: { flex: 1 },
+    headerOrgName: {
+      fontSize: tokens.font.sm,
+      color: "rgba(255,255,255,0.7)",
+      fontWeight: "500",
+    },
+    headerOrgBold: {
+      fontSize: tokens.font.md,
+      color: "#FFFFFF",
+      fontWeight: "700",
+      letterSpacing: -0.3,
+    },
+    headerBadgeRow: { marginTop: tokens.space.md },
+    headerBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      backgroundColor: "rgba(255,255,255,0.15)",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: tokens.radius.pill,
+      alignSelf: "flex-start",
+    },
+    headerBadgeText: {
+      fontSize: tokens.font.xs,
+      color: "rgba(255,255,255,0.85)",
+      fontWeight: "700",
+      letterSpacing: 0.8,
+    },
 
-  // ── Section shared ──
-  section: { paddingHorizontal: T.space.xl, marginTop: T.space.xxl },
+    // ── Section shared ──
+    section: { paddingHorizontal: tokens.space.xl, marginTop: tokens.space.xxl },
 
-  // ── Day pills ──
-  dayScroll: {
-    marginBottom: T.space.md,
-    marginHorizontal: -T.space.xl,
-    paddingHorizontal: T.space.xl,
-  },
-  dayPill: {
-    alignItems: "center",
-    backgroundColor: T.colors.surface,
-    borderWidth: 1,
-    borderColor: T.colors.border,
-    borderRadius: T.radius.lg,
-    paddingHorizontal: T.space.md,
-    paddingVertical: T.space.sm,
-    minWidth: 54,
-    gap: 2,
-    marginRight: T.space.sm,
-  },
-  dayPill_active: {
-    backgroundColor: T.colors.primary,
-    borderColor: T.colors.primary,
-    shadowColor: T.colors.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  dayPill_label: {
-    fontSize: T.font.sm,
-    fontWeight: "600",
-    color: T.colors.textSecondary,
-  },
-  dayPill_label_active: { color: "#FFFFFF" },
-  dayPill_date: {
-    fontSize: T.font.lg,
-    fontWeight: "700",
-    color: T.colors.textPrimary,
-  },
-  dayPill_date_active: { color: "#FFFFFF" },
+    // ── Day pills ──
+    dayScroll: {
+      marginBottom: tokens.space.md,
+      marginHorizontal: -tokens.space.xl,
+      paddingHorizontal: tokens.space.xl,
+    },
+    dayPill: {
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: tokens.radius.lg,
+      paddingHorizontal: tokens.space.md,
+      paddingVertical: tokens.space.sm,
+      minWidth: 54,
+      gap: 2,
+      marginRight: tokens.space.sm,
+    },
+    dayPill_active: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    dayPill_label: {
+      fontSize: tokens.font.sm,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    dayPill_label_active: { color: "#FFFFFF" },
+    dayPill_date: {
+      fontSize: tokens.font.lg,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    dayPill_date_active: { color: "#FFFFFF" },
 
-  // ── Events ──
-  eventList: { gap: T.space.sm },
-  eventCard: { flexDirection: "row", overflow: "hidden", minHeight: 72 },
-  eventStripe: { width: 4, minHeight: 72 },
-  eventBody: { flex: 1, padding: T.space.md, justifyContent: "center" },
-  eventTimeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: T.space.xs,
-    marginBottom: 3,
-  },
-  eventTime: { fontSize: T.font.sm, fontWeight: "700" },
-  eventNowBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
-  eventNowText: {
-    fontSize: T.font.sm,
-    fontWeight: "600",
-    color: T.colors.online,
-    marginRight: T.space.sm,
-  },
-  eventTitle: {
-    fontSize: T.font.md,
-    fontWeight: "600",
-    color: T.colors.textPrimary,
-    marginBottom: 3,
-  },
-  eventLocationRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  eventLocation: { fontSize: T.font.sm, color: T.colors.textTertiary },
+    // ── Events ──
+    eventList: { gap: tokens.space.sm },
+    eventCard: { flexDirection: "row", overflow: "hidden", minHeight: 72 },
+    eventStripe: { width: 4, minHeight: 72 },
+    eventBody: { flex: 1, padding: tokens.space.md, justifyContent: "center" },
+    eventTimeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space.xs,
+      marginBottom: 3,
+    },
+    eventTime: { fontSize: tokens.font.sm, fontWeight: "700" },
+    eventNowBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+    eventNowText: {
+      fontSize: tokens.font.sm,
+      fontWeight: "600",
+      color: colors.online,
+      marginRight: tokens.space.sm,
+    },
+    eventTitle: {
+      fontSize: tokens.font.md,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 3,
+    },
+    eventLocationRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+    eventLocation: { fontSize: tokens.font.sm, color: colors.textTertiary },
 
-  // ── Empty ──
-  emptyWrap: { alignItems: "center", gap: T.space.sm, padding: T.space.xl },
-  emptyText: {
-    fontSize: T.font.base,
-    color: T.colors.textTertiary,
-    fontStyle: "italic",
-  },
+    // ── Empty ──
+    emptyWrap: { alignItems: "center", gap: tokens.space.sm, padding: tokens.space.xl },
+    emptyText: {
+      fontSize: tokens.font.base,
+      color: colors.textTertiary,
+      fontStyle: "italic",
+    },
 
-  // ── Chat list ──
-  chatListCard: { overflow: "hidden" },
-  chatRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: T.space.md,
-    gap: T.space.md,
-  },
-  chatMeta: { flex: 1, minWidth: 0 },
-  chatMetaTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 3,
-  },
-  chatName: {
-    fontSize: T.font.base,
-    fontWeight: "500",
-    color: T.colors.textSecondary,
-  },
-  chatName_bold: { color: T.colors.textPrimary, fontWeight: "700" },
-  chatTime: {
-    fontSize: T.font.xs,
-    color: T.colors.textTertiary,
-    flexShrink: 0,
-  },
-  chatPreview: { fontSize: T.font.sm, color: T.colors.textTertiary },
-  chatPreview_bold: { color: T.colors.textSecondary, fontWeight: "500" },
-  chatDivider: {
-    height: 1,
-    backgroundColor: T.colors.borderLight,
-    marginLeft: 60,
-  },
+    // ── Chat list ──
+    chatListCard: { overflow: "hidden" },
+    chatRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: tokens.space.md,
+      gap: tokens.space.md,
+    },
+    chatMeta: { flex: 1, minWidth: 0 },
+    chatMetaTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 3,
+    },
+    chatName: {
+      fontSize: tokens.font.base,
+      fontWeight: "500",
+      color: colors.textSecondary,
+    },
+    chatName_bold: { color: colors.textPrimary, fontWeight: "700" },
+    chatTime: {
+      fontSize: tokens.font.xs,
+      color: colors.textTertiary,
+      flexShrink: 0,
+    },
+    chatPreview: { fontSize: tokens.font.sm, color: colors.textTertiary },
+    chatPreview_bold: { color: colors.textSecondary, fontWeight: "500" },
+    chatDivider: {
+      height: 1,
+      backgroundColor: colors.borderLight,
+      marginLeft: 60,
+    },
 
-  // ── Documents list ──
-  docListCard: { overflow: "hidden" },
-  docRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: T.space.md,
-    gap: T.space.md,
-  },
-  docIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: T.radius.md,
-    backgroundColor: T.colors.primaryTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  docTitle: {
-    flex: 1,
-    fontSize: T.font.base,
-    fontWeight: "500",
-    color: T.colors.textPrimary,
-  },
+    // ── Documents list ──
+    docListCard: { overflow: "hidden" },
+    docRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: tokens.space.md,
+      gap: tokens.space.md,
+    },
+    docIconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: tokens.radius.md,
+      backgroundColor: colors.primaryTint,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    docTitle: {
+      flex: 1,
+      fontSize: tokens.font.base,
+      fontWeight: "500",
+      color: colors.textPrimary,
+    },
 
-  // ── Contact ──
-  contactRow: {
-    flexDirection: "row",
-    gap: T.space.sm,
-    marginBottom: T.space.sm,
-  },
-  contactCard: { flex: 1, padding: T.space.md, alignItems: "center", gap: 6 },
-  contactIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: T.radius.md,
-    backgroundColor: T.colors.primaryTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  contactLabel: {
-    fontSize: T.font.xs,
-    fontWeight: "600",
-    color: T.colors.textTertiary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  contactValue: {
-    fontSize: T.font.sm,
-    fontWeight: "600",
-    color: T.colors.primary,
-    textAlign: "center",
-  },
+    // ── Contact ──
+    contactRow: {
+      flexDirection: "row",
+      gap: tokens.space.sm,
+      marginBottom: tokens.space.sm,
+    },
+    contactCard: { flex: 1, padding: tokens.space.md, alignItems: "center", gap: 6 },
+    contactIconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: tokens.radius.md,
+      backgroundColor: colors.primaryTint,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    contactLabel: {
+      fontSize: tokens.font.xs,
+      fontWeight: "600",
+      color: colors.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    contactValue: {
+      fontSize: tokens.font.sm,
+      fontWeight: "600",
+      color: colors.primary,
+      textAlign: "center",
+    },
 
-  // ── Facebook card ──
-  fbCard: {
-    backgroundColor: T.colors.facebook,
-    borderColor: T.colors.facebook,
-    overflow: "hidden",
-  },
-  fbInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: T.space.md,
-    gap: T.space.md,
-  },
-  fbIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: T.radius.md,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fbTextBlock: { flex: 1 },
-  fbTitle: { fontSize: T.font.md, fontWeight: "700", color: "#FFFFFF" },
-  fbSub: { fontSize: T.font.sm, color: "rgba(255,255,255,0.7)" },
+    // ── Facebook card ──
+    fbCard: {
+      backgroundColor: colors.facebook,
+      borderColor: colors.facebook,
+      overflow: "hidden",
+    },
+    fbInner: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: tokens.space.md,
+      gap: tokens.space.md,
+    },
+    fbIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: tokens.radius.md,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    fbTextBlock: { flex: 1 },
+    fbTitle: { fontSize: tokens.font.md, fontWeight: "700", color: "#FFFFFF" },
+    fbSub: { fontSize: tokens.font.sm, color: "rgba(255,255,255,0.7)" },
 
-  // ── Footer ──
-  footer: {
-    alignItems: "center",
-    paddingTop: T.space.xxl,
-    paddingHorizontal: T.space.xl,
-  },
-  footerText: {
-    fontSize: T.font.sm,
-    color: T.colors.textTertiary,
-    textAlign: "center",
-  },
-  footerSub: {
-    fontSize: T.font.xs,
-    color: T.colors.textTertiary,
-    marginTop: 3,
-    opacity: 0.7,
-  },
-});
+    // ── Footer ──
+    footer: {
+      alignItems: "center",
+      paddingTop: tokens.space.xxl,
+      paddingHorizontal: tokens.space.xl,
+    },
+    footerText: {
+      fontSize: tokens.font.sm,
+      color: colors.textTertiary,
+      textAlign: "center",
+    },
+    footerSub: {
+      fontSize: tokens.font.xs,
+      color: colors.textTertiary,
+      marginTop: 3,
+      opacity: 0.7,
+    },
+  });
 
 export default HomeScreen;

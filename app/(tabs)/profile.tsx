@@ -345,53 +345,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ══════════════════ STATUS QUICK-CHANGE ══════════════════ */}
-        <View style={styles.statusCard}>
-          <Text style={styles.statusCardLabel}>Disponibilité</Text>
-          <View style={styles.statusRow}>
-            {(
-              Object.entries(STATUS_CONFIG) as [
-                UserStatus,
-                (typeof STATUS_CONFIG)[UserStatus],
-              ][]
-            ).map(([key, cfg]) => {
-              const active = status === key;
-              return (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.statusChip,
-                    active && {
-                      backgroundColor: cfg.bg,
-                      borderColor: cfg.color,
-                    },
-                  ]}
-                  onPress={() => handleStatusChange(key)}
-                  activeOpacity={0.65}
-                >
-                  <View
-                    style={[
-                      styles.statusChipDot,
-                      { backgroundColor: active ? cfg.color : colors.border },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.statusChipText,
-                      active && { color: cfg.color, fontWeight: "700" },
-                    ]}
-                  >
-                    {cfg.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ══════════════════ MON COMPTE ══════════════════ */}
-        <NavCard title="Mon compte">
-          <NavRow
+        {/* ══════════════════ ACCOUNT ══════════════════ */}
+        <View style={styles.accountCard}>
+          <Text style={styles.accountCardLabel}>Mon Compte</Text>
+           <NavRow
             icon="account-edit"
             iconBg={colors.primary}
             label="Informations personnelles"
@@ -406,7 +363,7 @@ export default function ProfileScreen() {
             onPress={() => router.push("/account/security")}
             last
           />
-        </NavCard>
+        </View>
 
         {/* ══════════════════ PRÉFÉRENCES ══════════════════ */}
         <NavCard title="Préférences">
@@ -671,7 +628,7 @@ const getStyles = (
     },
 
     // ── Status quick-change card ─────────────────────────────────────────
-    statusCard: {
+    accountCard: {
       backgroundColor: colors.surface,
       marginHorizontal: tokens.space.lg,
       marginTop: -20,
@@ -683,7 +640,7 @@ const getStyles = (
       shadowRadius: 12,
       elevation: 5,
     },
-    statusCardLabel: {
+    accountCardLabel: {
       fontSize: tokens.font.xs,
       fontWeight: "700",
       color: colors.textSecondary,
