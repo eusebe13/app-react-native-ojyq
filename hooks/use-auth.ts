@@ -11,19 +11,17 @@ import { useEffect, useState } from "react";
 // Hook to manage authentication state
 export default function useAuth() {
     const [user, setUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setUser(user);
-            } else {
-                setUser(null);
-            }
+            setUser(user ?? null);
+            setIsLoading(false);
         });
         return () => unsub();
     }, []);
 
-    return { user };
+    return { user, isLoading };
 }
 
 // Function to sign up a user
