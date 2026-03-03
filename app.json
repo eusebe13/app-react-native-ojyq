@@ -32,6 +32,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "color": "#14389c",
+          "defaultChannel": "default"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
@@ -42,11 +49,19 @@
             "backgroundColor": "#081129"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0e9eb805-7284-4b79-bf6c-225c4d4a2b99"
+      }
+    },
+    "owner": "melvice"
   }
 }

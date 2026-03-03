@@ -39,6 +39,7 @@ import {
   SCHEDULE_DATA,
 } from "../../constants/Mockdata";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import { TaskSection } from "../../components/TaskSection";
 
 const HomeScreen = () => {
   const { colors, tokens } = useAppTheme();
@@ -101,6 +102,13 @@ const HomeScreen = () => {
               </View>
             </View>
           </View>
+        </View>
+
+        {/* ─────────────────────────────────────────────────────────────── */}
+        {/* TÂCHES                                                            */}
+        {/* ─────────────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <TaskSection />
         </View>
 
         {/* ─────────────────────────────────────────────────────────────── */}
