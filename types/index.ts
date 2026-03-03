@@ -42,3 +42,36 @@ export interface DayOption {
     label: string;
     date: string;
 }
+
+// ─── User Profile ──────────────────────────────────────────────────────────
+
+export type UserRole =
+    | 'Membre'
+    | 'Vice-Président'
+    | 'Président'
+    | 'Secrétaire'
+    | 'Trésorier'
+    | 'Administrateur';
+
+export type UserStatus = 'Actif' | 'Pause' | 'Visite' | 'Arrêt';
+
+export type Gender = 'H' | 'F' | 'Autre';
+
+export type Language = 'Français' | 'Anglais' | 'Kiswahili' | 'Kinande';
+
+export interface UserProfile {
+    firstName: string;
+    lastName: string;
+    role: UserRole;
+    status: UserStatus;
+    birthDate: Date | null;
+    postalCode: string;
+    phoneNumber: string;
+    gender: Gender | null;
+    languages: Language[];
+    darkMode: boolean;
+    notifAgenda: boolean;
+    notifMessages: boolean;
+    avatarUrl?: string;
+    avatarPreset?: number | null;
+}
