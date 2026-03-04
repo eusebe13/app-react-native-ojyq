@@ -487,19 +487,4 @@ const getStyles = (colors: any, tokens: any) =>
       marginLeft: tokens.space.sm,
       marginBottom: 1,
     },
-    // Call modal styles (kept for future use)
-    callOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-    callSheet:   { borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: "hidden", minHeight: "55%" },
-    audioCallDisplay: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 48 },
-    callAvatar: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: 20 },
-    callName:     { color: "#FFFFFF", fontWeight: "700", marginBottom: 8, fontSize: tokens.font.xl },
-    callStatus:   { color: "#9CA3AF", fontSize: tokens.font.sm },
-    videoFull:    { flex: 1 },
-    callControls: { flexDirection: "row", justifyContent: "center", paddingVertical: 24, gap: 20 },
-    callBtn:      { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-    localVideoContainer: {
-      position: "absolute", top: 20, right: 20,
-      width: 100, height: 150, borderRadius: 10,
-      overflow: "hidden", borderWidth: 2, borderColor: "#FFFFFF",
-    },
   });
