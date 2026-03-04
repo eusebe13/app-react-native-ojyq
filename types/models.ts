@@ -257,19 +257,10 @@ export const messageFromFirestore = (doc: any): Message => {
 /**
  * Convertit un document Firestore en Channel
  */
-export const channelFromFirestore = (doc: any): Channel => {
+export function channelFromFirestore(doc: any): Channel {
   const data = doc.data();
   return {
     id: doc.id,
-    name: data.name || 'Sans nom',
-    description: data.description,
-    type: data.type || 'public',
-    createdBy: data.createdBy || '',
-    createdAt: data.createdAt,
-    lastMessage: data.lastMessage || '',
-    lastMessageAt: data.lastMessageAt,
-    members: data.members,
-    avatarUrl: data.avatarUrl,
-    isPinned: data.isPinned,
-  };
-};
+    ...data,
+  } as Channel;
+}
