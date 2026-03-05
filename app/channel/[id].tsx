@@ -28,7 +28,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -41,6 +40,7 @@ import { Message, Poll } from "../../types/models";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface ExtendedMessage extends Message {
   _id: string;
@@ -88,7 +88,9 @@ export default function ChannelScreen(): ReactElement {
   // Utilisateur courant avec toutes ses infos (Avatar + Preset + Role)
   const currentUser = {
     _id: user?.uid || "anonyme",
-    name: userProfile?.name || user?.displayName || "Utilisateur",
+    name: userProfile?.firstName 
+      ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() 
+      : (user?.displayName || "Utilisateur"),
     avatar: user?.photoURL || null,
     avatarPreset: userProfile?.avatarPreset ?? null,
     role: userProfile?.role || "Membre",
