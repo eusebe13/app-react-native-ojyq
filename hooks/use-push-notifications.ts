@@ -1,41 +1,55 @@
-/**
- * usePushNotifications — registers the device for Expo push notifications
- * and stores the token in Firestore `users/{uid}.expoPushToken`.
- *
- * Call this once when the user is authenticated (e.g. in the root layout).
- * The token is used by task-assignment flows to send cross-device notifications.
- */
-
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { doc, updateDoc } from "firebase/firestore";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { db } from "@/firebaseConfig";
 import useAuth from "@/hooks/use-auth";
 
-// Configure how notifications behave when the app is in the foreground
+// Show notifications even when the app is in the foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldSetBadge: false,
   }),
 });
 
 export function usePushNotifications() {
   const { user } = useAuth();
+  const receivedSub = useRef<Notifications.EventSubscription | null>(null);
+  const responseSub = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
-    registerForPushNotifications(user.uid);
+
+    registerForPushNotificationsAsync(user.uid).catch((e) =>
+      console.warn("[push-notifications] registration failed:", e)
+    );
+
+    // Notification received while app is open
+    receivedSub.current = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        console.log("[push] received:", notification.request.content.title);
+      }
+    );
+
+    // User tapped on a notification
+    responseSub.current = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        console.log("[push] tapped:", response.notification.request.content.data);
+      }
+    );
+
+    return () => {
+      receivedSub.current?.remove();
+      responseSub.current?.remove();
+    };
   }, [user?.uid]);
 }
 
-async function registerForPushNotifications(uid: string) {
-  // Android requires a notification channel
+async function registerForPushNotificationsAsync(uid: string): Promise<void> {
+  // Android requires a channel before any notification can appear
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "OJYQ",
@@ -45,39 +59,36 @@ async function registerForPushNotifications(uid: string) {
     });
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  let finalStatus = existing;
 
-  if (existingStatus !== "granted") {
+  if (existing !== "granted") {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
 
-  if (finalStatus !== "granted") return;
+  if (finalStatus !== "granted") {
+    console.warn("[push-notifications] Permission not granted:", finalStatus);
+    return;
+  }
 
-  // projectId is required by getExpoPushTokenAsync — skip silently if not configured
   const projectId: string | undefined =
     Constants.expoConfig?.extra?.eas?.projectId ??
     (Constants as any).easConfig?.projectId;
 
   if (!projectId) {
-    // EAS project not configured yet — push tokens unavailable in this build.
-    // Run `eas init` to link the project and enable cross-device notifications.
+    console.warn("[push-notifications] No EAS projectId found in app.json");
     return;
   }
 
-  try {
-    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    await updateDoc(doc(db, "users", uid), { expoPushToken: token });
-  } catch (e) {
-    // Non-critical: simulator, revoked permission, network issue, etc.
-    console.warn("[push-notifications]", e);
-  }
+  const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+  console.log("[push-notifications] Token registered:", token);
+  await updateDoc(doc(db, "users", uid), { expoPushToken: token });
 }
 
 /**
- * Sends a push notification to a single Expo push token via the Expo push service.
- * Safe to call from the client — no server needed.
+ * Sends a push notification via Expo's push service (no server needed).
+ * The recipient must have their expoPushToken stored in Firestore.
  */
 export async function sendExpoPush(
   expoPushToken: string,
@@ -86,7 +97,7 @@ export async function sendExpoPush(
   data?: Record<string, unknown>
 ): Promise<void> {
   try {
-    await fetch("https://exp.host/--/api/v2/push/send", {
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -96,13 +107,18 @@ export async function sendExpoPush(
       body: JSON.stringify({
         to: expoPushToken,
         sound: "default",
+        channelId: "default",   // required for Android
         title,
         body,
         data: data ?? {},
         priority: "high",
       }),
     });
+    const json = await res.json();
+    if (json?.data?.status === "error") {
+      console.warn("[sendExpoPush] Expo error:", json.data.message);
+    }
   } catch (e) {
-    console.warn("[sendExpoPush]", e);
+    console.warn("[sendExpoPush] Network error:", e);
   }
 }
