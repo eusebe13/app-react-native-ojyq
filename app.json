@@ -2,9 +2,9 @@
   "expo": {
     "name": "OJYQ",
     "slug": "OJYQ",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
+    "icon": "./assets/images/IMG_Logo-Principale.jpg",
     "scheme": "OJYQ",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,18 +16,19 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#14389c",
-        "foregroundImage": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
-        "backgroundImage": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
-        "monochromeImage": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg"
+        "foregroundImage": "./assets/images/IMG_Logo-Principale.jpg",
+        "backgroundImage": "./assets/images/IMG_Logo-Principale.jpg",
+        "monochromeImage": "./assets/images/IMG_Logo-Principale.jpg"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg"
+      "favicon": "./assets/images/IMG_Logo-Principale.jpg"
     },
     "plugins": [
       "expo-router",
@@ -41,7 +42,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
+          "image": "./assets/images/IMG_Logo-Principale.jpg",
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#081129",
@@ -59,9 +60,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0e9eb805-7284-4b79-bf6c-225c4d4a2b99"
+        "projectId": "8db3ee0f-757f-46be-84e4-99bcb7a8edb1"
       }
     },
-    "owner": "melvice"
+    "owner": "eusebe13"
   }
 }
