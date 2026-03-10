@@ -7,13 +7,16 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
+  where,
   Timestamp,
   updateDoc,
   getDoc,
 } from "firebase/firestore";
+import { sendExpoPush } from "@/hooks/use-push-notifications";
 import React, {
   ReactElement,
   useCallback,
@@ -44,6 +47,60 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface ExtendedMessage extends Message {
   _id: string;
+}
+
+// ─── Notification helper ──────────────────────────────────────────────────────
+
+async function notifyChannelMembers(
+  channelId: string,
+  channelName: string,
+  senderName: string,
+  senderUid: string,
+  messagePreview: string
+): Promise<void> {
+  const channelSnap = await getDoc(doc(db, "channels", channelId));
+  if (!channelSnap.exists()) return;
+  const channelData = channelSnap.data();
+  const audienceType = channelData.audienceType as "public" | "roles" | "private";
+
+  const pushes: Promise<void>[] = [];
+
+  if (audienceType === "private") {
+    const memberUids = (channelData.members as string[] | undefined) ?? [];
+    for (const uid of memberUids) {
+      if (uid === senderUid) continue;
+      pushes.push(
+        getDoc(doc(db, "users", uid)).then((snap) => {
+          const token = snap.data()?.expoPushToken as string | undefined;
+          if (token)
+            return sendExpoPush(token, `#${channelName}`, `${senderName}: ${messagePreview}`, {
+              type: "message",
+              channelId,
+            });
+        })
+      );
+    }
+  } else if (audienceType === "roles") {
+    const allowedRoles = channelData.allowedRoles as string[] | undefined;
+    if (!allowedRoles?.length) return;
+    const usersSnap = await getDocs(
+      query(collection(db, "users"), where("role", "in", allowedRoles))
+    );
+    for (const userDoc of usersSnap.docs) {
+      if (userDoc.id === senderUid) continue;
+      const token = userDoc.data().expoPushToken as string | undefined;
+      if (token)
+        pushes.push(
+          sendExpoPush(token, `#${channelName}`, `${senderName}: ${messagePreview}`, {
+            type: "message",
+            channelId,
+          })
+        );
+    }
+  }
+  // Public channels: skip (too many recipients)
+
+  await Promise.all(pushes);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -138,10 +195,19 @@ export default function ChannelScreen(): ReactElement {
           poll: pollData || null,
         });
 
+        const preview = pollData ? `📊 ${pollData.question}` : (content || "📷 Photo");
         await updateDoc(doc(db, "channels", id), {
-          lastMessage: pollData ? `📊 ${pollData.question}` : (content || "📷 Photo"),
+          lastMessage: preview,
           lastMessageAt: Timestamp.now(),
         });
+
+        notifyChannelMembers(
+          id,
+          name ?? id,
+          currentUser.name,
+          currentUser._id,
+          preview
+        ).catch((e) => console.warn("[notifyChannelMembers]", e));
       } catch (error) {
         console.error("Erreur Firestore lors de l'envoi :", error);
         Alert.alert("Erreur", "Message non envoyé");
@@ -150,7 +216,7 @@ export default function ChannelScreen(): ReactElement {
         setSending(false);
       }
     },
-    [inputText, id, currentUser],
+    [inputText, id, name, currentUser],
   );
 
   const handlePickImage = async () => {
