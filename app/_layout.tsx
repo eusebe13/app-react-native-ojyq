@@ -8,6 +8,7 @@ import "react-native-reanimated";
 import AppSplashScreen from "@/components/AppSplashScreen";
 import { ThemeContextProvider, useAppTheme } from "@/contexts/ThemeContext";
 import useAuth from "@/hooks/use-auth";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import AuthScreen from "./auth/auth-screen";
 
 // Prevent the native splash from auto-hiding — our JS splash takes over.
@@ -20,6 +21,7 @@ export const unstable_settings = {
 function RootLayoutInner() {
     const { isDark } = useAppTheme();
     const { user, isLoading: authLoading } = useAuth();
+    usePushNotifications();
     const [splashDone, setSplashDone] = useState(false);
 
     // Dismiss the native splash as soon as JS is running.

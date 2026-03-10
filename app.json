@@ -2,39 +2,50 @@
   "expo": {
     "name": "OJYQ",
     "slug": "OJYQ",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
+    "icon": "./assets/images/IMG_Logo-Principale.png",
     "scheme": "OJYQ",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "org.ojyq.app",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#14389c",
-        "foregroundImage": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
-        "backgroundImage": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
-        "monochromeImage": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg"
+        "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
+        "backgroundImage": "./assets/images/IMG_Logo-Principale.png",
+        "monochromeImage": "./assets/images/IMG_Logo-Principale.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg"
+      "favicon": "./assets/images/IMG_Logo-Principale.png"
     },
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "color": "#14389c",
+          "defaultChannel": "default"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
+          "image": "./assets/images/IMG_Logo-Principale.png",
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#081129",
@@ -48,6 +59,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "311453cc-2bde-43a1-923d-47dbfc299172"
+      }
+    },
+    "owner": "ojyq"
   }
 }
