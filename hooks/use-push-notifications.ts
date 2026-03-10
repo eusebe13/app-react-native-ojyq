@@ -90,19 +90,24 @@ async function registerForPushNotificationsAsync(uid: string): Promise<void> {
 /**
  * Sends push notifications to one or multiple tokens in one HTTP request.
  */
+/**
+ * Sends push notifications to one or multiple tokens.
+ * Returns the list of stale tokens (DeviceNotRegistered) for cleanup.
+ */
 export async function sendExpoPush(
   tokens: string | string[],
   title: string,
   body: string,
   data?: Record<string, unknown>
-): Promise<void> {
+): Promise<string[]> {
   const list = Array.isArray(tokens) ? tokens : [tokens];
-  if (!list.length) return;
+  if (!list.length) return [];
 
   const base = { sound: "default", channelId: "default", title, body, data: data ?? {}, priority: "high" };
+  const staleTokens: string[] = [];
 
   for (let i = 0; i < list.length; i += 100) {
-    const chunk = list.slice(i, i + 100).map((to) => ({ to, ...base }));
+    const chunk = list.slice(i, i + 100);
     try {
       const res = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
@@ -111,16 +116,23 @@ export async function sendExpoPush(
           "Accept-encoding": "gzip, deflate",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(chunk),
+        body: JSON.stringify(chunk.map((to) => ({ to, ...base }))),
       });
       const json = await res.json();
-      console.log("[sendExpoPush] response:", JSON.stringify(json));
-      const tickets: any[] = Array.isArray(json?.data) ? json.data : [json?.data];
-      for (const t of tickets) {
-        if (t?.status === "error") console.warn("[sendExpoPush] error:", t.message, t.details);
-      }
+      const tickets: any[] = Array.isArray(json?.data) ? json.data : [];
+      tickets.forEach((t, j) => {
+        if (t?.status === "error") {
+          console.warn("[sendExpoPush] error:", t.message);
+          const errorCode = t?.details?.error;
+          if (errorCode === "DeviceNotRegistered" || errorCode === "InvalidCredentials") {
+            staleTokens.push(chunk[j]);
+          }
+        }
+      });
     } catch (e) {
       console.warn("[sendExpoPush] Network error:", e);
     }
   }
+
+  return staleTokens;
 }

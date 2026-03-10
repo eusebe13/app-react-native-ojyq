@@ -9,6 +9,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -66,66 +67,60 @@ async function notifyChannelMembers(
     | "roles"
     | "private";
 
-  const pushes: Promise<void>[] = [];
-
+  // 1. Fetch recipient user docs
+  let userDocs: { id: string; data: () => any }[] = [];
   if (audienceType === "private") {
     const memberUids = (channelData.members as string[] | undefined) ?? [];
-    for (const uid of memberUids) {
-      if (uid === senderUid) continue;
-      pushes.push(
-        getDoc(doc(db, "users", uid)).then((snap) => {
-          const token = snap.data()?.expoPushToken as string | undefined;
-          if (token)
-            return sendExpoPush(
-              token,
-              `#${channelName}`,
-              `${senderName}: ${messagePreview}`,
-              {
-                type: "message",
-                channelId,
-              },
-            );
-        }),
-      );
-    }
+    const targets = memberUids.filter((uid) => uid !== senderUid);
+    if (!targets.length) return;
+    userDocs = (
+      await Promise.all(targets.map((uid) => getDoc(doc(db, "users", uid))))
+    ).filter((s) => s.exists());
   } else if (audienceType === "roles") {
     const allowedRoles = channelData.allowedRoles as string[] | undefined;
     if (!allowedRoles?.length) return;
-    const usersSnap = await getDocs(
-      query(collection(db, "users"), where("role", "in", allowedRoles)),
-    );
-    for (const userDoc of usersSnap.docs) {
-      if (userDoc.id === senderUid) continue;
-      const token = userDoc.data().expoPushToken as string | undefined;
-      if (token)
-        pushes.push(
-          sendExpoPush(
-            token,
-            `#${channelName}`,
-            `${senderName}: ${messagePreview}`,
-            {
-              type: "message",
-              channelId,
-            },
-          ),
-        );
-    }
-  } else if (audienceType === "public") {
-    const usersSnap = await getDocs(collection(db, "users"));
-    for (const userDoc of usersSnap.docs) {
-      if (userDoc.id === senderUid) continue;
-      const token = userDoc.data().expoPushToken as string | undefined;
-      if (token)
-        pushes.push(
-          sendExpoPush(token, `OJYQ`, `${senderName}: ${messagePreview}`, {
-            type: "message",
-            channelId,
-          }),
-        );
-    }
+    userDocs = (
+      await getDocs(
+        query(collection(db, "users"), where("role", "in", allowedRoles)),
+      )
+    ).docs;
+  } else {
+    userDocs = (await getDocs(collection(db, "users"))).docs;
   }
 
-  await Promise.all(pushes);
+  // 2. Build token → uid map (excludes sender)
+  const tokenToUid = new Map<string, string>();
+  for (const d of userDocs) {
+    if (d.id === senderUid) continue;
+    const token = d.data().expoPushToken as string | undefined;
+    if (token) tokenToUid.set(token, d.id);
+  }
+  if (!tokenToUid.size) return;
+
+  // 3. Send one request per token in parallel (avoids batch rejection on mixed valid/stale tokens)
+  const staleTokens = (
+    await Promise.all(
+      [...tokenToUid.keys()].map((token) =>
+        sendExpoPush(token, `OJYQ`, `${senderName}: ${messagePreview}`, {
+          type: "message",
+          channelId,
+        }),
+      ),
+    )
+  ).flat();
+
+  // 4. Remove stale tokens from Firestore
+  if (staleTokens.length) {
+    await Promise.all(
+      staleTokens.map((token) => {
+        const uid = tokenToUid.get(token);
+        if (!uid) return;
+        return updateDoc(doc(db, "users", uid), {
+          expoPushToken: deleteField(),
+        });
+      }),
+    );
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
