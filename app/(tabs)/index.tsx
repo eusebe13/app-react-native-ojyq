@@ -93,27 +93,37 @@ function relativeTime(ts: any): string {
   return `${Math.floor(diff / 86400)} j`;
 }
 
-/** Returns a rich, dark-enough color for white text on event cards */
-function getEventCardColor(ev: CalendarItem, idx: number, colors: any): string {
+const EVENT_CARD_PALETTE = [
+  "#003566", // midnight navy
+  "#AE2012", // vivid crimson
+  "#1B4332", // forest emerald
+  "#5A189A", // deep violet
+  "#1B4965", // ocean teal
+  "#800F2F", // dark rose
+  "#7B2D00", // burnt sienna
+  "#0D3B66", // prussian blue
+];
+
+function getEventCardColor(ev: CalendarItem, idx: number): string {
   const stored = (ev as any).color as string | undefined;
   if (stored) return stored;
-  const fallback = [
-    colors.primaryDark,
-    colors.accent3,
-    "#1a6b5e",  // deep teal
-    "#7b2d8b",  // deep purple
-    colors.primary,
-  ];
-  return fallback[idx % fallback.length];
+  return EVENT_CARD_PALETTE[idx % EVENT_CARD_PALETTE.length];
 }
 
 function formatEventTime(d: Date): string {
   return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatEventDay(d: Date): string {
-  const s = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function formatEventDayNum(d: Date): string {
+  return String(d.getDate()).padStart(2, "0");
+}
+
+function formatEventMonth(d: Date): string {
+  return d.toLocaleDateString("fr-FR", { month: "short" }).toUpperCase().replace(".", "");
+}
+
+function formatEventWeekday(d: Date): string {
+  return d.toLocaleDateString("fr-FR", { weekday: "short" }).toUpperCase().replace(".", "");
 }
 
 // ─── Local section-header sub-component ──────────────────────────────────────
@@ -318,9 +328,12 @@ const HomeScreen = () => {
               contentContainerStyle={styles.eventScroll}
             >
               {events.map((ev, i) => {
-                const cardColor = getEventCardColor(ev, i, colors);
-                const timeStr   = ev.dateObj ? formatEventTime(ev.dateObj) : "";
-                const dayStr    = ev.dateObj ? formatEventDay(ev.dateObj)  : "";
+                const cardColor = getEventCardColor(ev, i);
+                const timeStr   = ev.dateObj ? formatEventTime(ev.dateObj)    : "";
+                const dayNum    = ev.dateObj ? formatEventDayNum(ev.dateObj)  : "";
+                const monthStr  = ev.dateObj ? formatEventMonth(ev.dateObj)   : "";
+                const weekday   = ev.dateObj ? formatEventWeekday(ev.dateObj) : "";
+                const isShift   = ev.type === "shift";
 
                 return (
                   <TouchableOpacity
@@ -329,28 +342,51 @@ const HomeScreen = () => {
                     onPress={() => router.push("/(tabs)/calendar" as any)}
                     activeOpacity={0.88}
                   >
-                    {/* Top: type badge */}
+                    {/* Inner shine at top */}
+                    <View style={styles.eventCardShine} />
+
+                    {/* Top section: type pill (left) + date block (right) */}
                     <View style={styles.eventCardTop}>
-                      <View style={styles.eventTypePill}>
+                      <View style={[styles.eventTypePill, isShift && styles.eventTypePillShift]}>
+                        <Icon
+                          name={isShift ? "clock-time-four-outline" : "calendar-star"}
+                          size={10}
+                          color="rgba(255,255,255,0.9)"
+                        />
                         <Text style={styles.eventTypePillText}>
-                          {ev.type === "shift" ? "QUART" : "ÉVÉNEMENT"}
+                          {isShift ? "QUART" : "ÉVÉNEMENT"}
                         </Text>
+                      </View>
+
+                      <View style={styles.eventDateBlock}>
+                        <Text style={styles.eventDateDay}>{dayNum}</Text>
+                        <Text style={styles.eventDateMonth}>{monthStr}</Text>
+                        <Text style={styles.eventDateWeekday}>{weekday}</Text>
                       </View>
                     </View>
 
-                    {/* Bottom: title + meta on dark overlay */}
-                    <View style={styles.eventCardBottom}>
-                      <Text style={styles.eventCardTitle} numberOfLines={2}>{ev.title}</Text>
+                    {/* Hairline divider */}
+                    <View style={styles.eventCardDivider} />
 
-                      <View style={styles.eventCardMeta}>
-                        <Icon name="clock-outline" size={11} color="rgba(255,255,255,0.85)" />
-                        <Text style={styles.eventCardMetaText}>{dayStr}  {timeStr}</Text>
-                      </View>
+                    {/* Bottom section: dark overlay, title + meta */}
+                    <View style={styles.eventCardBottom}>
+                      <Text style={styles.eventCardTitle} numberOfLines={2}>
+                        {ev.title}
+                      </Text>
+
+                      {!!timeStr && (
+                        <View style={styles.eventCardMetaRow}>
+                          <Icon name="clock-outline" size={11} color="rgba(255,255,255,0.7)" />
+                          <Text style={styles.eventCardMetaText}>{timeStr}</Text>
+                        </View>
+                      )}
 
                       {!!ev.location && ev.location !== "Lieu à définir" && (
-                        <View style={styles.eventCardMeta}>
-                          <Icon name="map-marker-outline" size={11} color="rgba(255,255,255,0.85)" />
-                          <Text style={styles.eventCardMetaText} numberOfLines={1}>{ev.location}</Text>
+                        <View style={styles.eventCardMetaRow}>
+                          <Icon name="map-marker-outline" size={11} color="rgba(255,255,255,0.7)" />
+                          <Text style={styles.eventCardMetaText} numberOfLines={1}>
+                            {ev.location}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -795,26 +831,46 @@ const getStyles = (colors: any, tokens: any) =>
       gap: tokens.space.md,
     },
     eventCard: {
-      width: 190,
-      height: 165,
-      borderRadius: 22,
+      width: 200,
+      height: 238,
+      borderRadius: 24,
       overflow: "hidden",
       justifyContent: "space-between",
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 5 },
-      shadowOpacity: 0.22,
-      shadowRadius: 12,
-      elevation: 7,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.28,
+      shadowRadius: 16,
+      elevation: 10,
+    },
+    // Inner shine at very top (simulates a glass highlight)
+    eventCardShine: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 56,
+      backgroundColor: "rgba(255,255,255,0.08)",
     },
     eventCardTop: {
+      flex: 1,
       padding: tokens.space.md,
+      flexDirection: "row",
+      justifyContent: "space-between",
       alignItems: "flex-start",
     },
     eventTypePill: {
-      backgroundColor: "rgba(255,255,255,0.22)",
-      paddingHorizontal: 8,
-      paddingVertical: 3,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "rgba(0,0,0,0.22)",
+      paddingHorizontal: 9,
+      paddingVertical: 5,
       borderRadius: tokens.radius.pill,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.15)",
+    },
+    eventTypePillShift: {
+      backgroundColor: "rgba(255,255,255,0.18)",
     },
     eventTypePillText: {
       fontSize: 9,
@@ -822,27 +878,59 @@ const getStyles = (colors: any, tokens: any) =>
       fontWeight: "800",
       letterSpacing: 0.8,
     },
+    // Date block — top-right corner
+    eventDateBlock: {
+      alignItems: "flex-end",
+    },
+    eventDateDay: {
+      fontSize: 46,
+      fontWeight: "800",
+      color: "rgba(255,255,255,0.95)",
+      lineHeight: 50,
+      letterSpacing: -2,
+    },
+    eventDateMonth: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: "rgba(255,255,255,0.65)",
+      letterSpacing: 1.5,
+      lineHeight: 14,
+    },
+    eventDateWeekday: {
+      fontSize: 10,
+      fontWeight: "500",
+      color: "rgba(255,255,255,0.45)",
+      letterSpacing: 0.5,
+      lineHeight: 13,
+    },
+    // Hairline between top and bottom sections
+    eventCardDivider: {
+      height: 1,
+      backgroundColor: "rgba(255,255,255,0.14)",
+      marginHorizontal: tokens.space.md,
+    },
     eventCardBottom: {
-      backgroundColor: "rgba(0,0,0,0.32)",
+      backgroundColor: "rgba(0,0,0,0.42)",
       padding: tokens.space.md,
-      paddingTop: tokens.space.sm + 2,
-      gap: 4,
+      paddingTop: 10,
+      gap: 5,
     },
     eventCardTitle: {
-      fontSize: tokens.font.base,
+      fontSize: tokens.font.md,
       fontWeight: "700",
       color: "#FFFFFF",
-      lineHeight: 20,
-      marginBottom: 3,
+      lineHeight: 21,
+      marginBottom: 2,
+      letterSpacing: -0.2,
     },
-    eventCardMeta: {
+    eventCardMetaRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
+      gap: 5,
     },
     eventCardMetaText: {
       fontSize: 11,
-      color: "rgba(255,255,255,0.85)",
+      color: "rgba(255,255,255,0.72)",
       fontWeight: "500",
       flex: 1,
     },
