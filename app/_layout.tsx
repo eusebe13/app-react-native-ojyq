@@ -70,6 +70,10 @@ function RootLayoutInner() {
                                 name="admin/member-edit"
                                 options={{ title: "Modifier le membre" }}
                             />
+                            <Stack.Screen
+                                name="channel/[id]"
+                                options={({ route }) => ({ title: route.params?.name || "Canal" })}
+                            />
                         </Stack>
                     ) : (
                         <AuthScreen />
