@@ -4,7 +4,7 @@
     "slug": "OJYQ",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/IMG_Logo-Principale.jpg",
+    "icon": "./assets/images/IMG_Logo-Principale.png",
     "scheme": "OJYQ",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -22,16 +22,16 @@
       "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#14389c",
-        "foregroundImage": "./assets/images/IMG_Logo-Principale.jpg",
-        "backgroundImage": "./assets/images/IMG_Logo-Principale.jpg",
-        "monochromeImage": "./assets/images/IMG_Logo-Principale.jpg"
+        "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
+        "backgroundImage": "./assets/images/IMG_Logo-Principale.png",
+        "monochromeImage": "./assets/images/IMG_Logo-Principale.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/IMG_Logo-Principale.jpg"
+      "favicon": "./assets/images/IMG_Logo-Principale.png"
     },
     "plugins": [
       "expo-router",
@@ -45,7 +45,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/IMG_Logo-Principale.jpg",
+          "image": "./assets/images/IMG_Logo-Principale.png",
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#081129",
