@@ -41,11 +41,11 @@ import { useAppTheme } from "../../contexts/ThemeContext";
 import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as DocumentPicker from "expo-document-picker";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+// import * as DocumentPicker from "expo-document-picker";
+// import * as WebBrowser from "expo-web-browser";
+// import * as Linking from "expo-linking";
+// import * as FileSystem from 'expo-file-system';
+// import * as Sharing from 'expo-sharing';
 
 interface ExtendedMessage extends Message {
   _id: string;
@@ -115,7 +115,8 @@ export default function ChannelScreen(): ReactElement {
               textDecorationLine: "underline",
               color: isMe ? "#ADD8E6" : colors.primary,
             }}
-            onPress={() => WebBrowser.openBrowserAsync(part)}
+            // TODO: Réactiver avec expo-web-browser quand disponible
+            // onPress={() => WebBrowser.openBrowserAsync(part)}
           >
             {part}
           </Text>
@@ -126,41 +127,45 @@ export default function ChannelScreen(): ReactElement {
   };
 
   // Partager un document (PDF, Word, etc.)
+  // TODO: Réactiver quand expo-document-picker sera disponible
   const handlePickDocument = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: "*/*", // Vous pouvez restreindre à "application/pdf" par exemple
-      copyToCacheDirectory: true,
-    });
-
-    if (!result.canceled) {
-      const file = result.assets[0];
-      // Note: Pour un vrai projet, uploadez le fichier vers Firebase Storage
-      // et récupérez l'URL. Ici, on simule l'envoi du nom du fichier.
-      await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
-        uri: file.uri,
-        name: file.name,
-        size: file.size,
-      });
-    }
+    Alert.alert("Non disponible", "expo-document-picker n'est pas encore disponible dans Expo.");
+    // const result = await DocumentPicker.getDocumentAsync({
+    //   type: "*/*", // Vous pouvez restreindre à "application/pdf" par exemple
+    //   copyToCacheDirectory: true,
+    // });
+    //
+    // if (!result.canceled) {
+    //   const file = result.assets[0];
+    //   // Note: Pour un vrai projet, uploadez le fichier vers Firebase Storage
+    //   // et récupérez l'URL. Ici, on simule l'envoi du nom du fichier.
+    //   await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
+    //     uri: file.uri,
+    //     name: file.name,
+    //     size: file.size,
+    //   });
+    // }
   };
 
   const handleDownloadFile = async (fileUri: string, fileName: string) => {
+  // TODO: Réactiver quand expo-file-system et expo-sharing seront disponibles
   try {
-    // 1. Définir le chemin local
-    const localUri = FileSystem.cacheDirectory + fileName;
-
-    // 2. Télécharger le fichier
-    const downloadObject = FileSystem.createDownloadResumable(fileUri, localUri);
-    const result = await downloadObject.downloadAsync();
-
-    if (result) {
-      // 3. Ouvrir le menu de partage/enregistrement
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(result.uri);
-      } else {
-        Alert.alert("Erreur", "Le partage n'est pas disponible sur cet appareil");
-      }
-    }
+    Alert.alert("Non disponible", "Le téléchargement de fichiers n'est pas encore disponible.");
+    // // 1. Définir le chemin local
+    // const localUri = FileSystem.cacheDirectory + fileName;
+    //
+    // // 2. Télécharger le fichier
+    // const downloadObject = FileSystem.createDownloadResumable(fileUri, localUri);
+    // const result = await downloadObject.downloadAsync();
+    //
+    // if (result) {
+    //   // 3. Ouvrir le menu de partage/enregistrement
+    //   if (await Sharing.isAvailableAsync()) {
+    //     await Sharing.shareAsync(result.uri);
+    //   } else {
+    //     Alert.alert("Erreur", "Le partage n'est pas disponible sur cet appareil");
+    //   }
+    // }
   } catch (error) {
     console.error("Erreur de téléchargement:", error);
     Alert.alert("Erreur", "Impossible de télécharger le fichier.");
@@ -459,7 +464,7 @@ export default function ChannelScreen(): ReactElement {
                     ))}
                     {/* Affichage du Document */}
                     {item.file && (
-                      <TouchableOpacity
+                      <View
                         style={[
                           styles.fileContainer,
                           {
@@ -468,7 +473,8 @@ export default function ChannelScreen(): ReactElement {
                               : colors.surfaceDim,
                           },
                         ]}
-                        onPress={() => Linking.openURL(item.file.uri)}
+                        // TODO: Réactiver avec expo-linking quand disponible
+                        // onPress={() => Linking.openURL(item.file.uri)}
                       >
                         <Ionicons
                           name="document-text"
@@ -496,7 +502,7 @@ export default function ChannelScreen(): ReactElement {
                             {(item.file.size / 1024 / 1024).toFixed(2)} MB
                           </Text>
                         </View>
-                      </TouchableOpacity>
+                      </View>
                     )}
 
                     {/* Texte avec liens cliquables */}
@@ -553,13 +559,13 @@ export default function ChannelScreen(): ReactElement {
       </Text>
     </View>
 
-    {/* Bouton de téléchargement */}
-    <TouchableOpacity 
+    {/* TODO: Réactiver le bouton quand expo-file-system et expo-sharing seront disponibles */}
+    {/* <TouchableOpacity 
       onPress={() => handleDownloadFile(item.file.uri, item.file.name)}
       style={styles.downloadIcon}
     >
       <Ionicons name="download-outline" size={22} color={isMe ? "#FFF" : colors.primary} />
-    </TouchableOpacity>
+    </TouchableOpacity> */}
   </View>
 )}
 
