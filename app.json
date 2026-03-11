@@ -19,7 +19,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#14389c",
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
