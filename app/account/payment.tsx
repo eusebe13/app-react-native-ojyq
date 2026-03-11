@@ -11,6 +11,7 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { getAuth } from "firebase/auth";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
@@ -39,6 +40,7 @@ type PaymentRecord = {
 
 export default function PaymentPage() {
   const { colors, tokens } = useAppTheme();
+  const router = useRouter();
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -88,7 +90,7 @@ export default function PaymentPage() {
     };
   }, [user]);
 
-  const isAdmin = userRole === "admin" || userRole === "tresorier";
+  const isAdmin = userRole === "Administrateur" || userRole === "Trésorier";
   const annualAmount = 120;
   const monthlyAmount = 10;
   const transferEmail = "org.jeunesseyiraqc@gmail.com";
@@ -135,12 +137,14 @@ export default function PaymentPage() {
                 {
                   text: "RBC",
                   onPress: () => {
-                    Linking.openURL("https://www.rbcbanqueroyale.com/").catch(() => {
-                      Alert.alert(
-                        "Information",
-                        "Veuillez utiliser votre application bancaire RBC",
-                      );
-                    });
+                    Linking.openURL("https://www.rbcbanqueroyale.com/").catch(
+                      () => {
+                        Alert.alert(
+                          "Information",
+                          "Veuillez utiliser votre application bancaire RBC",
+                        );
+                      },
+                    );
                   },
                 },
                 {
@@ -439,92 +443,48 @@ export default function PaymentPage() {
           </View>
         </View>
 
-        {/* SECTION ADMIN/TRÉSORIER */}
+        {/* ACCÈS ADMIN/TRÉSORIER */}
         {isAdmin && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🔐 Gestion Administrative</Text>
-
-            {!isEditing ? (
-              <TouchableOpacity
-                style={[
-                  styles.secondaryButton,
-                  { borderColor: colors.primary },
-                ]}
-                onPress={() => setIsEditing(true)}
-              >
-                <Ionicons
-                  name="pencil-outline"
-                  size={18}
-                  color={colors.primary}
-                />
+            <TouchableOpacity
+              style={[
+                styles.adminAccessButton,
+                {
+                  backgroundColor: colors.primary + "15",
+                  borderColor: colors.primary,
+                },
+              ]}
+              onPress={() => router.push("/treasury/member-payment")}
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={20}
+                color={colors.primary}
+              />
+              <View style={{ flex: 1, marginLeft: tokens.space.md }}>
+                <Text
+                  style={[styles.adminAccessTitle, { color: colors.primary }]}
+                >
+                  Gestion des Paiements
+                </Text>
                 <Text
                   style={[
-                    styles.secondaryButtonText,
-                    { color: colors.primary },
+                    styles.adminAccessSubtitle,
+                    { color: colors.textSecondary },
                   ]}
                 >
-                  Modifier les montants
+                  Voir et modifier les paiements des membres
                 </Text>
-              </TouchableOpacity>
-            ) : (
-              <>
-                <View style={styles.editForm}>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Payé cette année ($)</Text>
-                    <TextInput
-                      style={[styles.formInput, { color: colors.textPrimary }]}
-                      placeholder="0.00"
-                      placeholderTextColor={colors.textTertiary}
-                      value={editPaidThisYear}
-                      onChangeText={setEditPaidThisYear}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Montant en dette ($)</Text>
-                    <TextInput
-                      style={[styles.formInput, { color: colors.textPrimary }]}
-                      placeholder="0.00"
-                      placeholderTextColor={colors.textTertiary}
-                      value={editDebt}
-                      onChangeText={setEditDebt}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.buttonGroup}>
-                  <TouchableOpacity
-                    style={[
-                      styles.secondaryButton,
-                      { borderColor: colors.accent6 },
-                    ]}
-                    onPress={() => setIsEditing(false)}
-                  >
-                    <Text
-                      style={[
-                        styles.secondaryButtonText,
-                        { color: colors.accent6 },
-                      ]}
-                    >
-                      Annuler
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.primaryButton,
-                      { backgroundColor: colors.accent5 },
-                    ]}
-                    onPress={handleSaveChanges}
-                  >
-                    <Text style={styles.primaryButtonText}>Sauvegarder</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
           </View>
         )}
+
 
         {/* HISTORIQUE PAIEMENTS */}
         <View style={styles.section}>
@@ -831,6 +791,30 @@ const getStyles = (colors: any, tokens: any) =>
     infoText: {
       fontSize: tokens.font.sm,
       lineHeight: 20,
+      fontWeight: "500",
+    },
+
+    // ADMIN ACCESS
+    adminAccessButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderRadius: tokens.radius.lg,
+      padding: tokens.space.lg,
+      borderWidth: 1.5,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    adminAccessTitle: {
+      fontSize: tokens.font.base,
+      fontWeight: "700",
+      marginBottom: tokens.space.xs,
+      letterSpacing: 0.2,
+    },
+    adminAccessSubtitle: {
+      fontSize: tokens.font.sm,
       fontWeight: "500",
     },
   });

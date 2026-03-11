@@ -1,6 +1,12 @@
+import { Icon } from "@/components/ui/Icon";
+import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useNavigation } from "expo-router";
+import * as Sharing from "expo-sharing";
+import * as WebBrowser from "expo-web-browser";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -11,10 +17,9 @@ import {
   orderBy,
   query,
   Timestamp,
-  updateDoc,
-  getDoc,
+  updateDoc
 } from "firebase/firestore";
-import React, {
+import {
   ReactElement,
   useCallback,
   useEffect,
@@ -27,25 +32,18 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Modal,
 } from "react-native";
-import { db } from "../../firebaseConfig";
-import { Message, Poll } from "../../types/models";
-import { useAppTheme } from "../../contexts/ThemeContext";
-import { Icon } from "@/components/ui/Icon";
-import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { SafeAreaView } from "react-native-safe-area-context";
-// import * as DocumentPicker from "expo-document-picker";
-// import * as WebBrowser from "expo-web-browser";
-// import * as Linking from "expo-linking";
-// import * as FileSystem from 'expo-file-system';
-// import * as Sharing from 'expo-sharing';
+import { useAppTheme } from "../../contexts/ThemeContext";
+import { db } from "../../firebaseConfig";
+import { Message } from "../../types/models";
 
 interface ExtendedMessage extends Message {
   _id: string;
@@ -115,8 +113,7 @@ export default function ChannelScreen(): ReactElement {
               textDecorationLine: "underline",
               color: isMe ? "#ADD8E6" : colors.primary,
             }}
-            // TODO: Réactiver avec expo-web-browser quand disponible
-            // onPress={() => WebBrowser.openBrowserAsync(part)}
+            onPress={() => WebBrowser.openBrowserAsync(part)}
           >
             {part}
           </Text>
@@ -127,50 +124,52 @@ export default function ChannelScreen(): ReactElement {
   };
 
   // Partager un document (PDF, Word, etc.)
-  // TODO: Réactiver quand expo-document-picker sera disponible
   const handlePickDocument = async () => {
-    Alert.alert("Non disponible", "expo-document-picker n'est pas encore disponible dans Expo.");
-    // const result = await DocumentPicker.getDocumentAsync({
-    //   type: "*/*", // Vous pouvez restreindre à "application/pdf" par exemple
-    //   copyToCacheDirectory: true,
-    // });
-    //
-    // if (!result.canceled) {
-    //   const file = result.assets[0];
-    //   // Note: Pour un vrai projet, uploadez le fichier vers Firebase Storage
-    //   // et récupérez l'URL. Ici, on simule l'envoi du nom du fichier.
-    //   await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
-    //     uri: file.uri,
-    //     name: file.name,
-    //     size: file.size,
-    //   });
-    // }
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*", // Vous pouvez restreindre à "application/pdf" par exemple
+      copyToCacheDirectory: true,
+    });
+
+    if (!result.canceled) {
+      const file = result.assets[0];
+      // Note: Pour un vrai projet, uploadez le fichier vers Firebase Storage
+      // et récupérez l'URL. Ici, on simule l'envoi du nom du fichier.
+      await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
+        uri: file.uri,
+        name: file.name,
+        size: file.size,
+      });
+    }
   };
 
   const handleDownloadFile = async (fileUri: string, fileName: string) => {
-  // TODO: Réactiver quand expo-file-system et expo-sharing seront disponibles
-  try {
-    Alert.alert("Non disponible", "Le téléchargement de fichiers n'est pas encore disponible.");
-    // // 1. Définir le chemin local
-    // const localUri = FileSystem.cacheDirectory + fileName;
-    //
-    // // 2. Télécharger le fichier
-    // const downloadObject = FileSystem.createDownloadResumable(fileUri, localUri);
-    // const result = await downloadObject.downloadAsync();
-    //
-    // if (result) {
-    //   // 3. Ouvrir le menu de partage/enregistrement
-    //   if (await Sharing.isAvailableAsync()) {
-    //     await Sharing.shareAsync(result.uri);
-    //   } else {
-    //     Alert.alert("Erreur", "Le partage n'est pas disponible sur cet appareil");
-    //   }
-    // }
-  } catch (error) {
-    console.error("Erreur de téléchargement:", error);
-    Alert.alert("Erreur", "Impossible de télécharger le fichier.");
-  }
-};
+    try {
+      // 1. Définir le chemin local
+      const localUri = FileSystem.cacheDirectory + fileName;
+
+      // 2. Télécharger le fichier
+      const downloadObject = FileSystem.createDownloadResumable(
+        fileUri,
+        localUri,
+      );
+      const result = await downloadObject.downloadAsync();
+
+      if (result) {
+        // 3. Ouvrir le menu de partage/enregistrement
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(result.uri);
+        } else {
+          Alert.alert(
+            "Erreur",
+            "Le partage n'est pas disponible sur cet appareil",
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Erreur de téléchargement:", error);
+      Alert.alert("Erreur", "Impossible de télécharger le fichier.");
+    }
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FIRESTORE — MESSAGES
@@ -198,36 +197,41 @@ export default function ChannelScreen(): ReactElement {
   }, [id]);
 
   const sendMessage = useCallback(
-  async (text?: string, imageUri?: string, pollData?: any, fileData?: any) => {
-    const content = (text ?? inputText).trim(); // Définition correcte
-    if ((!content && !imageUri && !pollData && !fileData) || !id) return;
+    async (
+      text?: string,
+      imageUri?: string,
+      pollData?: any,
+      fileData?: any,
+    ) => {
+      const content = (text ?? inputText).trim(); // Définition correcte
+      if ((!content && !imageUri && !pollData && !fileData) || !id) return;
 
-    setSending(true);
-    setInputText("");
+      setSending(true);
+      setInputText("");
 
-    try {
-      await addDoc(collection(db, "channels", id, "messages"), {
-        text: content,
-        createdAt: Timestamp.now(),
-        user: currentUser,
-        image: imageUri || null,
-        poll: pollData || null,
-        file: fileData || null,
-      });
+      try {
+        await addDoc(collection(db, "channels", id, "messages"), {
+          text: content,
+          createdAt: Timestamp.now(),
+          user: currentUser,
+          image: imageUri || null,
+          poll: pollData || null,
+          file: fileData || null,
+        });
 
-      await updateDoc(doc(db, "channels", id), {
-        lastMessage: fileData ? `📄 ${fileData.name}` : (content || "📷 Photo"),
-        lastMessageAt: Timestamp.now(),
-      });
-    } catch (error) {
-      console.error("Erreur Firestore :", error);
-      Alert.alert("Erreur", "Message non envoyé");
-    } finally {
-      setSending(false);
-    }
-  },
-  [inputText, id, currentUser]
-);
+        await updateDoc(doc(db, "channels", id), {
+          lastMessage: fileData ? `📄 ${fileData.name}` : content || "📷 Photo",
+          lastMessageAt: Timestamp.now(),
+        });
+      } catch (error) {
+        console.error("Erreur Firestore :", error);
+        Alert.alert("Erreur", "Message non envoyé");
+      } finally {
+        setSending(false);
+      }
+    },
+    [inputText, id, currentUser],
+  );
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -547,27 +551,53 @@ export default function ChannelScreen(): ReactElement {
             )}
 
             {item.file && (
-  <View style={[styles.fileContainer, { backgroundColor: isMe ? 'rgba(255,255,255,0.1)' : colors.surfaceDim }]}>
-    <Ionicons name="document-text" size={24} color={isMe ? "#FFF" : colors.primary} />
-    
-    <View style={{ marginLeft: 10, flex: 1 }}>
-      <Text numberOfLines={1} style={{ color: isMe ? "#FFF" : colors.textPrimary, fontWeight: '600' }}>
-        {item.file.name}
-      </Text>
-      <Text style={{ fontSize: 10, color: isMe ? "rgba(255,255,255,0.6)" : colors.textTertiary }}>
-        {(item.file.size / 1024 / 1024).toFixed(2)} MB
-      </Text>
-    </View>
+              <View
+                style={[
+                  styles.fileContainer,
+                  {
+                    backgroundColor: isMe
+                      ? "rgba(255,255,255,0.1)"
+                      : colors.surfaceDim,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="document-text"
+                  size={24}
+                  color={isMe ? "#FFF" : colors.primary}
+                />
 
-    {/* TODO: Réactiver le bouton quand expo-file-system et expo-sharing seront disponibles */}
-    {/* <TouchableOpacity 
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: isMe ? "#FFF" : colors.textPrimary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {item.file.name}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: isMe
+                        ? "rgba(255,255,255,0.6)"
+                        : colors.textTertiary,
+                    }}
+                  >
+                    {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                  </Text>
+                </View>
+
+                {/* TODO: Réactiver le bouton quand expo-file-system et expo-sharing seront disponibles */}
+                {/* <TouchableOpacity 
       onPress={() => handleDownloadFile(item.file.uri, item.file.name)}
       style={styles.downloadIcon}
     >
       <Ionicons name="download-outline" size={22} color={isMe ? "#FFF" : colors.primary} />
     </TouchableOpacity> */}
-  </View>
-)}
+              </View>
+            )}
 
             <Text
               style={[
@@ -993,25 +1023,25 @@ const getStyles = (colors: any, tokens: any) =>
       borderRadius: 8,
     },
     fileContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  padding: 10,
-  borderRadius: 12,
-  marginBottom: 5,
-  minWidth: 200,
-},
-fileContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  padding: 12,
-  borderRadius: 12,
-  marginBottom: 5,
-  minWidth: 220,
-},
-downloadIcon: {
-  padding: 8,
-  marginLeft: 5,
-  borderRadius: 20,
-  backgroundColor: 'rgba(0,0,0,0.05)',
-},
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 10,
+      borderRadius: 12,
+      marginBottom: 5,
+      minWidth: 200,
+    },
+    fileContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 12,
+      borderRadius: 12,
+      marginBottom: 5,
+      minWidth: 220,
+    },
+    downloadIcon: {
+      padding: 8,
+      marginLeft: 5,
+      borderRadius: 20,
+      backgroundColor: "rgba(0,0,0,0.05)",
+    },
   });

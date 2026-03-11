@@ -1,7 +1,8 @@
 // firebaseConfig.ts
 import { getApps, initializeApp } from 'firebase/app';
-import { Auth, initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { Auth, browserLocalPersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 import { Platform } from 'react-native';
 
 const firebaseConfig = {
@@ -38,5 +39,11 @@ if (Platform.OS === 'web') {
 }
 
 const db = getFirestore(app);
+const functions = getFunctions(app, 'us-central1');
 
-export { app, auth, db };
+// Configuration pour l'émulateur en développement (optionnel)
+// if (process.env.NODE_ENV === 'development') {
+//   connectFunctionsEmulator(functions, 'localhost', 5001);
+// }
+
+export { app, auth, db, functions };
