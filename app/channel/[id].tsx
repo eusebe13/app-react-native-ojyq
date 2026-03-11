@@ -17,21 +17,16 @@ import {
   orderBy,
   query,
   Timestamp,
-  updateDoc
+  updateDoc,
 } from "firebase/firestore";
-import {
-  ReactElement,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -40,6 +35,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { db } from "../../firebaseConfig";
@@ -73,6 +69,9 @@ export default function ChannelScreen(): ReactElement {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
 
+  // États pour la modal d'actions (+ button)
+  const [plusActionModalVisible, setPlusActionModalVisible] = useState(false);
+
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -99,29 +98,6 @@ export default function ChannelScreen(): ReactElement {
     role: userProfile?.role || "Membre",
   };
 
-  // Texte avec lien cliquable
-  const renderTextWithLinks = (text: string, isMe: boolean) => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
-
-    return parts.map((part, index) => {
-      if (part.match(urlRegex)) {
-        return (
-          <Text
-            key={index}
-            style={{
-              textDecorationLine: "underline",
-              color: isMe ? "#ADD8E6" : colors.primary,
-            }}
-            onPress={() => WebBrowser.openBrowserAsync(part)}
-          >
-            {part}
-          </Text>
-        );
-      }
-      return part;
-    });
-  };
 
   // Partager un document (PDF, Word, etc.)
   const handlePickDocument = async () => {
@@ -509,19 +485,6 @@ export default function ChannelScreen(): ReactElement {
                       </View>
                     )}
 
-                    {/* Texte avec liens cliquables */}
-                    {!!item.text && !item.poll && (
-                      <Text
-                        style={[
-                          styles.msgText,
-                          isMe
-                            ? { color: "#FFFFFF" }
-                            : { color: colors.textPrimary },
-                        ]}
-                      >
-                        {renderTextWithLinks(item.text, isMe)}
-                      </Text>
-                    )}
                   </View>
                 ) : (
                   <Text
@@ -589,13 +552,18 @@ export default function ChannelScreen(): ReactElement {
                   </Text>
                 </View>
 
-                {/* TODO: Réactiver le bouton quand expo-file-system et expo-sharing seront disponibles */}
-                {/* <TouchableOpacity 
-      onPress={() => handleDownloadFile(item.file.uri, item.file.name)}
-      style={styles.downloadIcon}
-    >
-      <Ionicons name="download-outline" size={22} color={isMe ? "#FFF" : colors.primary} />
-    </TouchableOpacity> */}
+                <TouchableOpacity
+                  onPress={() =>
+                    handleDownloadFile(item.file.uri, item.file.name)
+                  }
+                  style={styles.downloadIcon}
+                >
+                  <Ionicons
+                    name="download-outline"
+                    size={22}
+                    color={isMe ? "#FFF" : colors.primary}
+                  />
+                </TouchableOpacity>
               </View>
             )}
 
@@ -622,13 +590,7 @@ export default function ChannelScreen(): ReactElement {
     <View style={styles.inputBar}>
       <TouchableOpacity
         style={[styles.inputAction, { backgroundColor: colors.primaryTint }]}
-        onPress={() =>
-          Alert.alert("Actions", "Choisissez", [
-            { text: "Photo", onPress: handlePickImage },
-            { text: "Sondage", onPress: handleCreatePoll },
-            { text: "Annuler", style: "cancel" },
-          ])
-        }
+        onPress={() => setPlusActionModalVisible(true)}
       >
         <Ionicons name="add" size={22} color={colors.primary} />
       </TouchableOpacity>
@@ -717,6 +679,153 @@ export default function ChannelScreen(): ReactElement {
               resizeMode="contain"
             />
           )}
+        </View>
+      </Modal>
+
+      {/* MODAL ACTIONS (PLUS BUTTON) */}
+      <Modal
+        visible={plusActionModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPlusActionModalVisible(false)}
+      >
+        <View style={styles.plusActionModalOverlay}>
+          <View
+            style={[
+              styles.plusActionModalContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
+            <Text
+              style={[
+                styles.plusActionModalTitle,
+                { color: colors.textPrimary },
+              ]}
+            >
+              Ajouter un contenu
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.plusActionItem,
+                { borderColor: colors.border, borderBottomWidth: 1 },
+              ]}
+              onPress={() => {
+                handlePickImage();
+                setPlusActionModalVisible(false);
+              }}
+            >
+              <Ionicons name="image" size={28} color={colors.primary} />
+              <View style={{ marginLeft: 15, flex: 1 }}>
+                <Text
+                  style={[
+                    styles.plusActionItemTitle,
+                    { color: colors.textPrimary },
+                  ]}
+                >
+                  Photo
+                </Text>
+                <Text
+                  style={[
+                    styles.plusActionItemDesc,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Partager une image
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.plusActionItem,
+                { borderColor: colors.border, borderBottomWidth: 1 },
+              ]}
+              onPress={() => {
+                handleCreatePoll();
+                setPlusActionModalVisible(false);
+              }}
+            >
+              <Ionicons name="stats-chart" size={28} color={colors.primary} />
+              <View style={{ marginLeft: 15, flex: 1 }}>
+                <Text
+                  style={[
+                    styles.plusActionItemTitle,
+                    { color: colors.textPrimary },
+                  ]}
+                >
+                  Sondage
+                </Text>
+                <Text
+                  style={[
+                    styles.plusActionItemDesc,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Créer un vote
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.plusActionItem]}
+              onPress={() => {
+                handlePickDocument();
+                setPlusActionModalVisible(false);
+              }}
+            >
+              <Ionicons
+                name="document-attach"
+                size={28}
+                color={colors.primary}
+              />
+              <View style={{ marginLeft: 15, flex: 1 }}>
+                <Text
+                  style={[
+                    styles.plusActionItemTitle,
+                    { color: colors.textPrimary },
+                  ]}
+                >
+                  Fichier
+                </Text>
+                <Text
+                  style={[
+                    styles.plusActionItemDesc,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Partager un document
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.plusActionCancel,
+                { backgroundColor: colors.surfaceDim },
+              ]}
+              onPress={() => setPlusActionModalVisible(false)}
+            >
+              <Text style={{ color: colors.textSecondary, fontWeight: "bold" }}>
+                Annuler
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -1043,5 +1152,51 @@ const getStyles = (colors: any, tokens: any) =>
       marginLeft: 5,
       borderRadius: 20,
       backgroundColor: "rgba(0,0,0,0.05)",
+    },
+
+    // Styles pour la modal des actions (+)
+    plusActionModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    plusActionModalContent: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: tokens.space.lg,
+      paddingTop: tokens.space.lg,
+      paddingBottom: tokens.space.xl,
+      maxHeight: "70%",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    plusActionModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      marginBottom: tokens.space.lg,
+      textAlign: "center",
+    },
+    plusActionItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: tokens.space.md,
+      paddingHorizontal: tokens.space.md,
+    },
+    plusActionItemTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    plusActionItemDesc: {
+      fontSize: 13,
+      marginTop: 4,
+    },
+    plusActionCancel: {
+      marginTop: tokens.space.lg,
+      paddingVertical: tokens.space.md,
+      borderRadius: 12,
+      alignItems: "center",
     },
   });
