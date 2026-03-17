@@ -6,7 +6,6 @@ import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import * as Sharing from "expo-sharing";
-import * as WebBrowser from "expo-web-browser";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -26,7 +25,6 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -72,6 +70,9 @@ export default function ChannelScreen(): ReactElement {
   // États pour la modal d'actions (+ button)
   const [plusActionModalVisible, setPlusActionModalVisible] = useState(false);
 
+  // État pour le téléchargement de fichier
+  const [uploading, setUploading] = useState(false);
+
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -98,52 +99,95 @@ export default function ChannelScreen(): ReactElement {
     role: userProfile?.role || "Membre",
   };
 
-
   // Partager un document (PDF, Word, etc.)
-  const handlePickDocument = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: "*/*", // Vous pouvez restreindre à "application/pdf" par exemple
-      copyToCacheDirectory: true,
-    });
+  // Upload vers WordPress media.ojyq.org avec authentification
+  const uploadToMediaServer = async (fileUri: string, fileName: string) => {
+    const formData = new FormData();
 
-    if (!result.canceled) {
-      const file = result.assets[0];
-      // Note: Pour un vrai projet, uploadez le fichier vers Firebase Storage
-      // et récupérez l'URL. Ici, on simule l'envoi du nom du fichier.
+    // Préparation du fichier pour l'envoi
+    formData.append("file", {
+      uri: fileUri,
+      name: fileName,
+      type: "application/octet-stream",
+    } as any);
+
+    try {
+      const response = await fetch(
+        "https://media.ojyq.org/wp-json/wp/v2/media",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              "Basic " + btoa("App Mobile OJYQ:0Mn5v59uy*A1gVYzuikEHX()"),
+            "Content-Disposition": `attachment; filename="${fileName}"`,
+          },
+          body: formData,
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.source_url) {
+        return data.source_url; // URL finale (https://media.ojyq.org/...)
+      } else {
+        throw new Error(
+          data.message || "Erreur lors de l'upload sur WordPress",
+        );
+      }
+    } catch (error) {
+      console.error("Erreur Media Server:", error);
+      throw error;
+    }
+  };
+
+  const handlePickDocument = async () => {
+  const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+
+  if (!result.canceled) {
+    setSending(true);
+    const file = result.assets[0];
+    
+    // 1. On envoie vers media.ojyq.org
+    const publicUrl = await uploadToMediaServer(file.uri, file.name);
+    
+    if (publicUrl) {
+      // 2. On enregistre l'URL publique dans Firestore
       await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
-        uri: file.uri,
+        uri: publicUrl,
         name: file.name,
         size: file.size,
       });
     }
-  };
+    setSending(false);
+  }
+};
 
   const handleDownloadFile = async (fileUri: string, fileName: string) => {
     try {
-      // 1. Définir le chemin local
+      // 1. Créer le chemin local
       const localUri = FileSystem.cacheDirectory + fileName;
 
-      // 2. Télécharger le fichier
+      // 2. Télécharger depuis WordPress media.ojyq.org
       const downloadObject = FileSystem.createDownloadResumable(
         fileUri,
         localUri,
       );
       const result = await downloadObject.downloadAsync();
 
-      if (result) {
-        // 3. Ouvrir le menu de partage/enregistrement
+      if (result && result.uri) {
+        // 3. Partager le fichier
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(result.uri);
         } else {
-          Alert.alert(
-            "Erreur",
-            "Le partage n'est pas disponible sur cet appareil",
-          );
+          Alert.alert("Succès", `Fichier téléchargé: ${localUri}`);
         }
       }
     } catch (error) {
       console.error("Erreur de téléchargement:", error);
-      Alert.alert("Erreur", "Impossible de télécharger le fichier.");
+      Alert.alert(
+        "Erreur",
+        "Impossible de télécharger le fichier depuis media.ojyq.org",
+      );
     }
   };
 
@@ -484,7 +528,6 @@ export default function ChannelScreen(): ReactElement {
                         </View>
                       </View>
                     )}
-
                   </View>
                 ) : (
                   <Text
