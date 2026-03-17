@@ -13,16 +13,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getAuth } from "firebase/auth";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where
+} from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   Alert,
-  Clipboard,
   Linking,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -38,6 +47,14 @@ type PaymentRecord = {
   paymentMethod?: "monthly" | "annual" | "manual";
 };
 
+type PaymentEntry = {
+  id: string;
+  amount: number;
+  date: string;
+  paymentMethod?: "monthly" | "annual" | "manual";
+  notes?: string;
+};
+
 export default function PaymentPage() {
   const { colors, tokens } = useAppTheme();
   const router = useRouter();
@@ -48,11 +65,60 @@ export default function PaymentPage() {
     paidThisYear: 0,
     debt: 0,
   });
+  const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [userRole, setUserRole] = useState<string>("");
-  const [isEditing, setIsEditing] = useState(false);
   const [editPaidThisYear, setEditPaidThisYear] = useState("");
   const [editDebt, setEditDebt] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Récupérer le total des paiements de l'année courante depuis Firebase
+  const calculateCurrentYearPayments = async (userId: string) => {
+    try {
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
+      const yearEnd = new Date(
+        now.getFullYear(),
+        11,
+        31,
+        23,
+        59,
+        59,
+      ).toISOString();
+
+      const paymentsRef = collection(db, "users", userId, "payments");
+      const q = query(
+        paymentsRef,
+        where("date", ">=", yearStart),
+        where("date", "<=", yearEnd),
+      );
+
+      const querySnapshot = await getDocs(q);
+      let total = 0;
+      const entries: PaymentEntry[] = [];
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        total += data.amount || 0;
+        entries.push({
+          id: doc.id,
+          amount: data.amount,
+          date: data.date,
+          paymentMethod: data.paymentMethod,
+          notes: data.notes,
+        });
+      });
+
+      // Trier par date décroissante (plus récents en premier)
+      entries.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
+
+      return { total, entries };
+    } catch (error) {
+      console.error("Erreur lors du calcul des paiements:", error);
+      return { total: 0, entries: [] };
+    }
+  };
 
   // Charger les données de l'utilisateur et des paiements
   useEffect(() => {
@@ -66,16 +132,42 @@ export default function PaymentPage() {
       }
     });
 
-    // Charger les données de paiement
+    // Charger les données de paiement et calculer le total
     const paymentDocRef = doc(db, "users", user.uid, "financial", "payment");
     const unsubscribePayment = onSnapshot(
       paymentDocRef,
-      (docSnap) => {
+      async (docSnap) => {
         if (docSnap.exists()) {
           setPaymentData(docSnap.data() as PaymentRecord);
           setEditPaidThisYear(String(docSnap.data().paidThisYear || 0));
           setEditDebt(String(docSnap.data().debt || 0));
         }
+
+        // Calculer et charger les paiements de l'année courante
+        const { total: _total, entries } = await calculateCurrentYearPayments(
+          user.uid,
+        );
+
+        // Si aucun paiement n'existe, créer automatiquement une entrée de 1$
+        if (entries.length === 0) {
+          try {
+            const paymentsRef = collection(db, "users", user.uid, "payments");
+            await addDoc(paymentsRef, {
+              amount: 1,
+              date: new Date().toISOString(),
+              paymentMethod: "manual",
+              notes: "Paiement initial",
+              timestamp: serverTimestamp(),
+            });
+          } catch (error) {
+            console.error(
+              "Erreur lors de la création du paiement initial:",
+              error,
+            );
+          }
+        }
+
+        setPaymentEntries(entries);
         setLoading(false);
       },
       (error) => {
@@ -98,11 +190,13 @@ export default function PaymentPage() {
 
   // Copier l'email dans le presse-papiers
   const handleCopyEmail = () => {
-    Clipboard.setString(transferEmail);
-    Alert.alert(
-      "Email copié",
-      `${transferEmail} a été copié dans le presse-papiers`,
-    );
+    Share.share({
+      message: transferEmail,
+      title: "Email de l'organisation",
+    }).catch((error) => {
+      console.error("Erreur lors du partage:", error);
+      Alert.alert("Email", `Veuillez copier cet email: ${transferEmail}`);
+    });
   };
 
   // Ouvrir une application bancaire (app bancaire par défaut du système)
@@ -168,11 +262,11 @@ export default function PaymentPage() {
   };
 
   // Sauvegarder les modifications (Admin/Trésorier uniquement)
-  const handleSaveChanges = async () => {
+  const _handleSaveChanges = async () => {
     if (!user) return;
 
-    const paidThisYear = parseFloat(editPaidThisYear) || 0;
-    const debt = parseFloat(editDebt) || 0;
+    const paidThisYear = Number.parseFloat(editPaidThisYear) || 0;
+    const debt = Number.parseFloat(editDebt) || 0;
 
     try {
       const paymentDocRef = doc(db, "users", user.uid, "financial", "payment");
@@ -182,7 +276,6 @@ export default function PaymentPage() {
         lastModified: new Date().toISOString(),
       });
 
-      setIsEditing(false);
       Alert.alert("Succès", "Montants mis à jour avec succès");
     } catch (error) {
       console.error("Erreur lors de la sauvegarde:", error);
@@ -191,8 +284,8 @@ export default function PaymentPage() {
   };
 
   // Calculer les soldes
-  const remainingThisYear = annualAmount - paymentData.paidThisYear;
-  const totalDebt = paymentData.debt + Math.max(remainingThisYear, 0);
+  const getTotalPayments = () =>
+    paymentEntries.reduce((sum, entry) => sum + entry.amount, 0);
 
   const styles = getStyles(colors, tokens);
 
@@ -368,35 +461,88 @@ export default function PaymentPage() {
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={styles.statusLabel}>Montant payé</Text>
                 <Text style={[styles.statusValue, { color: colors.accent5 }]}>
-                  ${paymentData.paidThisYear}
+                  ${getTotalPayments()}
                 </Text>
               </View>
             </View>
 
-            {/* BARRE DE PROGRESSION */}
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: colors.surfaceDim },
-              ]}
-            >
+            {/* BARRE DE PROGRESSION AVANCÉE */}
+            <View style={styles.progressContainer}>
               <View
                 style={[
-                  styles.progressFill,
-                  {
-                    backgroundColor: colors.accent5,
-                    width: `${Math.min(
-                      (paymentData.paidThisYear / annualAmount) * 100,
-                      100,
-                    )}%`,
-                  },
+                  styles.progressBar,
+                  { backgroundColor: colors.surfaceDim },
                 ]}
-              />
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      backgroundColor: colors.accent5,
+                      width: `${Math.min(
+                        (getTotalPayments() / annualAmount) * 100,
+                        100,
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+
+              {/* ÉTIQUETTE DE PROGRESSION */}
+              <View style={styles.progressLabelRow}>
+                <Text style={styles.progressText}>
+                  Reste à payer: $
+                  {Math.max(annualAmount - getTotalPayments(), 0)}
+                </Text>
+                <Text
+                  style={[styles.progressPercentage, { color: colors.accent5 }]}
+                >
+                  {Math.round((getTotalPayments() / annualAmount) * 100)}%
+                </Text>
+              </View>
             </View>
 
-            <Text style={styles.progressText}>
-              Reste à payer: ${Math.max(remainingThisYear, 0)}
-            </Text>
+            {/* HISTORIQUE DES PAIEMENTS RÉCENTS */}
+            {paymentEntries.length > 0 && (
+              <View style={{ marginTop: tokens.space.lg }}>
+                <Text
+                  style={[
+                    styles.statusLabel,
+                    { marginBottom: tokens.space.md },
+                  ]}
+                >
+                  Paiements récents ({paymentEntries.length})
+                </Text>
+                {paymentEntries.slice(0, 3).map((entry) => (
+                  <View
+                    key={entry.id}
+                    style={[
+                      styles.paymentEntryItem,
+                      { backgroundColor: colors.surfaceDim },
+                    ]}
+                  >
+                    <View>
+                      <Text
+                        style={[
+                          styles.statusValue,
+                          { fontSize: tokens.font.base },
+                        ]}
+                      >
+                        ${entry.amount}
+                      </Text>
+                      <Text style={styles.statusLabel}>
+                        {new Date(entry.date).toLocaleDateString("fr-CA")}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color={colors.accent5}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* DETTE */}
@@ -438,7 +584,9 @@ export default function PaymentPage() {
           >
             <Text style={styles.totalLabel}>Total à payer</Text>
             <Text style={[styles.totalAmount, { color: colors.primary }]}>
-              ${totalDebt}
+              $
+              {Math.max(annualAmount - getTotalPayments(), 0) +
+                paymentData.debt}
             </Text>
           </View>
         </View>
@@ -484,7 +632,6 @@ export default function PaymentPage() {
             </TouchableOpacity>
           </View>
         )}
-
 
         {/* HISTORIQUE PAIEMENTS */}
         <View style={styles.section}>
@@ -816,5 +963,91 @@ const getStyles = (colors: any, tokens: any) =>
     adminAccessSubtitle: {
       fontSize: tokens.font.sm,
       fontWeight: "500",
+    },
+
+    // PROGRESS CONTAINER
+    progressContainer: {
+      marginBottom: tokens.space.lg,
+    },
+    progressLabelRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: tokens.space.sm,
+    },
+    progressPercentage: {
+      fontSize: tokens.font.base,
+      fontWeight: "700",
+    },
+
+    // RECORD PAYMENT BUTTON
+    recordPaymentButton: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingVertical: tokens.space.md,
+      paddingHorizontal: tokens.space.lg,
+      borderRadius: tokens.radius.md,
+      gap: tokens.space.sm,
+      marginTop: tokens.space.lg,
+    },
+    recordPaymentButtonText: {
+      fontSize: tokens.font.sm,
+      fontWeight: "700",
+      color: "#FFFFFF",
+      letterSpacing: 0.3,
+    },
+
+    // PAYMENT ENTRY ITEM
+    paymentEntryItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderRadius: tokens.radius.md,
+      padding: tokens.space.md,
+      marginBottom: tokens.space.sm,
+    },
+
+    // MODAL
+    modalContent: {
+      borderTopLeftRadius: tokens.radius.xl,
+      borderTopRightRadius: tokens.radius.xl,
+      padding: tokens.space.lg,
+      paddingBottom: tokens.space.xxl,
+      maxHeight: "80%",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: tokens.space.lg,
+    },
+    modalTitle: {
+      fontSize: tokens.font.lg,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      letterSpacing: 0.3,
+    },
+    modalFormGroup: {
+      marginBottom: tokens.space.lg,
+    },
+    modalButtonGroup: {
+      flexDirection: "row",
+      gap: tokens.space.md,
+      marginTop: tokens.space.lg,
+    },
+    modalButton: {
+      flex: 1,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingVertical: tokens.space.md,
+      paddingHorizontal: tokens.space.lg,
+      borderRadius: tokens.radius.md,
+    },
+    modalButtonText: {
+      fontSize: tokens.font.base,
+      fontWeight: "700",
+      letterSpacing: 0.2,
     },
   });
