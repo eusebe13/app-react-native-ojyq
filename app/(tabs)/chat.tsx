@@ -2,42 +2,42 @@
  * ChatListScreen - Liste des canaux de discussion
  */
 
-import React, { useState, useEffect, useCallback, ReactElement } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  StyleSheet,
-  Platform,
-  KeyboardAvoidingView,
-  ScrollView,
-  Image,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
-  collection,
-  onSnapshot,
   addDoc,
+  collection,
   deleteDoc,
   doc,
-  updateDoc,
-  query,
-  orderBy,
-  Timestamp,
   getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
 } from "firebase/firestore";
-import * as ImagePicker from "expo-image-picker";
+import React, { ReactElement, useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../../contexts/ThemeContext";
 import { db } from "../../firebaseConfig";
 import { Channel, channelFromFirestore } from "../../types/models";
-import { useAppTheme } from "../../contexts/ThemeContext";
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Helper : initiales du canal ─────────────────────────────────────────────
 function channelInitials(name: string): string {
@@ -526,7 +526,7 @@ export default function ChatListScreen(): ReactElement {
   );
 
   return (
-  <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Discussions</Text>
         <TouchableOpacity
@@ -752,7 +752,7 @@ export default function ChatListScreen(): ReactElement {
                       onPress={() => toggleUser(u.id)}
                     >
                       <Text style={{ color: colors.textPrimary }}>
-                        {u.name || u.email || "Inconnu"}
+                        {u.firstName || u.email || "Inconnu"}
                       </Text>
                       {selectedUsers.includes(u.id) && (
                         <Ionicons
