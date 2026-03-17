@@ -3,7 +3,7 @@ import useAuth from "@/hooks/use-auth";
 import { UserProfile } from "@/types";
 import {
     doc,
-    getDoc,
+    onSnapshot,
     serverTimestamp,
     setDoc,
 } from "firebase/firestore";
@@ -35,13 +35,14 @@ export function useProfile() {
     useEffect(() => {
         if (!user) return;
 
-        const fetchProfile = async () => {
-            try {
-                const docRef = doc(db, "users", user.uid);
-                const docSnap = await getDoc(docRef);
+        const docRef = doc(db, "users", user.uid);
 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
+        // Real-time listener — re-renders the UI on every Firestore change
+        const unsub = onSnapshot(
+            docRef,
+            (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
                     setProfile({
                         firstName: data.firstName ?? "",
                         lastName: data.lastName ?? "",
@@ -59,35 +60,37 @@ export function useProfile() {
                         avatarPreset: data.avatarPreset ?? undefined,
                     });
                 } else {
-                    // Create a stub entry using the email prefix
+                    // Document doesn't exist yet — seed with email prefix
                     const emailPrefix = user.email?.split("@")[0] ?? "";
                     setProfile((prev) => ({ ...prev, firstName: emailPrefix }));
                 }
-            } catch (error) {
-                console.error("useProfile – fetch error:", error);
-            } finally {
+                setLoading(false);
+            },
+            (error) => {
+                console.error("useProfile – listener error:", error);
                 setLoading(false);
             }
-        };
+        );
 
-        fetchProfile();
+        // Cleanup: detach listener when user changes or component unmounts
+        return unsub;
     }, [user]);
 
     /**
-     * Merge-updates the user document in Firestore and refreshes local state.
+     * Merge-updates the user document in Firestore.
+     * No manual setProfile() needed — the onSnapshot listener picks up the
+     * write immediately from the local cache and updates the UI automatically.
      */
     const saveProfile = async (data: Partial<UserProfile>) => {
         if (!user) return;
         setSaving(true);
         try {
             const docRef = doc(db, "users", user.uid);
-            // Convert Date → Firestore Timestamp-friendly plain value
             const payload: Record<string, unknown> = { ...data, updatedAt: serverTimestamp() };
             if (data.birthDate !== undefined) {
                 payload.birthDate = data.birthDate ?? null;
             }
             await setDoc(docRef, payload, { merge: true });
-            setProfile((prev) => ({ ...prev, ...data }));
         } catch (error) {
             console.error("useProfile – save error:", error);
             throw error;

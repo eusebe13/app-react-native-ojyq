@@ -16,21 +16,19 @@ import { Platform, StyleSheet, View } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { Icon } from "@/components/ui/Icon";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { T } from "@/theme/tokens";
+import { useAppTheme } from "@/contexts/ThemeContext";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { colors, isDark } = useAppTheme();
 
   return (
     <Tabs
       screenOptions={{
         // Active/inactive colors
-        tabBarActiveTintColor: T.colors.primary,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: isDark
           ? "rgba(255,255,255,0.4)"
-          : T.colors.textTertiary,
+          : colors.textTertiary,
 
         // Hide default header
         headerShown: false,
@@ -40,26 +38,26 @@ export default function TabLayout() {
 
         // Tab bar styling
         tabBarStyle: {
-          backgroundColor: isDark ? "#0F172A" : "#FFFFFF",
+          backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: isDark
             ? "rgba(255,255,255,0.05)"
-            : T.colors.borderLight,
+            : colors.borderLight,
           height: Platform.select({
-            ios: 95, // Accounts for home indicator
+            ios: 95,
             android: 95,
             default: 95,
           }),
           paddingTop: 8,
           paddingBottom: Platform.select({
-            ios: 24, // iOS safe area
+            ios: 24,
             android: 8,
             default: 8,
           }),
           paddingHorizontal: 16,
 
           // Subtle shadow on top
-          shadowColor: isDark ? "#000" : T.colors.primary,
+          shadowColor: isDark ? "#000" : colors.primary,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: isDark ? 0.2 : 0.05,
           shadowRadius: 8,
@@ -79,7 +77,6 @@ export default function TabLayout() {
           marginBottom: 0,
         },
 
-        // Show labels  (not just on active)
         tabBarShowLabel: false,
       }}
     >
@@ -112,18 +109,6 @@ export default function TabLayout() {
               />
             </View>
           ),
-          // // Badge for unread messages
-          // tabBarBadge: 3,
-          // tabBarBadgeStyle: {
-          //   backgroundColor: T.colors.accent1,
-          //   color: "#FFFFFF",
-          //   fontSize: 10,
-          //   fontWeight: "700",
-          //   minWidth: 18,
-          //   height: 18,
-          //   borderRadius: 9,
-          //   marginTop: 2,
-          // },
         }}
       />
 
@@ -158,14 +143,6 @@ export default function TabLayout() {
           ),
         }}
       />
-
-      {/* Hide old explore tab if it exists
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null,
-        }}
-      /> */}
     </Tabs>
   );
 }

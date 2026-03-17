@@ -12,7 +12,7 @@
 
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { T } from "../theme/tokens";
+import { useAppTheme } from "../contexts/ThemeContext";
 import { Icon } from "./ui/Icon";
 
 interface SectionHeaderProps {
@@ -25,60 +25,66 @@ export const SectionHeader = ({
   icon,
   title,
   onViewAll,
-}: SectionHeaderProps) => (
-  <View style={styles.container}>
-    <View style={styles.left}>
-      <View style={styles.iconWrap}>
-        <Icon name={icon} size={18} color={T.colors.primary} />
-      </View>
-      <Text style={styles.title}>{title}</Text>
-    </View>
-    {onViewAll && (
-      <TouchableOpacity
-        onPress={onViewAll}
-        activeOpacity={0.6}
-        style={styles.viewAll}
-      >
-        <Text style={styles.viewAllText}>Voir tout</Text>
-        <Icon name="chevron-right" size={16} color={T.colors.primary} />
-      </TouchableOpacity>
-    )}
-  </View>
-);
+}: SectionHeaderProps) => {
+  const { colors, tokens } = useAppTheme();
+  const styles = getStyles(colors, tokens);
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: T.space.md,
-  },
-  left: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: T.space.sm,
-  },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: T.radius.sm,
-    backgroundColor: T.colors.primaryTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: T.font.lg,
-    fontWeight: "700",
-    color: T.colors.textPrimary,
-  },
-  viewAll: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  viewAllText: {
-    fontSize: T.font.sm,
-    color: T.colors.primary,
-    fontWeight: "600",
-  },
-});
+  return (
+    <View style={styles.container}>
+      <View style={styles.left}>
+        <View style={styles.iconWrap}>
+          <Icon name={icon} size={18} color={colors.primary} />
+        </View>
+        <Text style={styles.title}>{title}</Text>
+      </View>
+      {onViewAll && (
+        <TouchableOpacity
+          onPress={onViewAll}
+          activeOpacity={0.6}
+          style={styles.viewAll}
+        >
+          <Text style={styles.viewAllText}>Voir tout</Text>
+          <Icon name="chevron-right" size={16} color={colors.primary} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+const getStyles = (colors: any, tokens: any) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: tokens.space.md,
+    },
+    left: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space.sm,
+    },
+    iconWrap: {
+      width: 32,
+      height: 32,
+      borderRadius: tokens.radius.sm,
+      backgroundColor: colors.primaryTint,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    title: {
+      fontSize: tokens.font.lg,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    viewAll: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+    },
+    viewAllText: {
+      fontSize: tokens.font.sm,
+      color: colors.primary,
+      fontWeight: "600",
+    },
+  });

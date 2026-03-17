@@ -26,28 +26,25 @@ import { useProfile } from "@/hooks/use-profile";
 
 export default function AppSettings() {
   const { profile, saving, saveProfile } = useProfile();
-  const { toggleTheme, colors, tokens } = useAppTheme();
+  const { isDark, setDark, colors, tokens } = useAppTheme();
 
-  const [localDarkMode, setLocalDarkMode] = useState(profile.darkMode || false);
   const [notifAgenda, setNotifAgenda] = useState(profile.notifAgenda !== false);
   const [notifMessages, setNotifMessages] = useState(
     profile.notifMessages !== false,
   );
 
   useEffect(() => {
-    setLocalDarkMode(profile.darkMode || false);
     setNotifAgenda(profile.notifAgenda !== false);
     setNotifMessages(profile.notifMessages !== false);
   }, [profile]);
 
   const handleDarkModeToggle = async (value: boolean) => {
-    setLocalDarkMode(value);
     try {
+      await setDark(value);
       await saveProfile({ darkMode: value });
-      await toggleTheme();
     } catch {
       Alert.alert("Erreur", "Impossible de mettre à jour le mode sombre");
-      setLocalDarkMode(!value);
+      await setDark(!value);
     }
   };
 
@@ -90,11 +87,11 @@ export default function AppSettings() {
               </Text>
             </View>
             <Switch
-              value={localDarkMode}
+              value={isDark}
               onValueChange={handleDarkModeToggle}
               disabled={saving}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={localDarkMode ? "#FFFFFF" : colors.surfaceDim}
+              thumbColor={isDark ? "#FFFFFF" : colors.surfaceDim}
             />
           </View>
         </View>

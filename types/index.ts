@@ -1,7 +1,14 @@
 /**
  * Type definitions for OJYQ app data models
+ * 
+ * Ce fichier re-exporte les types du module models.ts
+ * et définit les types locaux pour la compatibilité.
  */
 
+// Re-export tous les types du module models
+export * from './models';
+
+// Types legacy pour compatibilité avec le code existant
 export interface ScheduleEvent {
     id: string;
     day: string;
