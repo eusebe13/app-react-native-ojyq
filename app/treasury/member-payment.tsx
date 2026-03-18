@@ -12,45 +12,45 @@
 import { Ionicons } from "@expo/vector-icons";
 import { getAuth } from "firebase/auth";
 import {
-    collection,
-    doc,
-    getDocs,
-    onSnapshot,
-    updateDoc,
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "@/firebaseConfig";
 
-type Member = {
-  uid: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-};
-
 type MemberPaymentData = {
   uid: string;
   firstName: string;
   lastName: string;
+  email: string;
   role: string;
   paidThisYear: number;
   debt: number;
   lastPaymentDate?: string;
+};
+
+const getButtonText = (mode: "add" | "edit"): string => {
+  return mode === "add" ? "Enregistrer le paiement" : "Modifier le solde";
 };
 
 export default function MemberPaymentPage() {
@@ -59,7 +59,6 @@ export default function MemberPaymentPage() {
   const user = auth.currentUser;
 
   const [members, setMembers] = useState<MemberPaymentData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>("");
   const [selectedMember, setSelectedMember] =
     useState<MemberPaymentData | null>(null);
@@ -72,6 +71,9 @@ export default function MemberPaymentPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMemberSelector, setShowMemberSelector] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [actionType, setActionType] = useState<"add" | "remove" | "change">(
+    "add",
+  );
 
   const annualAmount = 120;
 
@@ -93,13 +95,12 @@ export default function MemberPaymentPage() {
   useEffect(() => {
     if (!user) return;
 
+    const unsubscribes: Array<() => void> = [];
+
     const loadMembers = async () => {
       try {
-        setLoading(true);
-
         // Récupérer tous les utilisateurs
         const usersSnapshot = await getDocs(collection(db, "users"));
-        const membersList: MemberPaymentData[] = [];
 
         // Pour chaque utilisateur, récupérer ses données de paiement
         for (const userDoc of usersSnapshot.docs) {
@@ -119,6 +120,7 @@ export default function MemberPaymentPage() {
             const memberData: MemberPaymentData = {
               uid: userDoc.id,
               firstName: userData.firstName || "",
+              email: userData.email || "",
               lastName: userData.lastName || "",
               role: userData.role || "Membre",
               paidThisYear: paymentData.paidThisYear || 0,
@@ -129,24 +131,25 @@ export default function MemberPaymentPage() {
             setMembers((prev) => {
               const filtered = prev.filter((m) => m.uid !== userDoc.id);
               return [...filtered, memberData].sort((a, b) =>
-                `${a.firstName} ${a.lastName}`.localeCompare(
-                  `${b.firstName} ${b.lastName}`,
+                `${a.firstName || a.email} ${a.lastName}`.localeCompare(
+                  `${b.firstName || b.email} ${b.lastName}`,
                 ),
               );
             });
           });
 
-          return unsubscribe;
+          unsubscribes.push(unsubscribe);
         }
-
-        setLoading(false);
       } catch (error) {
         console.error("Erreur lors du chargement des membres:", error);
-        setLoading(false);
       }
     };
 
     loadMembers();
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub());
+    };
   }, [user]);
 
   const isAdmin = userRole === "Administrateur" || userRole === "Trésorier";
@@ -167,8 +170,8 @@ export default function MemberPaymentPage() {
       return;
     }
 
-    const amount = parseFloat(paymentAmount);
-    if (isNaN(amount) || amount <= 0) {
+    const amount = Number.parseFloat(paymentAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
       Alert.alert("Erreur", "Le montant doit être un nombre positif");
       return;
     }
@@ -176,6 +179,22 @@ export default function MemberPaymentPage() {
     setSaving(true);
 
     try {
+      const paymentsRef = collection(
+        db,
+        "users",
+        selectedMember.uid,
+        "payments",
+      );
+
+      // Ajouter l'entrée de paiement
+      await addDoc(paymentsRef, {
+        amount,
+        date: paymentDate,
+        paymentMethod: "manual",
+        notes: "Ajouté par trésorier",
+        timestamp: serverTimestamp(),
+      });
+
       const paymentDocRef = doc(
         db,
         "users",
@@ -184,20 +203,24 @@ export default function MemberPaymentPage() {
         "payment",
       );
 
+      // Chaque paiement augmente la progression ET diminue la dette
       const newPaidThisYear = selectedMember.paidThisYear + amount;
-      const remainingThisYear = Math.max(annualAmount - newPaidThisYear, 0);
-      const newDebt = selectedMember.debt + remainingThisYear;
+      const newDebt = Math.max(selectedMember.debt - amount, 0);
 
-      await updateDoc(paymentDocRef, {
-        paidThisYear: newPaidThisYear,
-        debt: newDebt,
-        lastPaymentDate: paymentDate,
-        lastModified: new Date().toISOString(),
-      });
+      await setDoc(
+        paymentDocRef,
+        {
+          paidThisYear: newPaidThisYear,
+          debt: newDebt,
+          lastPaymentDate: paymentDate,
+          lastModified: new Date().toISOString(),
+        },
+        { merge: true },
+      );
 
       Alert.alert(
         "Succès",
-        `Paiement de $${amount} enregistré pour ${selectedMember.firstName} ${selectedMember.lastName}`,
+        `Paiement de $${amount} enregistré pour ${selectedMember.firstName || selectedMember.email}`,
       );
 
       // Réinitialiser le formulaire
@@ -214,15 +237,16 @@ export default function MemberPaymentPage() {
     }
   };
 
-  // Modifier le solde d'un membre (remplacer la valeur au lieu d'ajouter)
+  // Modifier le solde d'un membre (ajouter/enlever/changer)
   const handleEditBalance = async () => {
     if (!selectedMember || !paymentAmount) {
       Alert.alert("Erreur", "Veuillez entrer un montant");
       return;
     }
 
-    const amount = parseFloat(paymentAmount);
-    if (isNaN(amount) || amount < 0) {
+    const amount = Number.parseFloat(paymentAmount);
+
+    if (Number.isNaN(amount) || amount < 0) {
       Alert.alert("Erreur", "Le montant doit être un nombre positif");
       return;
     }
@@ -238,19 +262,46 @@ export default function MemberPaymentPage() {
         "payment",
       );
 
-      const remainingThisYear = Math.max(annualAmount - amount, 0);
-      const newDebt =
-        selectedMember.debt + (selectedMember.paidThisYear - amount); // Ajuste la dette selon la différence
+      let newPaid = selectedMember.paidThisYear;
+      let newDebt = selectedMember.debt;
 
-      await updateDoc(paymentDocRef, {
-        paidThisYear: amount,
-        debt: Math.max(newDebt, 0), // La dette ne peut pas être négative
-        lastModified: new Date().toISOString(),
-      });
+      if (actionType === "add") {
+        // Ajouter un paiement: augmente payé, diminue dette
+        newPaid += amount;
+        newDebt -= amount;
+      } else if (actionType === "remove") {
+        // Enlever un paiement: diminue payé, augmente dette
+        newPaid -= amount;
+        newDebt += amount;
+      } else if (actionType === "change") {
+        // Changer le total du: change seulement la dette
+        newDebt = amount;
+      }
+
+      // S'assurer que les valeurs ne sont pas négatives
+      newPaid = Math.max(newPaid, 0);
+      newDebt = Math.max(newDebt, 0);
+
+      await setDoc(
+        paymentDocRef,
+        {
+          paidThisYear: newPaid,
+          debt: newDebt,
+          lastModified: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+
+      const actionText =
+        actionType === "add"
+          ? `Paiement de $${amount} ajouté`
+          : actionType === "remove"
+            ? `Paiement de $${amount} retiré`
+            : `Total du modifié à $${amount}`;
 
       Alert.alert(
         "Succès",
-        `Solde de ${selectedMember.firstName} ${selectedMember.lastName} modifié à $${amount}`,
+        `${actionText}\nSolde ${selectedMember.firstName || selectedMember.email}: $${newPaid} payé, $${newDebt} du`,
       );
 
       // Réinitialiser le formulaire
@@ -258,6 +309,7 @@ export default function MemberPaymentPage() {
       setShowPaymentModal(false);
       setSelectedMember(null);
       setModalMode("add");
+      setActionType("add");
     } catch (error) {
       console.error("Erreur lors de la modification du solde:", error);
       Alert.alert("Erreur", "Impossible de modifier le solde");
@@ -285,21 +337,6 @@ export default function MemberPaymentPage() {
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
             Seuls les administrateurs et les trésoriers peuvent accéder à cette
             page.
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (loading) {
-    return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: colors.surfaceDim }]}
-      >
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.textSecondary, marginTop: 16 }}>
-            Chargement des membres...
           </Text>
         </View>
       </SafeAreaView>
@@ -394,7 +431,7 @@ export default function MemberPaymentPage() {
                   <View style={styles.memberHeader}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.memberName}>
-                        {item.firstName} {item.lastName}
+                        {item.firstName || item.email} {item.lastName || ""}
                       </Text>
                       <Text style={styles.memberRole}>{item.role}</Text>
                     </View>
@@ -425,7 +462,7 @@ export default function MemberPaymentPage() {
                   {/* PAYMENT INFO */}
                   <View style={styles.memberPaymentInfo}>
                     <View style={styles.paymentRow}>
-                      <Text style={styles.paymentLabel}>Payé cette année</Text>
+                      <Text style={styles.paymentLabel}>Progression</Text>
                       <Text style={styles.paymentValue}>
                         ${item.paidThisYear} / ${annualAmount}
                       </Text>
@@ -449,16 +486,10 @@ export default function MemberPaymentPage() {
                       />
                     </View>
 
-                    {/* ADDITIONAL INFO */}
+                    {/* TOTAL DU */}
                     <View style={styles.additionalInfo}>
                       <View style={styles.infoItem}>
-                        <Text style={styles.infoLabel}>Reste</Text>
-                        <Text style={styles.infoValue}>
-                          ${remainingThisYear}
-                        </Text>
-                      </View>
-                      <View style={styles.infoItem}>
-                        <Text style={styles.infoLabel}>En dette</Text>
+                        <Text style={styles.infoLabel}>Total du</Text>
                         <Text
                           style={[
                             styles.infoValue,
@@ -471,28 +502,14 @@ export default function MemberPaymentPage() {
                           ${item.debt}
                         </Text>
                       </View>
-                      <View style={styles.infoItem}>
-                        <Text style={styles.infoLabel}>Total dû</Text>
-                        <Text
-                          style={[
-                            styles.infoValue,
-                            {
-                              color:
-                                totalDebt > 0 ? colors.accent6 : colors.accent5,
-                            },
-                          ]}
-                        >
-                          ${totalDebt}
-                        </Text>
-                      </View>
                     </View>
 
                     {/* LAST PAYMENT */}
-                    {item.lastPaymentDate && (
+                    {item.lastPaymentDate ? (
                       <Text style={styles.lastPaymentText}>
                         Dernier paiement: {item.lastPaymentDate}
                       </Text>
-                    )}
+                    ) : null}
                   </View>
 
                   {/* ACTION BUTTON */}
@@ -573,19 +590,134 @@ export default function MemberPaymentPage() {
               <>
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberInfoName}>
-                    {selectedMember.firstName} {selectedMember.lastName}
+                    {selectedMember.firstName || selectedMember.email}{" "}
+                    {selectedMember.lastName || ""}
                   </Text>
                   <Text style={styles.memberInfoRole}>
                     {selectedMember.role}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.memberInfoRole,
+                      { marginTop: tokens.space.md },
+                    ]}
+                  >
+                    Progression: ${selectedMember.paidThisYear} / $120
+                  </Text>
+                  <Text
+                    style={[
+                      styles.memberInfoRole,
+                      { marginTop: tokens.space.sm },
+                    ]}
+                  >
+                    Total du: ${selectedMember.debt}
                   </Text>
                 </View>
 
                 {modalMode === "edit" && (
                   <View style={styles.editModeInfo}>
-                    <Text style={styles.editModeLabel}>Solde actuel:</Text>
-                    <Text style={styles.editModeValue}>
-                      ${selectedMember.paidThisYear}
-                    </Text>
+                    <Text style={styles.editModeLabel}>Action:</Text>
+                    <View
+                      style={{
+                        marginTop: tokens.space.md,
+                        flexDirection: "row",
+                        gap: tokens.space.sm,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton,
+                          {
+                            backgroundColor:
+                              actionType === "add"
+                                ? colors.accent5
+                                : colors.surface,
+                            borderColor:
+                              actionType === "add"
+                                ? colors.accent5
+                                : colors.border,
+                          },
+                        ]}
+                        onPress={() => setActionType("add")}
+                      >
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            {
+                              color:
+                                actionType === "add"
+                                  ? "#FFF"
+                                  : colors.textPrimary,
+                            },
+                          ]}
+                        >
+                          Ajouter
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton,
+                          {
+                            backgroundColor:
+                              actionType === "remove"
+                                ? colors.accent6
+                                : colors.surface,
+                            borderColor:
+                              actionType === "remove"
+                                ? colors.accent6
+                                : colors.border,
+                          },
+                        ]}
+                        onPress={() => setActionType("remove")}
+                      >
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            {
+                              color:
+                                actionType === "remove"
+                                  ? "#FFF"
+                                  : colors.textPrimary,
+                            },
+                          ]}
+                        >
+                          Enlever
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton,
+                          {
+                            backgroundColor:
+                              actionType === "change"
+                                ? colors.accent3
+                                : colors.surface,
+                            borderColor:
+                              actionType === "change"
+                                ? colors.accent3
+                                : colors.border,
+                          },
+                        ]}
+                        onPress={() => setActionType("change")}
+                      >
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            {
+                              color:
+                                actionType === "change"
+                                  ? "#FFF"
+                                  : colors.textPrimary,
+                            },
+                          ]}
+                        >
+                          Changer du
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
@@ -593,7 +725,11 @@ export default function MemberPaymentPage() {
                   <Text style={styles.formLabel}>
                     {modalMode === "add"
                       ? "Montant du paiement ($)"
-                      : "Nouveau solde ($)"}
+                      : actionType === "add"
+                        ? "Montant à ajouter ($)"
+                        : actionType === "remove"
+                          ? "Montant à enlever ($)"
+                          : "Nouveau total du ($)"}
                   </Text>
                   <TextInput
                     style={[
@@ -655,11 +791,7 @@ export default function MemberPaymentPage() {
                       />
                     )}
                     <Text style={styles.submitButtonText}>
-                      {saving
-                        ? "Enregistrement..."
-                        : modalMode === "add"
-                          ? "Enregistrer le paiement"
-                          : "Modifier le solde"}
+                      {saving ? "Enregistrement..." : getButtonText(modalMode)}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -736,7 +868,7 @@ export default function MemberPaymentPage() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectorItemName}>
-                      {item.firstName} {item.lastName}
+                      {item.firstName || item.email} {item.lastName || ""}
                     </Text>
                     <Text
                       style={[
@@ -957,6 +1089,21 @@ const getStyles = (colors: any, tokens: any) =>
       fontWeight: "700",
       color: "#FFF",
       letterSpacing: 0.2,
+    },
+
+    // ACTION BUTTONS
+    actionButton: {
+      paddingVertical: tokens.space.sm,
+      paddingHorizontal: tokens.space.md,
+      borderRadius: tokens.radius.md,
+      borderWidth: 1,
+      flex: 1,
+      minWidth: 90,
+    },
+    actionButtonText: {
+      fontSize: tokens.font.sm,
+      fontWeight: "600",
+      textAlign: "center",
     },
 
     // EMPTY STATE
