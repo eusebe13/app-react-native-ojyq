@@ -1,50 +1,75 @@
-import React, { useState, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { getAuth } from "firebase/auth";
 import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
   TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  Alert,
-  ScrollView,
-  Platform,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import {
-  collection,
-  addDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  Timestamp,
-  doc,
-  updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
 export default function FirebaseCalendarScreen() {
+  const auth = getAuth();
+  const user = auth.currentUser;
+
   const [events, setEvents] = useState<any[]>([]);
+  const [availabilities, setAvailabilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"events" | "availability">("events");
 
   // États pour le Modal et le Formulaire
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
-  const [isShiftMode, setIsShiftMode] = useState(false);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const onChangeDate = (event, selectedDate) => {
+  // États pour les disponibilités
+  const [availabilityModalVisible, setAvailabilityModalVisible] =
+    useState(false);
+  const [availabilityStartTime, setAvailabilityStartTime] = useState(
+    new Date(),
+  );
+  const [availabilityEndTime, setAvailabilityEndTime] = useState(new Date());
+  const [showAvailabilityStartTimePicker, setShowAvailabilityStartTimePicker] =
+    useState(false);
+  const [showAvailabilityEndTimePicker, setShowAvailabilityEndTimePicker] =
+    useState(false);
+  const [selectedDays, setSelectedDays] = useState<boolean[]>([
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+  ]); // lundi à dimanche
 
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    
+  const onChangeDate = (event: any, selectedDate: any) => {
+    if (Platform.OS === "android") setShowDatePicker(false);
+
     if (selectedDate) {
       const currentDate = new Date(date);
       currentDate.setFullYear(selectedDate.getFullYear());
@@ -54,8 +79,8 @@ export default function FirebaseCalendarScreen() {
     }
   };
 
-  const onChangeTime = (event, selectedTime) => {
-    if (Platform.OS === 'android') setShowTimePicker(false);
+  const onChangeTime = (event: any, selectedTime: any) => {
+    if (Platform.OS === "android") setShowTimePicker(false);
 
     if (selectedTime) {
       const currentTime = new Date(date);
@@ -66,18 +91,21 @@ export default function FirebaseCalendarScreen() {
   };
 
   // --- OPTIMISATION DES PICKERS (iOS focus) ---
-const openDatePicker = () => {
-  setShowTimePicker(false);
-  setShowDatePicker(true);
-};
+  const openDatePicker = () => {
+    setShowTimePicker(false);
+    setShowDatePicker(true);
+  };
 
-const openTimePicker = () => {
-  setShowDatePicker(false);
-  setShowTimePicker(true);
-};
+  const openTimePicker = () => {
+    setShowDatePicker(false);
+    setShowTimePicker(true);
+  };
 
   // --- 1. ÉCOUTER LES DONNÉES ---
   useEffect(() => {
+    if (!user) return;
+
+    // Charger les événements
     const q = query(collection(db, "events"), orderBy("date", "asc"));
     const unsubscribe = onSnapshot(
       q,
@@ -96,8 +124,30 @@ const openTimePicker = () => {
         setLoading(false);
       },
     );
-    return () => unsubscribe();
-  }, []);
+
+    // Charger les disponibilités de l'utilisateur actuel
+    const availabilityQuery = query(
+      collection(db, "users", user.uid, "availabilities"),
+    );
+    const unsubscribeAvailability = onSnapshot(
+      availabilityQuery,
+      (snapshot) => {
+        const fetchedAvailabilities = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+          };
+        });
+        setAvailabilities(fetchedAvailabilities);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      unsubscribeAvailability();
+    };
+  }, [user]);
 
   // --- 2. LOGIQUE DE DATE PASSÉE ---
   const isEventPast = (date: Date) => {
@@ -120,10 +170,9 @@ const openTimePicker = () => {
 
     const eventData = {
       title: title,
-      type: isShiftMode ? "Shift" : "General",
-      date: Timestamp.fromDate(date), // On utilise l'objet Date directement ici
-      location: location || (isShiftMode ? "QG" : "À définir"),
-      assignee: isShiftMode ? "À assigner" : null,
+      type: "General",
+      date: Timestamp.fromDate(date),
+      location: location || "À définir",
     };
 
     try {
@@ -144,40 +193,120 @@ const openTimePicker = () => {
     setEditingId(null);
     setTitle("");
     setLocation("");
-    setDate(new Date()); // Réinitialise à maintenant
+    setDate(new Date());
+  };
+
+  // --- HANDLERS POUR LES DISPONIBILITÉS ---
+  const handleSaveAvailability = async () => {
+    if (!user) return;
+
+    if (availabilityStartTime >= availabilityEndTime) {
+      Alert.alert("Erreur", "L'heure de fin doit être après l'heure de début");
+      return;
+    }
+
+    if (!selectedDays.some(Boolean)) {
+      Alert.alert("Erreur", "Sélectionnez au moins un jour");
+      return;
+    }
+
+    try {
+      const days = [
+        "Lundi",
+        "Mardi",
+        "Mercredi",
+        "Jeudi",
+        "Vendredi",
+        "Samedi",
+        "Dimanche",
+      ];
+      const selectedDayNames = days.filter((_, i) => selectedDays[i]);
+
+      const startHours = availabilityStartTime.getHours();
+      const startMinutes = availabilityStartTime.getMinutes();
+      const endHours = availabilityEndTime.getHours();
+      const endMinutes = availabilityEndTime.getMinutes();
+
+      await addDoc(collection(db, "users", user.uid, "availabilities"), {
+        days: selectedDayNames,
+        startHours,
+        startMinutes,
+        endHours,
+        endMinutes,
+        isRecurring: true,
+        createdAt: Timestamp.now(),
+      });
+
+      Alert.alert("Succès", "Disponibilité récurrente enregistrée");
+      closeAvailabilityModal();
+    } catch (error) {
+      console.error("Erreur:", error);
+      Alert.alert("Erreur", "Impossible de sauvegarder la disponibilité");
+    }
+  };
+
+  const closeAvailabilityModal = () => {
+    setAvailabilityModalVisible(false);
+    setAvailabilityStartTime(new Date());
+    setAvailabilityEndTime(new Date());
+    setSelectedDays([false, false, false, false, false, false, false]);
+  };
+
+  const handleDeleteAvailability = async (id: string) => {
+    if (!user) return;
+
+    Alert.alert(
+      "Confirmer la suppression",
+      "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, "users", user.uid, "availabilities", id));
+              Alert.alert("Succès", "Disponibilité supprimée");
+            } catch (error) {
+              console.error("Erreur:", error);
+              Alert.alert("Erreur", "Impossible de supprimer");
+            }
+          },
+        },
+      ],
+    );
   };
 
   // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
   const handleLongPress = (item: any) => {
-  Alert.alert(
-    "Options de l'événement",
-    `Que souhaitez-vous faire pour "${item.title}" ?`,
-    [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Modifier",
-        onPress: () => {
-          setEditingId(item.id);
-          setTitle(item.title);
-          setLocation(item.location);
-          setIsShiftMode(item.type === "Shift");
-          
-          // On met à jour l'objet date directement
-          setDate(item.dateObj); 
-          
-          setModalVisible(true);
+    Alert.alert(
+      "Options de l'événement",
+      `Que souhaitez-vous faire pour "${item.title}" ?`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Modifier",
+          onPress: () => {
+            setEditingId(item.id);
+            setTitle(item.title);
+            setLocation(item.location);
+
+            // On met à jour l'objet date directement
+            setDate(item.dateObj);
+
+            setModalVisible(true);
+          },
         },
-      },
-      {
-        text: "Supprimer",
-        style: "destructive",
-        onPress: async () => {
-          await deleteDoc(doc(db, "events", item.id));
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            await deleteDoc(doc(db, "events", item.id));
+          },
         },
-      },
-    ]
-  );
-};
+      ],
+    );
+  };
 
   // --- 5. FORMATAGE ---
   const formatDate = (date: Date) => {
@@ -197,11 +326,52 @@ const openTimePicker = () => {
         <Text style={styles.headerTitle}>Agenda OJYQ</Text>
       </View>
 
+      {/* ONGLETS */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, viewMode === "events" && styles.tabActive]}
+          onPress={() => setViewMode("events")}
+        >
+          <Ionicons
+            name="calendar"
+            size={20}
+            color={viewMode === "events" ? "#007AFF" : "#999"}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              viewMode === "events" && styles.tabTextActive,
+            ]}
+          >
+            Événements
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, viewMode === "availability" && styles.tabActive]}
+          onPress={() => setViewMode("availability")}
+        >
+          <Ionicons
+            name="checkmark-circle"
+            size={20}
+            color={viewMode === "availability" ? "#007AFF" : "#999"}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              viewMode === "availability" && styles.tabTextActive,
+            ]}
+          >
+            Disponibilités
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
         </View>
-      ) : (
+      ) : viewMode === "events" ? (
         <FlatList
           data={events}
           keyExtractor={(item) => item.id}
@@ -240,15 +410,11 @@ const openTimePicker = () => {
                       style={[
                         styles.eventType,
                         {
-                          color: past
-                            ? "#888"
-                            : item.type === "Shift"
-                              ? "#FF9500"
-                              : "#007AFF",
+                          color: past ? "#888" : "#007AFF",
                         },
                       ]}
                     >
-                      {item.type === "Shift" ? "QUART" : "ÉVÉNEMENT"}
+                      ÉVÉNEMENT
                     </Text>
                     {item.location && (
                       <Text style={styles.locationText}>
@@ -261,11 +427,60 @@ const openTimePicker = () => {
             );
           }}
         />
+      ) : (
+        <FlatList
+          data={availabilities}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={48}
+                color="#999"
+              />
+              <Text style={styles.emptyText}>
+                Aucune disponibilité enregistrée
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onLongPress={() => handleDeleteAvailability(item.id)}
+              delayLongPress={500}
+              style={[styles.availabilityCard]}
+            >
+              <View style={styles.dateContainer}>
+                <Text style={styles.dateText}>
+                  {Array.isArray(item.days)
+                    ? item.days.join(", ")
+                    : "Jours multiples"}
+                </Text>
+              </View>
+
+              <View style={styles.contentContainer}>
+                <Text style={styles.eventTitle}>
+                  {String(item.startHours).padStart(2, "0")}:
+                  {String(item.startMinutes).padStart(2, "0")} -{" "}
+                  {String(item.endHours).padStart(2, "0")}:
+                  {String(item.endMinutes).padStart(2, "0")}
+                </Text>
+                <Text style={styles.locationText}>
+                  Disponible • Appuyez longuement pour supprimer
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
       )}
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={() =>
+          viewMode === "events"
+            ? setModalVisible(true)
+            : setAvailabilityModalVisible(true)
+        }
       >
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
@@ -277,42 +492,6 @@ const openTimePicker = () => {
               {editingId ? "Modifier l'événement" : "Nouvel Événement"}
             </Text>
             <ScrollView style={{ width: "100%" }}>
-              {/* Type Selector */}
-              <View style={styles.typeSelector}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    !isShiftMode && styles.typeButtonActive,
-                  ]}
-                  onPress={() => setIsShiftMode(false)}
-                >
-                  <Text
-                    style={[
-                      styles.typeText,
-                      !isShiftMode && styles.typeTextActive,
-                    ]}
-                  >
-                    Général
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    isShiftMode && styles.typeButtonActiveShift,
-                  ]}
-                  onPress={() => setIsShiftMode(true)}
-                >
-                  <Text
-                    style={[
-                      styles.typeText,
-                      isShiftMode && styles.typeTextActive,
-                    ]}
-                  >
-                    Quart
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
               <Text style={styles.label}>Titre</Text>
               <TextInput
                 style={styles.input}
@@ -400,9 +579,122 @@ const openTimePicker = () => {
           </View>
         </View>
       </Modal>
+
+      {/* MODAL POUR LES DISPONIBILITÉS */}
+      <Modal
+        visible={availabilityModalVisible}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>Ajouter une disponibilité</Text>
+            <ScrollView style={{ width: "100%" }}>
+              {/* JOURS DE LA SEMAINE */}
+              <Text style={styles.label}>Jours de la semaine</Text>
+              <View style={styles.daysContainer}>
+                {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(
+                  (day, index) => (
+                    <TouchableOpacity
+                      key={`day-${day}`}
+                      style={[
+                        styles.dayButton,
+                        selectedDays[index] && styles.dayButtonActive,
+                      ]}
+                      onPress={() => {
+                        const newDays = [...selectedDays];
+                        newDays[index] = !newDays[index];
+                        setSelectedDays(newDays);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dayText,
+                          selectedDays[index] && styles.dayTextActive,
+                        ]}
+                      >
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  ),
+                )}
+              </View>
+
+              {/* HEURE DE DÉBUT */}
+              <Text style={styles.label}>Heure de début</Text>
+              <TouchableOpacity
+                style={styles.inputPicker}
+                onPress={() => setShowAvailabilityStartTimePicker(true)}
+              >
+                <Text style={styles.datePickerText}>
+                  {availabilityStartTime.toLocaleTimeString("fr-FR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+                <Ionicons name="time" size={20} color="#007AFF" />
+              </TouchableOpacity>
+              {showAvailabilityStartTimePicker && (
+                <DateTimePicker
+                  value={availabilityStartTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={(event: any, selectedTime: any) => {
+                    if (selectedTime) setAvailabilityStartTime(selectedTime);
+                    if (Platform.OS === "android")
+                      setShowAvailabilityStartTimePicker(false);
+                  }}
+                />
+              )}
+
+              {/* HEURE DE FIN */}
+              <Text style={styles.label}>Heure de fin</Text>
+              <TouchableOpacity
+                style={styles.inputPicker}
+                onPress={() => setShowAvailabilityEndTimePicker(true)}
+              >
+                <Text style={styles.datePickerText}>
+                  {availabilityEndTime.toLocaleTimeString("fr-FR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+                <Ionicons name="time" size={20} color="#007AFF" />
+              </TouchableOpacity>
+              {showAvailabilityEndTimePicker && (
+                <DateTimePicker
+                  value={availabilityEndTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={(event: any, selectedTime: any) => {
+                    if (selectedTime) setAvailabilityEndTime(selectedTime);
+                    if (Platform.OS === "android")
+                      setShowAvailabilityEndTimePicker(false);
+                  }}
+                />
+              )}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={() => closeAvailabilityModal()}
+                style={styles.buttonCancel}
+              >
+                <Text style={styles.textCancel}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleSaveAvailability()}
+                style={styles.buttonSave}
+              >
+                <Text style={styles.textSave}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9f9f9" },
@@ -544,5 +836,98 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  datePickerText: {
+    fontSize: 14,
+    color: "#333",
+    flex: 1,
+  },
+  tabsContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  tabActive: {
+    backgroundColor: "#007AFF",
+  },
+  tabText: {
+    fontSize: 14,
+    color: "#666",
+    marginLeft: 6,
+    fontWeight: "500",
+  },
+  tabTextActive: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  availabilityCard: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 2,
+    borderLeftWidth: 5,
+    borderLeftColor: "#4CAF50",
+    alignItems: "center",
+  },
+  availabilityTimeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  availabilityDateText: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 4,
+  },
+  emptyContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+  },
+  daysContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  dayButton: {
+    width: "13%",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "#f0f0f0",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  dayButtonActive: {
+    backgroundColor: "#007AFF",
+  },
+  dayText: {
+    fontSize: 12,
+    color: "#333",
+    fontWeight: "600",
+  },
+  dayTextActive: {
+    color: "#fff",
   },
 });
