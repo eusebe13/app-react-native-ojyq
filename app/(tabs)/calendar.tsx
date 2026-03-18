@@ -18,6 +18,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/ui/Icon';
 import {
   collection,
   addDoc,
@@ -32,6 +33,8 @@ import {
 import { db } from '../../firebaseConfig';
 import { CalendarItem, EventType, eventFromFirestore } from '../../types/models';
 import { useAppTheme } from '../../contexts/ThemeContext';
+import { Header } from '@/components/Header';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Membres ─────────────────────────────────────────────────────────────────
 const MEMBERS = [
@@ -196,29 +199,47 @@ export default function CalendarScreen(): ReactElement {
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
-
-      {/* ── En-tête ── */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Agenda OJYQ</Text>
-        <Text style={styles.headerSub}>
-          {events.length} événement{events.length > 1 ? 's' : ''}
-        </Text>
-      </View>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <Header
+        title="Agenda"
+        titleIcon="calendar-month-outline"
+        chip={{
+          icon: "calendar-check-outline",
+          label: (() => {
+            const s = new Date().toLocaleDateString("fr-FR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            });
+            return s.charAt(0).toUpperCase() + s.slice(1);
+          })(),
+        }}
+      />
 
       {/* ── Filtres ── */}
       <View style={styles.filterBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
           {(['all', 'general', 'shift'] as const).map(type => {
             const active = filterType === type;
             const activeColor = type === 'shift' ? colors.accent1 : colors.primary;
             return (
               <TouchableOpacity
                 key={type}
-                style={[styles.chip, { backgroundColor: active ? activeColor : colors.surfaceDim, marginRight: tokens.space.sm }]}
+                style={[
+                  styles.filterChip,
+                  active
+                    ? { backgroundColor: activeColor, borderColor: activeColor }
+                    : { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => setFilterType(type)}
+                activeOpacity={0.75}
               >
-                <Text style={[styles.chipText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
+                <Icon
+                  name={type === 'shift' ? 'clock-time-four-outline' : type === 'general' ? 'calendar-star' : 'view-list-outline'}
+                  size={13}
+                  color={active ? '#FFFFFF' : colors.textSecondary}
+                />
+                <Text style={[styles.filterChipText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
                   {type === 'all' ? 'Tous' : type === 'general' ? 'Événements' : 'Quarts'}
                 </Text>
               </TouchableOpacity>
@@ -254,49 +275,64 @@ export default function CalendarScreen(): ReactElement {
               ? toHHMM(item.dateObj)
               : 'Heure inconnue';
 
+            const dayNum   = item.dateObj ? String(item.dateObj.getDate()).padStart(2, '0') : '--';
+            const monthStr = item.dateObj
+              ? item.dateObj.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase().replace('.', '')
+              : '---';
+
             return (
               <TouchableOpacity
-                activeOpacity={0.7}
+                activeOpacity={0.75}
                 onLongPress={() => handleLongPress(item)}
                 style={[styles.card, { opacity: item.pending ? 0.6 : 1 }]}
               >
-                {/* Bande de couleur latérale */}
-                <View style={[styles.cardAccent, { backgroundColor: accentColor }]} />
+                {/* Left: date column */}
+                <View style={[styles.cardDateBlock, {
+                  backgroundColor: accentColor + '16',
+                  borderRightColor: accentColor + '28',
+                }]}>
+                  <Text style={[styles.cardDateNum, { color: accentColor }]}>{dayNum}</Text>
+                  <Text style={[styles.cardDateMon, { color: accentColor }]}>{monthStr}</Text>
+                </View>
 
-                <View style={styles.cardBody}>
-                  {/* Titre + icône sync */}
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
-                      {item.title}
-                    </Text>
+                {/* Right: content */}
+                <View style={styles.cardContent}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                    <View style={[styles.cardTypePill, {
+                      backgroundColor: isShift ? colors.accent1 + '18' : colors.primary + '14',
+                    }]}>
+                      <Text style={[styles.cardTypePillText, {
+                        color: isShift ? colors.accent1 : colors.primary,
+                      }]}>
+                        {isShift ? 'QUART' : 'ÉVÉN.'}
+                      </Text>
+                    </View>
                     {item.pending && (
-                      <Ionicons name="cloud-upload-outline" size={16} color={colors.textTertiary} />
+                      <Icon name="cloud-upload-outline" size={14} color={colors.textTertiary} />
                     )}
                   </View>
 
-                  {/* Heure + Lieu */}
-                  <View style={[styles.row, { marginTop: tokens.space.sm }]}>
-                    <View style={[styles.row, { alignItems: 'center', marginRight: tokens.space.lg }]}>
-                      <Ionicons name="time-outline" size={15} color={colors.textSecondary} style={{ marginRight: 4 }} />
-                      <Text style={styles.cardMeta}>{timeString}</Text>
-                    </View>
-                    <View style={[styles.row, { alignItems: 'center', flex: 1 }]}>
-                      <Ionicons name="location-outline" size={15} color={colors.textSecondary} style={{ marginRight: 4 }} />
-                      <Text style={[styles.cardMeta, { flex: 1 }]} numberOfLines={1}>
-                        {item.location}
-                      </Text>
-                    </View>
+                  <View style={styles.cardMetaRow}>
+                    <Icon name="clock-outline" size={13} color={colors.textTertiary} />
+                    <Text style={styles.cardMetaText}>{timeString}</Text>
+                    {!!item.location && item.location !== 'À définir' && (
+                      <>
+                        <View style={styles.metaDot} />
+                        <Icon name="map-marker-outline" size={13} color={colors.textTertiary} />
+                        <Text style={[styles.cardMetaText, { flex: 1 }]} numberOfLines={1}>
+                          {item.location}
+                        </Text>
+                      </>
+                    )}
                   </View>
 
-                  {/* Badge quart */}
-                  {isShift && (
-                    <View style={styles.cardBadgeRow}>
-                      <View style={[styles.cardBadge, { backgroundColor: colors.accent1 + "20" }]}>
-                        <Ionicons name="person" size={13} color={colors.accent1} style={{ marginRight: 5 }} />
-                        <Text style={[styles.cardBadgeText, { color: colors.accent1 }]}>
-                          Assigné à : {(item as any).assigneeName || 'À assigner'}
-                        </Text>
-                      </View>
+                  {isShift && (item as any).assigneeName && (
+                    <View style={styles.cardAssigneeRow}>
+                      <Icon name="account-circle-outline" size={14} color={colors.accent1} />
+                      <Text style={[styles.cardAssigneeText, { color: colors.accent1 }]} numberOfLines={1}>
+                        {(item as any).assigneeName}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -448,7 +484,7 @@ export default function CalendarScreen(): ReactElement {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -459,20 +495,25 @@ const getStyles = (colors: any, tokens: any) =>
     row:       { flexDirection: 'row' },
     flex1:     { flex: 1 },
 
-    // En-tête
-    header: {
-      paddingTop: 64,
-      paddingHorizontal: tokens.space.xl,
-      paddingBottom: tokens.space.md,
-      borderBottomWidth: 1,
-      backgroundColor: colors.surface,
-      borderBottomColor: colors.border,
+    // ── Filter bar ─────────────────────────────────────────────────────────────
+    filterBar: {
+      paddingVertical: tokens.space.md,
     },
-    headerTitle: { fontSize: tokens.font.xxxl, fontWeight: '800', color: colors.textPrimary },
-    headerSub:   { fontSize: tokens.font.sm, marginTop: 4, color: colors.textSecondary },
-
-    // Filtres
-    filterBar: { paddingHorizontal: tokens.space.lg, paddingVertical: tokens.space.md, backgroundColor: colors.surface },
+    filterScroll: {
+      paddingHorizontal: tokens.space.xl,
+      gap: tokens.space.sm,
+    },
+    filterChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: tokens.space.md,
+      paddingVertical: 8,
+      borderRadius: tokens.radius.pill,
+      borderWidth: 1,
+    },
+    filterChipText: { fontSize: tokens.font.sm, fontWeight: '600' },
+    // keep chip/chipText for the assignee picker inside the modal
     chip: {
       paddingHorizontal: tokens.space.lg,
       paddingVertical: tokens.space.sm,
@@ -480,32 +521,123 @@ const getStyles = (colors: any, tokens: any) =>
     },
     chipText: { fontSize: tokens.font.sm, fontWeight: '600' },
 
-    // États vide / chargement
-    centered:     { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-    loadingText:  { fontSize: tokens.font.base, color: colors.textSecondary },
-    emptyTitle:   { fontSize: tokens.font.lg, fontWeight: '600', color: colors.textSecondary },
-    emptySubtitle:{ fontSize: tokens.font.sm, textAlign: 'center', color: colors.textTertiary },
+    // ── Empty / loading ────────────────────────────────────────────────────────
+    centered:      { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+    loadingText:   { fontSize: tokens.font.base, color: colors.textSecondary },
+    emptyTitle:    { fontSize: tokens.font.lg, fontWeight: '700', color: colors.textSecondary, marginTop: tokens.space.lg },
+    emptySubtitle: { fontSize: tokens.font.sm, textAlign: 'center', color: colors.textTertiary, marginTop: 4 },
 
-    // Liste
+    // ── List ───────────────────────────────────────────────────────────────────
     listContent: { padding: tokens.space.lg, paddingBottom: 100 },
 
-    // FAB
+    // ── Event card ─────────────────────────────────────────────────────────────
+    card: {
+      flexDirection: 'row',
+      borderRadius: tokens.radius.lg,
+      marginBottom: tokens.space.md,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.07,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    cardDateBlock: {
+      width: 62,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: tokens.space.lg,
+      borderRightWidth: 1,
+      gap: 2,
+    },
+    cardDateNum: {
+      fontSize: 26,
+      fontWeight: '800',
+      lineHeight: 30,
+      letterSpacing: -0.5,
+    },
+    cardDateMon: {
+      fontSize: tokens.font.xs,
+      fontWeight: '700',
+      letterSpacing: 1,
+    },
+    cardContent: {
+      flex: 1,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      justifyContent: 'center',
+      gap: 5,
+    },
+    cardTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: tokens.space.sm,
+    },
+    cardTitle: {
+      flex: 1,
+      fontSize: tokens.font.md,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    cardTypePill: {
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: tokens.radius.pill,
+    },
+    cardTypePillText: {
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+    cardMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    cardMetaText: {
+      fontSize: tokens.font.sm,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    metaDot: {
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: colors.textTertiary,
+      opacity: 0.5,
+      marginHorizontal: 1,
+    },
+    cardAssigneeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    cardAssigneeText: {
+      fontSize: tokens.font.sm,
+      fontWeight: '600',
+    },
+
+    // ── FAB ───────────────────────────────────────────────────────────────────
     fab: {
       position: 'absolute',
       right: tokens.space.xl,
       bottom: 32,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 58,
+      height: 58,
+      borderRadius: 29,
       justifyContent: 'center',
       alignItems: 'center',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      elevation: 8,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 10,
     },
 
-    // Modal
+    // ── Modal ─────────────────────────────────────────────────────────────────
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.5)',
@@ -557,57 +689,6 @@ const getStyles = (colors: any, tokens: any) =>
       backgroundColor: colors.surfaceDim,
       borderColor: colors.border,
       color: colors.textPrimary,
-    },
-
-    // Carte événement
-    card: {
-      flexDirection: 'row',
-      borderRadius: tokens.radius.lg,
-      marginBottom: tokens.space.md,
-      borderWidth: 1,
-      overflow: 'hidden',
-      minHeight: 80,
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.06,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    cardAccent: { width: 4 },
-    cardBody: { flex: 1, padding: 14, justifyContent: 'center' },
-    cardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    cardTitle: {
-      flex: 1,
-      fontSize: tokens.font.lg,
-      fontWeight: '700',
-      marginRight: tokens.space.sm,
-      color: colors.textPrimary,
-    },
-    cardMeta: {
-      fontSize: tokens.font.sm,
-      fontWeight: '500',
-      color: colors.textSecondary,
-    },
-    cardBadgeRow: {
-      marginTop: 10,
-      flexDirection: 'row',
-    },
-    cardBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: tokens.radius.sm,
-    },
-    cardBadgeText: {
-      fontSize: tokens.font.sm,
-      fontWeight: '700',
     },
 
     // Boutons modal

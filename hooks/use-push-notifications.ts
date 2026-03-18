@@ -50,6 +50,12 @@ export function usePushNotifications() {
 }
 
 async function registerForPushNotificationsAsync(uid: string): Promise<void> {
+  // Push notifications are not supported in Expo Go since SDK 53
+  if (Constants.executionEnvironment === "storeClient") {
+    console.log("[push-notifications] Expo Go detected — skipping push registration");
+    return;
+  }
+
   // Android requires a channel before any notification can appear
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
