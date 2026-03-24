@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import styles from "./auth-screen.styles";
 import { signIn, signUp } from "./../../hooks/use-auth";
+import styles from "./auth-screen.styles";
 
 interface InputFieldProps {
   value: string;
@@ -68,6 +68,7 @@ const AuthScreen = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [username, setUsername] = useState("");
 
   // Validation logic
   const emailValid = useMemo(
@@ -112,6 +113,7 @@ const AuthScreen = () => {
 
     try {
       const trimmedEmail = email.trim();
+      const trimedUsername = username.trim();
 
       if (mode === "signin") {
         await signIn(trimmedEmail, password);
@@ -128,7 +130,7 @@ const AuthScreen = () => {
           throw new Error("Les mots de passe ne correspondent pas.");
         }
 
-        await signUp(trimmedEmail, password);
+        await signUp(trimmedEmail, password, trimedUsername);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -186,6 +188,24 @@ const AuthScreen = () => {
               />
             )}
           </View>
+
+          {mode === "signup" && (
+            <View style={styles.inputContainer}>
+              <InputField
+                value={username}
+                onChangeText={setUsername}
+                placeholder="Nom d'utilisateur"
+                editable={!loading}
+                autoCapitalize="none"
+              />
+              {username.length > 0 && (
+                <ValidationHint
+                  isValid={username.trim().length > 0}
+                  message="Le nom d'utilisateur ne peut pas être vide"
+                />
+              )}
+            </View>
+          )}
 
           <View style={styles.inputContainer}>
             <InputField
