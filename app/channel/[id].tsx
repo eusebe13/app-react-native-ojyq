@@ -11,7 +11,10 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -41,6 +44,79 @@ import { Message } from "../../types/models";
 
 interface ExtendedMessage extends Message {
   _id: string;
+}
+
+// ─── Notification helper ──────────────────────────────────────────────────────
+
+async function notifyChannelMembers(
+  channelId: string,
+  channelName: string,
+  senderName: string,
+  senderUid: string,
+  messagePreview: string,
+): Promise<void> {
+  const channelSnap = await getDoc(doc(db, "channels", channelId));
+  if (!channelSnap.exists()) return;
+  const channelData = channelSnap.data();
+  const audienceType = channelData.audienceType as
+    | "public"
+    | "roles"
+    | "private";
+
+  // 1. Fetch recipient user docs
+  let userDocs: { id: string; data: () => any }[] = [];
+  if (audienceType === "private") {
+    const memberUids = (channelData.members as string[] | undefined) ?? [];
+    const targets = memberUids.filter((uid) => uid !== senderUid);
+    if (!targets.length) return;
+    userDocs = (
+      await Promise.all(targets.map((uid) => getDoc(doc(db, "users", uid))))
+    ).filter((s) => s.exists());
+  } else if (audienceType === "roles") {
+    const allowedRoles = channelData.allowedRoles as string[] | undefined;
+    if (!allowedRoles?.length) return;
+    userDocs = (
+      await getDocs(
+        query(collection(db, "users"), where("role", "in", allowedRoles)),
+      )
+    ).docs;
+  } else {
+    userDocs = (await getDocs(collection(db, "users"))).docs;
+  }
+
+  // 2. Build token → uid map (excludes sender)
+  const tokenToUid = new Map<string, string>();
+  for (const d of userDocs) {
+    if (d.id === senderUid) continue;
+    const token = d.data().expoPushToken as string | undefined;
+    if (token) tokenToUid.set(token, d.id);
+  }
+  if (!tokenToUid.size) return;
+
+  // 3. Send one request per token in parallel (avoids batch rejection on mixed valid/stale tokens)
+  const staleTokens = (
+    await Promise.all(
+      [...tokenToUid.keys()].map((token) =>
+        sendExpoPush(token, `OJYQ`, `${senderName}: ${messagePreview}`, {
+          type: "message",
+          channelId,
+        }),
+      ),
+    )
+  ).flat();
+
+  // 4. Remove stale tokens from Firestore
+  if (staleTokens.length) {
+    await Promise.all(
+      staleTokens.map((token) => {
+        const uid = tokenToUid.get(token);
+        if (!uid) return;
+        return updateDoc(doc(db, "users", uid), {
+          expoPushToken: deleteField(),
+        });
+      }),
+    );
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -239,10 +315,21 @@ export default function ChannelScreen(): ReactElement {
           file: fileData || null,
         });
 
+        const preview = pollData
+          ? `📊 ${pollData.question}`
+          : content || "📷 Photo";
         await updateDoc(doc(db, "channels", id), {
           lastMessage: fileData ? `📄 ${fileData.name}` : content || "📷 Photo",
           lastMessageAt: Timestamp.now(),
         });
+
+        notifyChannelMembers(
+          id,
+          name ?? id,
+          currentUser.name,
+          currentUser._id,
+          preview,
+        ).catch((e) => console.warn("[notifyChannelMembers]", e));
       } catch (error) {
         console.error("Erreur Firestore :", error);
         Alert.alert("Erreur", "Message non envoyé");
@@ -250,7 +337,7 @@ export default function ChannelScreen(): ReactElement {
         setSending(false);
       }
     },
-    [inputText, id, currentUser],
+    [inputText, id, name, currentUser],
   );
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({

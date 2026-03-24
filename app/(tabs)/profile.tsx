@@ -11,7 +11,7 @@
  */
 
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,7 +30,6 @@ import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { auth } from "@/firebaseConfig";
 import { logOut } from "@/hooks/use-auth";
-import { initializeUsersInFirebase } from "@/hooks/use-init-members";
 import { useProfile } from "@/hooks/use-profile";
 import { UserRole, UserStatus } from "@/types";
 
@@ -223,53 +222,6 @@ export default function ProfileScreen() {
   const { profile, loading, saveProfile } = useProfile();
   const { colors, tokens } = useAppTheme();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [initializingMembers, setInitializingMembers] = useState(false);
-  const [initializationChecked, setInitializationChecked] = useState(false);
-
-  // Auto-initialize members when profile loads
-  useEffect(() => {
-    if (loading || initializationChecked) return;
-
-    const initializeIfNeeded = async () => {
-      try {
-        // Only admins can initialize
-        if (profile.role !== "admin" && profile.role !== "Administrateur") {
-          setInitializationChecked(true);
-          return;
-        }
-
-        setInitializingMembers(true);
-        const result = await initializeUsersInFirebase();
-
-        if (result.success) {
-          console.log("✅ Utilisateurs initialisés:", result);
-          Alert.alert(
-            "Initialisation réussie",
-            `${result.results?.success?.length || "Tous les"} utilisateurs ont été créés avec succès`,
-          );
-        } else if (result.alreadyInitialized) {
-          console.log("ℹ️ Les utilisateurs ont déjà été initialisés");
-        } else {
-          console.error("❌ Erreur lors de l'initialisation:", result);
-        }
-      } catch (error: any) {
-        console.error("❌ Erreur lors de l'initialisation des membres:", error);
-        // Afficher une alerte seulement en cas d'erreur réelle
-        if (error.code !== "permission-denied") {
-          Alert.alert(
-            "Erreur",
-            "Impossible d'initialiser les utilisateurs: " +
-              (error.message || "Erreur inconnue"),
-          );
-        }
-      } finally {
-        setInitializingMembers(false);
-        setInitializationChecked(true);
-      }
-    };
-
-    initializeIfNeeded();
-  }, [loading, profile.role, initializationChecked]);
 
   const handleSelectPreset = async (index: number) => {
     setShowAvatarPicker(false);
