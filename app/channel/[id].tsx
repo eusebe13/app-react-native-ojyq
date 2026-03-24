@@ -1,9 +1,11 @@
 import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
-import { sendExpoPush } from "@/hooks/use-push-notifications";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useNavigation } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -18,15 +20,8 @@ import {
   query,
   Timestamp,
   updateDoc,
-  where,
 } from "firebase/firestore";
-import React, {
-  ReactElement,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -41,6 +36,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { db } from "../../firebaseConfig";
@@ -147,6 +143,12 @@ export default function ChannelScreen(): ReactElement {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
 
+  // États pour la modal d'actions (+ button)
+  const [plusActionModalVisible, setPlusActionModalVisible] = useState(false);
+
+  // État pour le téléchargement de fichier
+  const [uploading, setUploading] = useState(false);
+
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -171,6 +173,98 @@ export default function ChannelScreen(): ReactElement {
     avatar: user?.photoURL || null,
     avatarPreset: userProfile?.avatarPreset ?? null,
     role: userProfile?.role || "Membre",
+  };
+
+  // Partager un document (PDF, Word, etc.)
+  // Upload vers WordPress media.ojyq.org avec authentification
+  const uploadToMediaServer = async (fileUri: string, fileName: string) => {
+    const formData = new FormData();
+
+    // Préparation du fichier pour l'envoi
+    formData.append("file", {
+      uri: fileUri,
+      name: fileName,
+      type: "application/octet-stream",
+    } as any);
+
+    try {
+      const response = await fetch(
+        "https://media.ojyq.org/wp-json/wp/v2/media",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              "Basic " + btoa("App Mobile OJYQ:0Mn5v59uy*A1gVYzuikEHX()"),
+            "Content-Disposition": `attachment; filename="${fileName}"`,
+          },
+          body: formData,
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.source_url) {
+        return data.source_url; // URL finale (https://media.ojyq.org/...)
+      } else {
+        throw new Error(
+          data.message || "Erreur lors de l'upload sur WordPress",
+        );
+      }
+    } catch (error) {
+      console.error("Erreur Media Server:", error);
+      throw error;
+    }
+  };
+
+  const handlePickDocument = async () => {
+  const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+
+  if (!result.canceled) {
+    setSending(true);
+    const file = result.assets[0];
+    
+    // 1. On envoie vers media.ojyq.org
+    const publicUrl = await uploadToMediaServer(file.uri, file.name);
+    
+    if (publicUrl) {
+      // 2. On enregistre l'URL publique dans Firestore
+      await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
+        uri: publicUrl,
+        name: file.name,
+        size: file.size,
+      });
+    }
+    setSending(false);
+  }
+};
+
+  const handleDownloadFile = async (fileUri: string, fileName: string) => {
+    try {
+      // 1. Créer le chemin local
+      const localUri = FileSystem.cacheDirectory + fileName;
+
+      // 2. Télécharger depuis WordPress media.ojyq.org
+      const downloadObject = FileSystem.createDownloadResumable(
+        fileUri,
+        localUri,
+      );
+      const result = await downloadObject.downloadAsync();
+
+      if (result && result.uri) {
+        // 3. Partager le fichier
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(result.uri);
+        } else {
+          Alert.alert("Succès", `Fichier téléchargé: ${localUri}`);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur de téléchargement:", error);
+      Alert.alert(
+        "Erreur",
+        "Impossible de télécharger le fichier depuis media.ojyq.org",
+      );
+    }
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -199,9 +293,14 @@ export default function ChannelScreen(): ReactElement {
   }, [id]);
 
   const sendMessage = useCallback(
-    async (text?: string, imageUri?: string, pollData?: any) => {
-      const content = (text ?? inputText).trim();
-      if ((!content && !imageUri && !pollData) || !id) return;
+    async (
+      text?: string,
+      imageUri?: string,
+      pollData?: any,
+      fileData?: any,
+    ) => {
+      const content = (text ?? inputText).trim(); // Définition correcte
+      if ((!content && !imageUri && !pollData && !fileData) || !id) return;
 
       setSending(true);
       setInputText("");
@@ -213,13 +312,14 @@ export default function ChannelScreen(): ReactElement {
           user: currentUser,
           image: imageUri || null,
           poll: pollData || null,
+          file: fileData || null,
         });
 
         const preview = pollData
           ? `📊 ${pollData.question}`
           : content || "📷 Photo";
         await updateDoc(doc(db, "channels", id), {
-          lastMessage: preview,
+          lastMessage: fileData ? `📄 ${fileData.name}` : content || "📷 Photo",
           lastMessageAt: Timestamp.now(),
         });
 
@@ -231,16 +331,14 @@ export default function ChannelScreen(): ReactElement {
           preview,
         ).catch((e) => console.warn("[notifyChannelMembers]", e));
       } catch (error) {
-        console.error("Erreur Firestore lors de l'envoi :", error);
+        console.error("Erreur Firestore :", error);
         Alert.alert("Erreur", "Message non envoyé");
-        setInputText(content);
       } finally {
         setSending(false);
       }
     },
     [inputText, id, name, currentUser],
   );
-
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -475,6 +573,48 @@ export default function ChannelScreen(): ReactElement {
                         </Text>
                       </TouchableOpacity>
                     ))}
+                    {/* Affichage du Document */}
+                    {item.file && (
+                      <View
+                        style={[
+                          styles.fileContainer,
+                          {
+                            backgroundColor: isMe
+                              ? "rgba(255,255,255,0.1)"
+                              : colors.surfaceDim,
+                          },
+                        ]}
+                        // TODO: Réactiver avec expo-linking quand disponible
+                        // onPress={() => Linking.openURL(item.file.uri)}
+                      >
+                        <Ionicons
+                          name="document-text"
+                          size={24}
+                          color={isMe ? "#FFF" : colors.primary}
+                        />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: isMe ? "#FFF" : colors.textPrimary,
+                              fontWeight: "600",
+                            }}
+                          >
+                            {item.file.name}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: isMe
+                                ? "rgba(255,255,255,0.6)"
+                                : colors.textTertiary,
+                            }}
+                          >
+                            {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <Text
@@ -503,6 +643,60 @@ export default function ChannelScreen(): ReactElement {
               </Text>
             )}
 
+            {item.file && (
+              <View
+                style={[
+                  styles.fileContainer,
+                  {
+                    backgroundColor: isMe
+                      ? "rgba(255,255,255,0.1)"
+                      : colors.surfaceDim,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="document-text"
+                  size={24}
+                  color={isMe ? "#FFF" : colors.primary}
+                />
+
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: isMe ? "#FFF" : colors.textPrimary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {item.file.name}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: isMe
+                        ? "rgba(255,255,255,0.6)"
+                        : colors.textTertiary,
+                    }}
+                  >
+                    {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    handleDownloadFile(item.file.uri, item.file.name)
+                  }
+                  style={styles.downloadIcon}
+                >
+                  <Ionicons
+                    name="download-outline"
+                    size={22}
+                    color={isMe ? "#FFF" : colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+
             <Text
               style={[
                 styles.msgTime,
@@ -526,13 +720,7 @@ export default function ChannelScreen(): ReactElement {
     <View style={styles.inputBar}>
       <TouchableOpacity
         style={[styles.inputAction, { backgroundColor: colors.primaryTint }]}
-        onPress={() =>
-          Alert.alert("Actions", "Choisissez", [
-            { text: "Photo", onPress: handlePickImage },
-            { text: "Sondage", onPress: handleCreatePoll },
-            { text: "Annuler", style: "cancel" },
-          ])
-        }
+        onPress={() => setPlusActionModalVisible(true)}
       >
         <Ionicons name="add" size={22} color={colors.primary} />
       </TouchableOpacity>
@@ -621,6 +809,153 @@ export default function ChannelScreen(): ReactElement {
               resizeMode="contain"
             />
           )}
+        </View>
+      </Modal>
+
+      {/* MODAL ACTIONS (PLUS BUTTON) */}
+      <Modal
+        visible={plusActionModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPlusActionModalVisible(false)}
+      >
+        <View style={styles.plusActionModalOverlay}>
+          <View
+            style={[
+              styles.plusActionModalContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
+            <Text
+              style={[
+                styles.plusActionModalTitle,
+                { color: colors.textPrimary },
+              ]}
+            >
+              Ajouter un contenu
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.plusActionItem,
+                { borderColor: colors.border, borderBottomWidth: 1 },
+              ]}
+              onPress={() => {
+                handlePickImage();
+                setPlusActionModalVisible(false);
+              }}
+            >
+              <Ionicons name="image" size={28} color={colors.primary} />
+              <View style={{ marginLeft: 15, flex: 1 }}>
+                <Text
+                  style={[
+                    styles.plusActionItemTitle,
+                    { color: colors.textPrimary },
+                  ]}
+                >
+                  Photo
+                </Text>
+                <Text
+                  style={[
+                    styles.plusActionItemDesc,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Partager une image
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.plusActionItem,
+                { borderColor: colors.border, borderBottomWidth: 1 },
+              ]}
+              onPress={() => {
+                handleCreatePoll();
+                setPlusActionModalVisible(false);
+              }}
+            >
+              <Ionicons name="stats-chart" size={28} color={colors.primary} />
+              <View style={{ marginLeft: 15, flex: 1 }}>
+                <Text
+                  style={[
+                    styles.plusActionItemTitle,
+                    { color: colors.textPrimary },
+                  ]}
+                >
+                  Sondage
+                </Text>
+                <Text
+                  style={[
+                    styles.plusActionItemDesc,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Créer un vote
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.plusActionItem]}
+              onPress={() => {
+                handlePickDocument();
+                setPlusActionModalVisible(false);
+              }}
+            >
+              <Ionicons
+                name="document-attach"
+                size={28}
+                color={colors.primary}
+              />
+              <View style={{ marginLeft: 15, flex: 1 }}>
+                <Text
+                  style={[
+                    styles.plusActionItemTitle,
+                    { color: colors.textPrimary },
+                  ]}
+                >
+                  Fichier
+                </Text>
+                <Text
+                  style={[
+                    styles.plusActionItemDesc,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Partager un document
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.plusActionCancel,
+                { backgroundColor: colors.surfaceDim },
+              ]}
+              onPress={() => setPlusActionModalVisible(false)}
+            >
+              <Text style={{ color: colors.textSecondary, fontWeight: "bold" }}>
+                Annuler
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -925,5 +1260,73 @@ const getStyles = (colors: any, tokens: any) =>
       paddingHorizontal: 20,
       paddingVertical: 10,
       borderRadius: 8,
+    },
+    fileContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 10,
+      borderRadius: 12,
+      marginBottom: 5,
+      minWidth: 200,
+    },
+    fileContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 12,
+      borderRadius: 12,
+      marginBottom: 5,
+      minWidth: 220,
+    },
+    downloadIcon: {
+      padding: 8,
+      marginLeft: 5,
+      borderRadius: 20,
+      backgroundColor: "rgba(0,0,0,0.05)",
+    },
+
+    // Styles pour la modal des actions (+)
+    plusActionModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    plusActionModalContent: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: tokens.space.lg,
+      paddingTop: tokens.space.lg,
+      paddingBottom: tokens.space.xl,
+      maxHeight: "70%",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    plusActionModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      marginBottom: tokens.space.lg,
+      textAlign: "center",
+    },
+    plusActionItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: tokens.space.md,
+      paddingHorizontal: tokens.space.md,
+    },
+    plusActionItemTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    plusActionItemDesc: {
+      fontSize: 13,
+      marginTop: 4,
+    },
+    plusActionCancel: {
+      marginTop: tokens.space.lg,
+      paddingVertical: tokens.space.md,
+      borderRadius: 12,
+      alignItems: "center",
     },
   });

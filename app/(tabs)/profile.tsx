@@ -348,7 +348,7 @@ export default function ProfileScreen() {
         {/* ══════════════════ ACCOUNT ══════════════════ */}
         <View style={styles.accountCard}>
           <Text style={styles.accountCardLabel}>Mon Compte</Text>
-           <NavRow
+          <NavRow
             icon="account-edit"
             iconBg={colors.primary}
             label="Informations personnelles"
