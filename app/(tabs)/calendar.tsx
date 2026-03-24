@@ -1,3 +1,4 @@
+import { Header } from "@/components/Header";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -21,12 +22,12 @@ import {
   Modal,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../../firebaseConfig";
 
 export default function FirebaseCalendarScreen() {
@@ -34,18 +35,33 @@ export default function FirebaseCalendarScreen() {
   const user = auth.currentUser;
   const { colors, isDark } = useAppTheme();
 
-  // Créer les styles dynamiques basés sur le thème
-  const getDynamicStyles = (): any => ({
+  // Fusionner tous les styles (dynamiques + statiques) basés sur le thème
+  const getAllStyles = (): any => ({
+    // Container & Layout
     container: { flex: 1, backgroundColor: colors.surface },
+    centerContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    listContent: { padding: 16, paddingBottom: 100 },
+
+    // Header
     header: {
       paddingTop: 60,
       paddingBottom: 20,
       paddingHorizontal: 20,
-      backgroundColor: colors.card,
+      backgroundColor: colors.surfaceDim,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 24, fontWeight: "bold", color: colors.text },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
+
+    // Modal
     modalOverlay: {
       flex: 1,
       justifyContent: "center",
@@ -54,7 +70,7 @@ export default function FirebaseCalendarScreen() {
     },
     modalView: {
       width: "90%",
-      backgroundColor: colors.card,
+      backgroundColor: colors.surfaceDim,
       borderRadius: 20,
       padding: 25,
       alignItems: "center",
@@ -63,8 +79,16 @@ export default function FirebaseCalendarScreen() {
       fontSize: 20,
       fontWeight: "bold",
       marginBottom: 20,
-      color: colors.text,
+      color: colors.textPrimary,
     },
+    modalButtons: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      width: "100%",
+      marginTop: 10,
+    },
+
+    // Form Elements
     label: {
       alignSelf: "flex-start",
       color: colors.textSecondary,
@@ -81,25 +105,38 @@ export default function FirebaseCalendarScreen() {
       paddingHorizontal: 10,
       marginBottom: 15,
       backgroundColor: colors.surface,
-      color: colors.text,
+      color: colors.textPrimary,
     },
-    fab: {
-      position: "absolute",
-      right: 20,
-      bottom: 30,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: colors.primary,
-      justifyContent: "center",
+    inputPicker: {
+      width: "100%",
+      height: 45,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      marginBottom: 15,
+      backgroundColor: colors.surface,
+      flexDirection: "row",
       alignItems: "center",
-      elevation: 8,
+      justifyContent: "space-between",
     },
+    datePickerText: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    row: {
+      flexDirection: "row",
+      width: "100%",
+      justifyContent: "space-between",
+    },
+
+    // Tabs
     tabsContainer: {
       flexDirection: "row",
       paddingHorizontal: 16,
       paddingVertical: 10,
-      backgroundColor: colors.card,
+      backgroundColor: colors.surfaceDim,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
@@ -127,41 +164,83 @@ export default function FirebaseCalendarScreen() {
       color: colors.surface,
       fontWeight: "bold",
     },
+
+    // Event Cards
     eventCard: {
       flexDirection: "row",
-      backgroundColor: colors.card,
+      backgroundColor: colors.surfaceDim,
       padding: 15,
       borderRadius: 12,
       marginBottom: 12,
       elevation: 2,
       borderLeftWidth: 5,
     },
+    pastEventCard: {
+      backgroundColor: colors.surface,
+      borderLeftColor: colors.border,
+    },
+    pastText: { color: colors.textSecondary, textDecorationLine: "none" },
+    dateContainer: {
+      marginRight: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRightWidth: 1,
+      borderRightColor: colors.border,
+      paddingRight: 15,
+      minWidth: 60,
+    },
+    dateText: { fontSize: 15, fontWeight: "bold", color: colors.textPrimary },
+    timeText: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
+    contentContainer: { flex: 1, justifyContent: "center" },
+    eventTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    detailsRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+    eventType: {
+      fontSize: 10,
+      fontWeight: "bold",
+      textTransform: "uppercase",
+      marginRight: 10,
+    },
+    locationText: { fontSize: 12, color: colors.textSecondary },
+
+    // Availability Cards
     availabilityCard: {
       flexDirection: "row",
-      backgroundColor: colors.card,
+      backgroundColor: colors.surfaceDim,
       padding: 15,
       borderRadius: 12,
       marginBottom: 12,
       elevation: 2,
       borderLeftWidth: 5,
-      borderLeftColor: colors.success,
+      borderLeftColor: colors.accent5,
       alignItems: "center",
     },
-    buttonCancel: {
-      flex: 1,
-      padding: 12,
-      marginRight: 10,
-      alignItems: "center",
+    availabilityTimeText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textPrimary,
     },
-    buttonSave: {
-      flex: 1,
-      backgroundColor: colors.primary,
-      borderRadius: 8,
-      padding: 12,
-      alignItems: "center",
+    availabilityDateText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 4,
     },
-    textCancel: { color: colors.error, fontWeight: "600" },
-    textSave: { color: colors.surface, fontWeight: "bold" },
+    emptyContainer: {
+      justifyContent: "center",
+      alignItems: "center",
+      paddingVertical: 40,
+    },
+    emptyText: {
+      fontSize: 16,
+      color: colors.textTertiary,
+      textAlign: "center",
+    },
+
+    // Days Selection
     daysContainer: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -182,33 +261,64 @@ export default function FirebaseCalendarScreen() {
     },
     dayText: {
       fontSize: 12,
-      color: colors.text,
+      color: colors.textPrimary,
       fontWeight: "600",
     },
     dayTextActive: {
       color: colors.surface,
     },
-    inputPicker: {
-      width: "100%",
-      height: 45,
-      borderColor: colors.border,
-      borderWidth: 1,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      marginBottom: 15,
-      backgroundColor: colors.surface,
-      flexDirection: "row",
+
+    // Buttons
+    fab: {
+      position: "absolute",
+      right: 20,
+      bottom: 30,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.primary,
+      justifyContent: "center",
       alignItems: "center",
-      justifyContent: "space-between",
+      elevation: 8,
     },
-    datePickerText: {
-      fontSize: 14,
-      color: colors.text,
+    buttonCancel: {
       flex: 1,
+      padding: 12,
+      marginRight: 10,
+      alignItems: "center",
     },
+    buttonSave: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 12,
+      alignItems: "center",
+    },
+    textCancel: { color: colors.accent6, fontWeight: "600" },
+    textSave: { color: colors.surface, fontWeight: "bold" },
+
+    // Type Selector (legacy)
+    typeSelector: {
+      flexDirection: "row",
+      width: "100%",
+      marginBottom: 20,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 4,
+    },
+    typeButton: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: "center",
+      borderRadius: 6,
+    },
+    typeButtonActive: { backgroundColor: colors.surfaceDim, elevation: 1 },
+    typeButtonActiveShift: { backgroundColor: colors.surfaceDim, elevation: 1 },
+    typeText: { fontSize: 14, color: colors.textSecondary },
+    typeTextActive: { color: colors.textPrimary, fontWeight: "bold" },
   });
 
-  const dynamicStyles = getDynamicStyles();
+  const dynamicStyles = getAllStyles();
 
   const [events, setEvents] = useState<any[]>([]);
   const [availabilities, setAvailabilities] = useState<any[]>([]);
@@ -499,18 +609,20 @@ export default function FirebaseCalendarScreen() {
   };
 
   return (
-    <View style={[styles.container, dynamicStyles.container]}>
-      <View style={[styles.header, dynamicStyles.header]}>
-        <Text style={[styles.headerTitle, dynamicStyles.headerTitle]}>
-          Agenda OJYQ
-        </Text>
-      </View>
+    <SafeAreaView style={[dynamicStyles.container]} edges={["top"]}>
+      <Header
+        title="Agenda OJYQ"
+        titleIcon="calendar-outline"
+        chip={{
+          icon: "calendar-outline",
+          label: `${events.length} ${events.length > 1 ? "Événements" : "Événement"}`,
+        }}
+      />
 
       {/* ONGLETS */}
-      <View style={[styles.tabsContainer, dynamicStyles.tabsContainer]}>
+      <View style={[dynamicStyles.tabsContainer]}>
         <TouchableOpacity
           style={[
-            styles.tab,
             dynamicStyles.tab,
             viewMode === "events" && dynamicStyles.tabActive,
           ]}
@@ -525,7 +637,6 @@ export default function FirebaseCalendarScreen() {
           />
           <Text
             style={[
-              styles.tabText,
               dynamicStyles.tabText,
               viewMode === "events" && dynamicStyles.tabTextActive,
             ]}
@@ -536,7 +647,6 @@ export default function FirebaseCalendarScreen() {
 
         <TouchableOpacity
           style={[
-            styles.tab,
             dynamicStyles.tab,
             viewMode === "availability" && dynamicStyles.tabActive,
           ]}
@@ -553,7 +663,6 @@ export default function FirebaseCalendarScreen() {
           />
           <Text
             style={[
-              styles.tabText,
               dynamicStyles.tabText,
               viewMode === "availability" && dynamicStyles.tabTextActive,
             ]}
@@ -564,14 +673,14 @@ export default function FirebaseCalendarScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.centerContainer}>
+        <View style={dynamicStyles.centerContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
         </View>
       ) : viewMode === "events" ? (
         <FlatList
           data={events}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={dynamicStyles.listContent}
           renderItem={({ item }) => {
             const past = isEventPast(item.dateObj);
             return (
@@ -579,32 +688,42 @@ export default function FirebaseCalendarScreen() {
                 onLongPress={() => handleLongPress(item)}
                 delayLongPress={500}
                 style={[
-                  styles.eventCard,
+                  dynamicStyles.eventCard,
                   {
                     borderLeftColor:
                       item.type === "Shift" ? "#FF9500" : "#007AFF",
                   },
-                  past && styles.pastEventCard,
+                  past && dynamicStyles.pastEventCard,
                   { opacity: item.pending ? 0.6 : 1 },
                 ]}
               >
-                <View style={styles.dateContainer}>
-                  <Text style={[styles.dateText, past && styles.pastText]}>
+                <View style={dynamicStyles.dateContainer}>
+                  <Text
+                    style={[
+                      dynamicStyles.dateText,
+                      past && dynamicStyles.pastText,
+                    ]}
+                  >
                     {formatDate(item.dateObj)}
                   </Text>
-                  <Text style={styles.timeText}>
+                  <Text style={dynamicStyles.timeText}>
                     {formatTime(item.dateObj)}
                   </Text>
                 </View>
 
-                <View style={styles.contentContainer}>
-                  <Text style={[styles.eventTitle, past && styles.pastText]}>
+                <View style={dynamicStyles.contentContainer}>
+                  <Text
+                    style={[
+                      dynamicStyles.eventTitle,
+                      past && dynamicStyles.pastText,
+                    ]}
+                  >
                     {item.title} {past && "(Terminé)"}
                   </Text>
-                  <View style={styles.detailsRow}>
+                  <View style={dynamicStyles.detailsRow}>
                     <Text
                       style={[
-                        styles.eventType,
+                        dynamicStyles.eventType,
                         {
                           color: past ? "#888" : "#007AFF",
                         },
@@ -613,7 +732,7 @@ export default function FirebaseCalendarScreen() {
                       ÉVÉNEMENT
                     </Text>
                     {item.location && (
-                      <Text style={styles.locationText}>
+                      <Text style={dynamicStyles.locationText}>
                         📍 {item.location}
                       </Text>
                     )}
@@ -627,15 +746,15 @@ export default function FirebaseCalendarScreen() {
         <FlatList
           data={availabilities}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={dynamicStyles.listContent}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
+            <View style={dynamicStyles.emptyContainer}>
               <Ionicons
                 name="checkmark-circle-outline"
                 size={48}
                 color="#999"
               />
-              <Text style={styles.emptyText}>
+              <Text style={dynamicStyles.emptyText}>
                 Aucune disponibilité enregistrée
               </Text>
             </View>
@@ -644,24 +763,24 @@ export default function FirebaseCalendarScreen() {
             <TouchableOpacity
               onLongPress={() => handleDeleteAvailability(item.id)}
               delayLongPress={500}
-              style={[styles.availabilityCard]}
+              style={[dynamicStyles.availabilityCard]}
             >
-              <View style={styles.dateContainer}>
-                <Text style={styles.dateText}>
+              <View style={dynamicStyles.dateContainer}>
+                <Text style={dynamicStyles.dateText}>
                   {Array.isArray(item.days)
                     ? item.days.join(", ")
                     : "Jours multiples"}
                 </Text>
               </View>
 
-              <View style={styles.contentContainer}>
-                <Text style={styles.eventTitle}>
+              <View style={dynamicStyles.contentContainer}>
+                <Text style={dynamicStyles.eventTitle}>
                   {String(item.startHours).padStart(2, "0")}:
                   {String(item.startMinutes).padStart(2, "0")} -{" "}
                   {String(item.endHours).padStart(2, "0")}:
                   {String(item.endMinutes).padStart(2, "0")}
                 </Text>
-                <Text style={styles.locationText}>
+                <Text style={dynamicStyles.locationText}>
                   Disponible • Appuyez longuement pour supprimer
                 </Text>
               </View>
@@ -671,7 +790,7 @@ export default function FirebaseCalendarScreen() {
       )}
 
       <TouchableOpacity
-        style={[styles.fab, dynamicStyles.fab]}
+        style={[dynamicStyles.fab]}
         onPress={() =>
           viewMode === "events"
             ? setModalVisible(true)
@@ -682,26 +801,26 @@ export default function FirebaseCalendarScreen() {
       </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalView}>
-            <Text style={[styles.modalTitle, dynamicStyles.modalTitle]}>
+        <View style={dynamicStyles.modalOverlay}>
+          <View style={dynamicStyles.modalView}>
+            <Text style={[dynamicStyles.modalTitle]}>
               {editingId ? "Modifier l'événement" : "Nouvel Événement"}
             </Text>
             <ScrollView style={{ width: "100%" }}>
-              <Text style={styles.label}>Titre</Text>
+              <Text style={dynamicStyles.label}>Titre</Text>
               <TextInput
-                style={styles.input}
+                style={dynamicStyles.input}
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Nom de l'activité"
               />
 
-              <View style={styles.row}>
+              <View style={dynamicStyles.row}>
                 {/* Sélecteur de DATE */}
                 <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={styles.label}>Date</Text>
+                  <Text style={dynamicStyles.label}>Date</Text>
                   <TouchableOpacity
-                    style={styles.inputPicker}
+                    style={dynamicStyles.inputPicker}
                     onPress={openDatePicker}
                   >
                     <Text>{date.toLocaleDateString("fr-FR")}</Text>
@@ -721,9 +840,9 @@ export default function FirebaseCalendarScreen() {
 
                 {/* Sélecteur d'HEURE */}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Heure</Text>
+                  <Text style={dynamicStyles.label}>Heure</Text>
                   <TouchableOpacity
-                    style={styles.inputPicker}
+                    style={dynamicStyles.inputPicker}
                     onPress={openTimePicker}
                   >
                     <Text>
@@ -747,27 +866,27 @@ export default function FirebaseCalendarScreen() {
                 </View>
               </View>
 
-              <Text style={styles.label}>Lieu</Text>
+              <Text style={dynamicStyles.label}>Lieu</Text>
               <TextInput
-                style={styles.input}
+                style={dynamicStyles.input}
                 value={location}
                 onChangeText={setLocation}
                 placeholder="Lieu"
               />
             </ScrollView>
 
-            <View style={styles.modalButtons}>
+            <View style={dynamicStyles.modalButtons}>
               <TouchableOpacity
                 onPress={closeModal}
-                style={styles.buttonCancel}
+                style={dynamicStyles.buttonCancel}
               >
-                <Text style={styles.textCancel}>Annuler</Text>
+                <Text style={dynamicStyles.textCancel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveEvent}
-                style={styles.buttonSave}
+                style={dynamicStyles.buttonSave}
               >
-                <Text style={styles.textSave}>
+                <Text style={dynamicStyles.textSave}>
                   {editingId ? "Mettre à jour" : "Ajouter"}
                 </Text>
               </TouchableOpacity>
@@ -782,20 +901,22 @@ export default function FirebaseCalendarScreen() {
         animationType="slide"
         transparent={true}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>Ajouter une disponibilité</Text>
+        <View style={dynamicStyles.modalOverlay}>
+          <View style={dynamicStyles.modalView}>
+            <Text style={dynamicStyles.modalTitle}>
+              Ajouter une disponibilité
+            </Text>
             <ScrollView style={{ width: "100%" }}>
               {/* JOURS DE LA SEMAINE */}
-              <Text style={styles.label}>Jours de la semaine</Text>
-              <View style={styles.daysContainer}>
+              <Text style={dynamicStyles.label}>Jours de la semaine</Text>
+              <View style={dynamicStyles.daysContainer}>
                 {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(
                   (day, index) => (
                     <TouchableOpacity
                       key={`day-${day}`}
                       style={[
-                        styles.dayButton,
-                        selectedDays[index] && styles.dayButtonActive,
+                        dynamicStyles.dayButton,
+                        selectedDays[index] && dynamicStyles.dayButtonActive,
                       ]}
                       onPress={() => {
                         const newDays = [...selectedDays];
@@ -805,8 +926,8 @@ export default function FirebaseCalendarScreen() {
                     >
                       <Text
                         style={[
-                          styles.dayText,
-                          selectedDays[index] && styles.dayTextActive,
+                          dynamicStyles.dayText,
+                          selectedDays[index] && dynamicStyles.dayTextActive,
                         ]}
                       >
                         {day}
@@ -817,12 +938,12 @@ export default function FirebaseCalendarScreen() {
               </View>
 
               {/* HEURE DE DÉBUT */}
-              <Text style={styles.label}>Heure de début</Text>
+              <Text style={dynamicStyles.label}>Heure de début</Text>
               <TouchableOpacity
-                style={styles.inputPicker}
+                style={dynamicStyles.inputPicker}
                 onPress={() => setShowAvailabilityStartTimePicker(true)}
               >
-                <Text style={styles.datePickerText}>
+                <Text style={dynamicStyles.datePickerText}>
                   {availabilityStartTime.toLocaleTimeString("fr-FR", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -844,12 +965,12 @@ export default function FirebaseCalendarScreen() {
               )}
 
               {/* HEURE DE FIN */}
-              <Text style={styles.label}>Heure de fin</Text>
+              <Text style={dynamicStyles.label}>Heure de fin</Text>
               <TouchableOpacity
-                style={styles.inputPicker}
+                style={dynamicStyles.inputPicker}
                 onPress={() => setShowAvailabilityEndTimePicker(true)}
               >
-                <Text style={styles.datePickerText}>
+                <Text style={dynamicStyles.datePickerText}>
                   {availabilityEndTime.toLocaleTimeString("fr-FR", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -871,259 +992,23 @@ export default function FirebaseCalendarScreen() {
               )}
             </ScrollView>
 
-            <View style={styles.modalButtons}>
+            <View style={dynamicStyles.modalButtons}>
               <TouchableOpacity
                 onPress={() => closeAvailabilityModal()}
-                style={styles.buttonCancel}
+                style={dynamicStyles.buttonCancel}
               >
-                <Text style={styles.textCancel}>Annuler</Text>
+                <Text style={dynamicStyles.textCancel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => handleSaveAvailability()}
-                style={styles.buttonSave}
+                style={dynamicStyles.buttonSave}
               >
-                <Text style={styles.textSave}>Enregistrer</Text>
+                <Text style={dynamicStyles.textSave}>Enregistrer</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f9f9f9" },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
-  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  listContent: { padding: 16, paddingBottom: 100 },
-  eventCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-    borderLeftWidth: 5,
-  },
-  pastEventCard: { backgroundColor: "#f0f0f0", borderLeftColor: "#ccc" }, // Style grisé
-  pastText: { color: "#888", textDecorationLine: "none" },
-  dateContainer: {
-    marginRight: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRightWidth: 1,
-    borderRightColor: "#eee",
-    paddingRight: 15,
-    minWidth: 60,
-  },
-  dateText: { fontSize: 15, fontWeight: "bold", color: "#333" },
-  timeText: { fontSize: 12, color: "#888", marginTop: 4 },
-  contentContainer: { flex: 1, justifyContent: "center" },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  detailsRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  eventType: {
-    fontSize: 10,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    marginRight: 10,
-  },
-  locationText: { fontSize: 12, color: "#666" },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 30,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#007AFF",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalView: {
-    width: "90%",
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
-    alignItems: "center",
-  },
-  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 20 },
-  label: {
-    alignSelf: "flex-start",
-    color: "#666",
-    marginBottom: 5,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  input: {
-    width: "100%",
-    height: 45,
-    borderColor: "#ddd",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#f9f9f9",
-  },
-  row: { flexDirection: "row", width: "100%", justifyContent: "space-between" },
-  typeSelector: {
-    flexDirection: "row",
-    width: "100%",
-    marginBottom: 20,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    padding: 4,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 6,
-  },
-  typeButtonActive: { backgroundColor: "#fff", elevation: 1 },
-  typeButtonActiveShift: { backgroundColor: "#fff", elevation: 1 },
-  typeText: { fontSize: 14, color: "#666" },
-  typeTextActive: { color: "#000", fontWeight: "bold" },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 10,
-  },
-  buttonCancel: { flex: 1, padding: 12, marginRight: 10, alignItems: "center" },
-  buttonSave: {
-    flex: 1,
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    padding: 12,
-    alignItems: "center",
-  },
-  textCancel: { color: "red", fontWeight: "600" },
-  textSave: { color: "white", fontWeight: "bold" },
-  inputPicker: {
-    width: "100%",
-    height: 45,
-    borderColor: "#ddd",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#f9f9f9",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  datePickerText: {
-    fontSize: 14,
-    color: "#333",
-    flex: 1,
-  },
-  tabsContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  tab: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginHorizontal: 4,
-  },
-  tabActive: {
-    backgroundColor: "#007AFF",
-  },
-  tabText: {
-    fontSize: 14,
-    color: "#666",
-    marginLeft: 6,
-    fontWeight: "500",
-  },
-  tabTextActive: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-  availabilityCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-    borderLeftWidth: 5,
-    borderLeftColor: "#4CAF50",
-    alignItems: "center",
-  },
-  availabilityTimeText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-  },
-  availabilityDateText: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 4,
-  },
-  emptyContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#999",
-    textAlign: "center",
-  },
-  daysContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  dayButton: {
-    width: "13%",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: "#f0f0f0",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  dayButtonActive: {
-    backgroundColor: "#007AFF",
-  },
-  dayText: {
-    fontSize: 12,
-    color: "#333",
-    fontWeight: "600",
-  },
-  dayTextActive: {
-    color: "#fff",
-  },
-});

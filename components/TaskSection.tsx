@@ -17,12 +17,12 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -103,22 +103,12 @@ function getPriorityColor(priority: string, colors: any): string {
   return colors.accent5;
 }
 
-function parseDateStr(str: string): Date | null {
-  const parts = str.trim().split("-");
-  if (parts.length !== 3) return null;
-  const d = new Date(
-    parseInt(parts[0]),
-    parseInt(parts[1]) - 1,
-    parseInt(parts[2])
-  );
-  return isNaN(d.getTime()) ? null : d;
-}
-
-function formatDateStr(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function formatDeadlineDisplay(date: Date): string {
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 // ─── Notification helper ──────────────────────────────────────────────────────
@@ -177,7 +167,12 @@ export const TaskSection = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
-  const [deadlineStr, setDeadlineStr] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [assigneeType, setAssigneeType] = useState<"user" | "role">("user");
   const [assigneeId, setAssigneeId] = useState("");
 
@@ -187,7 +182,9 @@ export const TaskSection = () => {
     setTitle("");
     setDescription("");
     setPriority("medium");
-    setDeadlineStr("");
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setDeadlineDate(tomorrow);
     setAssigneeType("user");
     setAssigneeId("");
     setEditingTask(null);
@@ -209,7 +206,7 @@ export const TaskSection = () => {
     setTitle(task.title);
     setDescription(task.description);
     setPriority(task.priority);
-    setDeadlineStr(formatDateStr(task.deadline));
+    setDeadlineDate(task.deadline);
     setAssigneeType(task.assigneeType);
     setAssigneeId(task.assigneeId);
     setFormVisible(true);
@@ -220,11 +217,6 @@ export const TaskSection = () => {
   const handleSave = useCallback(async () => {
     if (!title.trim()) {
       Alert.alert("Erreur", "Le titre est obligatoire");
-      return;
-    }
-    const deadline = parseDateStr(deadlineStr);
-    if (!deadline) {
-      Alert.alert("Format invalide", "Utilisez le format AAAA-MM-JJ");
       return;
     }
     if (!assigneeId) {
@@ -251,7 +243,7 @@ export const TaskSection = () => {
           title: title.trim(),
           description: description.trim(),
           priority,
-          deadline: Timestamp.fromDate(deadline),
+          deadline: Timestamp.fromDate(deadlineDate),
           assigneeType,
           assigneeId,
           assigneeName,
@@ -266,7 +258,7 @@ export const TaskSection = () => {
           title: title.trim(),
           description: description.trim(),
           priority,
-          deadline: Timestamp.fromDate(deadline),
+          deadline: Timestamp.fromDate(deadlineDate),
           assigneeType,
           assigneeId,
           assigneeName,
@@ -285,7 +277,7 @@ export const TaskSection = () => {
       setSaving(false);
     }
   }, [
-    title, description, priority, deadlineStr, assigneeType, assigneeId,
+    title, description, priority, deadlineDate, assigneeType, assigneeId,
     members, user, profile, editingTask, closeForm,
   ]);
 
@@ -302,7 +294,7 @@ export const TaskSection = () => {
       if (!canManage) return;
       Alert.alert(
         "Supprimer la tâche",
-        `Supprimer "${task.title}" ? Cette action est irréversible.`,
+        `Supprimer "${task.title}" ?`,
         [
           { text: "Annuler", style: "cancel" },
           {
@@ -310,7 +302,12 @@ export const TaskSection = () => {
             style: "destructive",
             onPress: () => {
               setDetailTask(null);
-              deleteDoc(doc(db, "tasks", task.id)).catch(() =>
+              const expireAt = new Date();
+              expireAt.setDate(expireAt.getDate() + 30);
+              updateDoc(doc(db, "tasks", task.id), {
+                deletedAt: Timestamp.now(),
+                expireAt: Timestamp.fromDate(expireAt),
+              }).catch(() =>
                 Alert.alert("Erreur", "Impossible de supprimer la tâche")
               );
             },
@@ -810,15 +807,28 @@ export const TaskSection = () => {
               </View>
 
               {/* ── Deadline ── */}
-              <Text style={styles.label}>ÉCHÉANCE * (AAAA-MM-JJ)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="2026-06-01"
-                placeholderTextColor={colors.textTertiary}
-                value={deadlineStr}
-                onChangeText={setDeadlineStr}
-                keyboardType="numbers-and-punctuation"
-              />
+              <Text style={styles.label}>ÉCHÉANCE *</Text>
+              <TouchableOpacity
+                style={[styles.input, { justifyContent: "center" }]}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: colors.textPrimary, fontSize: tokens.font.md }}>
+                  {formatDeadlineDisplay(deadlineDate)}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={deadlineDate}
+                  mode="date"
+                  display="default"
+                  minimumDate={new Date()}
+                  onChange={(_, selected) => {
+                    setShowDatePicker(false);
+                    if (selected) setDeadlineDate(selected);
+                  }}
+                />
+              )}
 
               {/* ── Assignee type ── */}
               <Text style={styles.label}>ASSIGNER À</Text>
