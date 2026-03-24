@@ -498,7 +498,7 @@ export default function ChatListScreen(): ReactElement {
         titleIcon="message-text-outline"
         chip={{
           icon: "chat-outline",
-          label: `${channels.length} canal${channels.length !== 1 ? "aux" : ""}`,
+          label: `${channels.length} ${channels.length > 1 ? "Canaux" : "Canal"}`,
         }}
       />
 
