@@ -20,7 +20,9 @@ import {
   query,
   Timestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
+import { sendExpoPush } from "@/hooks/use-push-notifications";
 import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
