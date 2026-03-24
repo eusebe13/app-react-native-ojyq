@@ -1,5 +1,6 @@
 import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
+import { sendExpoPush } from "@/hooks/use-push-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
@@ -22,7 +23,6 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { sendExpoPush } from "@/hooks/use-push-notifications";
 import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -99,10 +99,15 @@ async function notifyChannelMembers(
   const staleTokens = (
     await Promise.all(
       [...tokenToUid.keys()].map((token) =>
-        sendExpoPush(token, `OJYQ`, `${senderName}: ${messagePreview}`, {
-          type: "message",
-          channelId,
-        }),
+        sendExpoPush(
+          token,
+          `${channelName}`,
+          `${senderName} : ${messagePreview}`,
+          {
+            type: "message",
+            channelId,
+          },
+        ),
       ),
     )
   ).flat();
@@ -219,26 +224,26 @@ export default function ChannelScreen(): ReactElement {
   };
 
   const handlePickDocument = async () => {
-  const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+    const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
 
-  if (!result.canceled) {
-    setSending(true);
-    const file = result.assets[0];
-    
-    // 1. On envoie vers media.ojyq.org
-    const publicUrl = await uploadToMediaServer(file.uri, file.name);
-    
-    if (publicUrl) {
-      // 2. On enregistre l'URL publique dans Firestore
-      await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
-        uri: publicUrl,
-        name: file.name,
-        size: file.size,
-      });
+    if (!result.canceled) {
+      setSending(true);
+      const file = result.assets[0];
+
+      // 1. On envoie vers media.ojyq.org
+      const publicUrl = await uploadToMediaServer(file.uri, file.name);
+
+      if (publicUrl) {
+        // 2. On enregistre l'URL publique dans Firestore
+        await sendMessage(`📄 Document: ${file.name}`, undefined, undefined, {
+          uri: publicUrl,
+          name: file.name,
+          size: file.size,
+        });
+      }
+      setSending(false);
     }
-    setSending(false);
-  }
-};
+  };
 
   const handleDownloadFile = async (fileUri: string, fileName: string) => {
     try {
