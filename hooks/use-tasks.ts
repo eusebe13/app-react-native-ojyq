@@ -55,7 +55,11 @@ export function useTasks(userId: string, userRole: string) {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setAllTasks(snap.docs.map(taskFromDoc));
+        setAllTasks(
+          snap.docs
+            .filter((d) => !d.data().deletedAt)
+            .map(taskFromDoc)
+        );
         setLoading(false);
       },
       (err) => {
