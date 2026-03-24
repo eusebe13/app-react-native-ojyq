@@ -5,7 +5,7 @@
     "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/IMG_Logo-Principale.png",
-    "scheme": "OJYQ",
+    "scheme": "ojyq",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
