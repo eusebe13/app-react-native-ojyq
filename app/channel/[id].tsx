@@ -106,6 +106,7 @@ async function notifyChannelMembers(
           {
             type: "message",
             channelId,
+            channelName,
           },
         ),
       ),
