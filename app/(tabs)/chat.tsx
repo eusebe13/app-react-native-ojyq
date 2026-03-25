@@ -2,42 +2,44 @@
  * ChatListScreen - Liste des canaux de discussion
  */
 
-import React, { useState, useEffect, useCallback, ReactElement } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  StyleSheet,
-  Platform,
-  KeyboardAvoidingView,
-  ScrollView,
-  Image,
-} from "react-native";
-import { useRouter } from "expo-router";
+import { Card } from "@/components/Card";
+import { Header } from "@/components/Header";
+import { Icon } from "@/components/ui/Icon";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
-  collection,
-  onSnapshot,
   addDoc,
+  collection,
   deleteDoc,
   doc,
-  updateDoc,
-  query,
-  orderBy,
-  Timestamp,
   getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
 } from "firebase/firestore";
-import * as ImagePicker from "expo-image-picker";
+import React, { ReactElement, useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../../contexts/ThemeContext";
 import { db } from "../../firebaseConfig";
 import { Channel, channelFromFirestore } from "../../types/models";
-import { useAppTheme } from "../../contexts/ThemeContext";
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Helper : initiales du canal ─────────────────────────────────────────────
 function channelInitials(name: string): string {
@@ -424,57 +426,37 @@ export default function ChatListScreen(): ReactElement {
           />
         );
 
+      // Derive a consistent color from the channel name
+      const palette = [colors.primary, colors.accent1, colors.accent2, colors.accent3, colors.accent4];
+      let h = 0;
+      for (const c of item.name) h = (h * 31 + c.charCodeAt(0)) % palette.length;
+      const chColor = item.isPinned ? colors.primary : palette[Math.abs(h)];
+
       return (
         <TouchableOpacity
           style={styles.channelRow}
           onPress={() => navigateToChannel(item)}
-          onLongPress={() => handleLongPress(item)} // Ajout du LongPress ici
-          activeOpacity={0.7}
+          onLongPress={() => handleLongPress(item)}
+          activeOpacity={0.8}
         >
-          {/* Affichage de l'image ou des initiales */}
+          {/* Avatar */}
           {item.image ? (
-            <Image
-              source={{ uri: item.image }}
-              style={styles.channelAvatarImg}
-            />
+            <Image source={{ uri: item.image }} style={styles.channelAvatarImg} />
           ) : (
-            <View
-              style={[
-                styles.avatar,
-                {
-                  backgroundColor: item.isPinned
-                    ? colors.primary
-                    : colors.primaryTint,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.avatarText,
-                  { color: item.isPinned ? "#FFFFFF" : colors.primary },
-                ]}
-              >
-                {initials}
-              </Text>
+            <View style={[styles.avatar, { backgroundColor: chColor + "1a" }]}>
+              <Text style={[styles.avatarText, { color: chColor }]}>{initials}</Text>
             </View>
           )}
 
+          {/* Content */}
           <View style={styles.channelBody}>
             <View style={styles.channelTop}>
               <View style={styles.channelNameRow}>
                 {item.isPinned && (
-                  <Ionicons
-                    name="pin"
-                    size={13}
-                    color={colors.primary}
-                    style={{ marginRight: 4 }}
-                  />
+                  <Ionicons name="pin" size={12} color={colors.primary} style={{ marginRight: 4 }} />
                 )}
                 <Text
-                  style={[
-                    styles.channelName,
-                    { fontWeight: hasUnread ? "700" : "600" },
-                  ]}
+                  style={[styles.channelName, { fontWeight: hasUnread ? "700" : "600", color: hasUnread ? colors.textPrimary : colors.textSecondary }]}
                   numberOfLines={1}
                 >
                   {item.name}
@@ -484,41 +466,25 @@ export default function ChatListScreen(): ReactElement {
               <Text style={styles.channelTime}>{time}</Text>
             </View>
 
-            <View style={styles.channelBottom}>
-              {/* Le texte devient plus foncé et gras s'il y a un message non lu */}
-              <Text
-                style={[
-                  styles.lastMessage,
-                  {
-                    fontWeight: hasUnread ? "700" : "400",
-                    color: hasUnread
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {item.lastMessage || "Aucun message"}
-              </Text>
-
-              {/* L'icône de notification et le badge */}
-              {hasUnread && (
-                <View style={styles.unreadContainer}>
-                  <Ionicons
-                    name="notifications"
-                    size={16}
-                    color={colors.primary}
-                    style={{ marginRight: 4 }}
-                  />
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {item.unreadCount! > 99 ? "99+" : item.unreadCount}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
+            <Text
+              style={[styles.lastMessage, {
+                fontWeight: hasUnread ? "600" : "400",
+                color: hasUnread ? colors.textPrimary : colors.textSecondary,
+              }]}
+              numberOfLines={1}
+            >
+              {item.lastMessage || "Aucun message"}
+            </Text>
           </View>
+
+          {/* Right: unread badge or chevron */}
+          {hasUnread ? (
+            <View style={[styles.badge, { backgroundColor: chColor }]}>
+              <Text style={styles.badgeText}>{item.unreadCount! > 99 ? "99+" : item.unreadCount}</Text>
+            </View>
+          ) : (
+            <Ionicons name="chevron-forward" size={16} color={colors.borderLight} />
+          )}
         </TouchableOpacity>
       );
     },
@@ -526,17 +492,17 @@ export default function ChatListScreen(): ReactElement {
   );
 
   return (
-  <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Discussions</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => setModalVisible(true)}
-        >
-          <Ionicons name="add" size={24} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <Header
+        title="Discussions"
+        titleIcon="message-text-outline"
+        chip={{
+          icon: "chat-outline",
+          label: `${channels.length} ${channels.length > 1 ? "Canaux" : "Canal"}`,
+        }}
+      />
 
+      {/* ── Search ── */}
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
           <Ionicons
@@ -552,6 +518,11 @@ export default function ChatListScreen(): ReactElement {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {!!searchQuery && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
+              <Ionicons name="close-circle" size={17} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -560,14 +531,52 @@ export default function ChatListScreen(): ReactElement {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
-        <FlatList
-          data={filteredChannels}
-          keyExtractor={(item) => item.id}
-          renderItem={renderChannel}
-          contentContainerStyle={styles.listContent}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-        />
+        >
+          {/* Section header */}
+          <View style={styles.sectionHead}>
+            <View style={styles.sectionIconWrap}>
+              <Icon name="chat-outline" size={15} color={colors.primary} />
+            </View>
+            <Text style={styles.sectionTitle}>Canaux disponibles</Text>
+            <Text style={styles.sectionCount}>{filteredChannels.length}</Text>
+          </View>
+
+          {/* Channel list */}
+          {filteredChannels.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconWrap}>
+                <Icon name="chat-remove-outline" size={32} color={colors.textTertiary} />
+              </View>
+              <Text style={styles.emptyTitle}>Aucun canal trouvé</Text>
+              <Text style={styles.emptySub}>Créez un canal avec le bouton +</Text>
+            </View>
+          ) : (
+            <Card variant="elevated" style={styles.listCard}>
+              {filteredChannels.map((item, i) => (
+                <View key={item.id}>
+                  {renderChannel({ item } as any)}
+                  {i < filteredChannels.length - 1 && (
+                    <View style={[styles.rowDivider, { marginLeft: tokens.space.md + 50 + tokens.space.md }]} />
+                  )}
+                </View>
+              ))}
+            </Card>
+          )}
+        </ScrollView>
       )}
+
+      {/* ── FAB ── */}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={30} color="#FFFFFF" />
+      </TouchableOpacity>
 
       {/* MODAL DE CRÉATION AVANCÉ */}
       <Modal
@@ -752,7 +761,7 @@ export default function ChatListScreen(): ReactElement {
                       onPress={() => toggleUser(u.id)}
                     >
                       <Text style={{ color: colors.textPrimary }}>
-                        {u.name || u.email || "Inconnu"}
+                        {u.firstName || u.email || "Inconnu"}
                       </Text>
                       {selectedUsers.includes(u.id) && (
                         <Ionicons
@@ -794,50 +803,39 @@ export default function ChatListScreen(): ReactElement {
 const getStyles = (colors: any, tokens: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.surfaceDim },
-    centered: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 40,
-    },
+    centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
 
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingTop: Platform.OS === "ios" ? 60 : 50,
-      paddingHorizontal: tokens.space.xl,
-      paddingBottom: 14,
-      borderBottomWidth: 1,
-      backgroundColor: colors.surface,
-      borderBottomColor: colors.border,
-    },
-    title: {
-      fontWeight: "800",
-      fontSize: tokens.font.xl,
-      color: colors.textPrimary,
-    },
-    addBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+    // ── FAB ───────────────────────────────────────────────────────────────────
+    fab: {
+      position: "absolute",
+      bottom: 28,
+      right: 24,
+      width: 58,
+      height: 58,
+      borderRadius: 29,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.primaryTint,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 10,
     },
 
+    // ── Search ────────────────────────────────────────────────────────────────
     searchWrap: {
-      paddingHorizontal: tokens.space.lg,
-      paddingVertical: tokens.space.sm,
-      backgroundColor: colors.surface,
+      paddingHorizontal: tokens.space.xl,
+      paddingTop: tokens.space.lg,
+      paddingBottom: tokens.space.sm,
     },
     searchBar: {
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: tokens.radius.md,
-      backgroundColor: colors.surfaceDim,
+      paddingVertical: 11,
+      borderRadius: tokens.radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     searchInput: {
       flex: 1,
@@ -845,15 +843,61 @@ const getStyles = (colors: any, tokens: any) =>
       color: colors.textPrimary,
     },
 
-    listContent: { paddingBottom: 24 },
+    // ── Scroll / list ─────────────────────────────────────────────────────────
+    scroll: { flex: 1 },
+    scrollContent: {
+      paddingHorizontal: tokens.space.xl,
+      paddingTop: tokens.space.sm,
+      paddingBottom: 100,
+    },
+
+    // ── Section header ────────────────────────────────────────────────────────
+    sectionHead: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space.sm,
+      marginBottom: tokens.space.md,
+      marginTop: tokens.space.sm,
+    },
+    sectionIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: tokens.radius.sm,
+      backgroundColor: colors.primaryTint,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    sectionTitle: {
+      flex: 1,
+      fontSize: tokens.font.lg,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    sectionCount: {
+      fontSize: tokens.font.sm,
+      fontWeight: "600",
+      color: colors.textTertiary,
+      backgroundColor: colors.surfaceDim,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: tokens.radius.pill,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+
+    // ── Channel list card ─────────────────────────────────────────────────────
+    listCard: { overflow: "hidden" },
+    rowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight },
+
+    // ── Channel row (inside Card, no individual card styling) ─────────────────
     channelRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: tokens.space.lg,
-      paddingVertical: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      backgroundColor: colors.surface,
-      borderBottomColor: colors.border,
+      paddingHorizontal: tokens.space.md,
+      paddingVertical: tokens.space.md,
+      gap: tokens.space.md,
+      minHeight: 66,
     },
     avatar: {
       width: 48,
@@ -861,9 +905,9 @@ const getStyles = (colors: any, tokens: any) =>
       borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 14,
+      flexShrink: 0,
     },
-    avatarText: { fontWeight: "800", fontSize: tokens.font.sm },
+    avatarText: { fontWeight: "800", fontSize: tokens.font.base },
     channelBody: { flex: 1, minWidth: 0 },
     channelTop: {
       flexDirection: "row",
@@ -877,32 +921,49 @@ const getStyles = (colors: any, tokens: any) =>
       flex: 1,
       marginRight: tokens.space.sm,
     },
-    channelName: { fontSize: tokens.font.md, color: colors.textPrimary },
-    channelTime: { fontSize: tokens.font.xs, color: colors.textTertiary },
-    channelBottom: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    lastMessage: {
-      flex: 1,
-      marginRight: tokens.space.sm,
-      fontSize: tokens.font.sm,
-      color: colors.textSecondary,
-    },
+    channelName: { fontSize: tokens.font.md },
+    channelTime: { fontSize: tokens.font.xs, color: colors.textTertiary, flexShrink: 0 },
+    lastMessage: { fontSize: tokens.font.sm },
     badge: {
-      backgroundColor: colors.primary,
       borderRadius: 10,
-      minWidth: 20,
-      height: 20,
+      minWidth: 22,
+      height: 22,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 5,
+      paddingHorizontal: 6,
+      flexShrink: 0,
     },
     badgeText: {
       color: "#FFFFFF",
       fontWeight: "700",
       fontSize: tokens.font.xs,
+    },
+
+    // ── Empty state ───────────────────────────────────────────────────────────
+    emptyState: {
+      alignItems: "center",
+      paddingVertical: tokens.space.xxxl,
+      gap: tokens.space.sm,
+    },
+    emptyIconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: tokens.radius.xl,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: tokens.space.sm,
+    },
+    emptyTitle: {
+      fontSize: tokens.font.lg,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    emptySub: {
+      fontSize: tokens.font.sm,
+      color: colors.textTertiary,
     },
 
     modalOverlay: {
@@ -999,7 +1060,6 @@ const getStyles = (colors: any, tokens: any) =>
       borderRadius: 14,
       marginRight: 14,
     },
-    unreadContainer: { flexDirection: "row", alignItems: "center" },
     imagePickerBtn: {
       width: 80,
       height: 80,
