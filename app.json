@@ -2,7 +2,7 @@
   "expo": {
     "name": "OJYQ",
     "slug": "OJYQ",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/IMG_Logo-Principale.png",
     "scheme": "ojyq",
@@ -21,10 +21,8 @@
       "package": "org.ojyq.app",
       "versionCode": 3,
       "adaptiveIcon": {
-        "backgroundColor": "#14389c",
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
-        "backgroundImage": "./assets/images/IMG_Logo-Principale.png",
-        "monochromeImage": "./assets/images/IMG_Logo-Principale.png"
+        "backgroundColor": "#081129"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
