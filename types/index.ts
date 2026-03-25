@@ -74,4 +74,5 @@ export interface UserProfile {
     notifMessages: boolean;
     avatarUrl?: string;
     avatarPreset?: number | null;
+    email: string;
 }

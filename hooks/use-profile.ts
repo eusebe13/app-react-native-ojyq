@@ -24,6 +24,7 @@ const DEFAULT_PROFILE: UserProfile = {
     notifMessages: true,
     avatarUrl: undefined,
     avatarPreset: undefined,
+    email: "",
 };
 
 export function useProfile() {
@@ -58,6 +59,7 @@ export function useProfile() {
                         notifMessages: data.notifMessages !== false,
                         avatarUrl: data.avatarUrl ?? undefined,
                         avatarPreset: data.avatarPreset ?? undefined,
+                        email: data.email ?? "",
                     });
                 } else {
                     // Document doesn't exist yet — seed with email prefix
