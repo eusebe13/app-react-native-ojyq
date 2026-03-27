@@ -20,8 +20,11 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   Timestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import React, { useCallback, useState } from "react";
 import {
@@ -138,13 +141,27 @@ async function notifyAssignee(
   taskTitle: string,
   senderName: string,
 ) {
-  if (assigneeType !== "user") return; // role notifications not supported client-side
   try {
-    const snap = await getDoc(doc(db, "users", assigneeId));
-    const token = snap.data()?.expoPushToken as string | undefined;
-    if (!token) return;
+    let tokens: string[] = [];
+
+    if (assigneeType === "user") {
+      const snap = await getDoc(doc(db, "users", assigneeId));
+      const token = snap.data()?.expoPushToken as string | undefined;
+      if (token) tokens = [token];
+    } else {
+      // Notify all users with the matching role
+      const snap = await getDocs(
+        query(collection(db, "users"), where("role", "==", assigneeId)),
+      );
+      tokens = snap.docs
+        .map((d) => d.data().expoPushToken as string | undefined)
+        .filter((t): t is string => !!t);
+    }
+
+    if (!tokens.length) return;
+
     await sendExpoPush(
-      token,
+      tokens,
       "Nouvelle tâche assignée",
       `${senderName} vous a assigné : ${taskTitle}`,
       { type: "task" },
@@ -171,7 +188,7 @@ export const TaskSection = () => {
 
   const styles = getStyles(colors, tokens);
 
-  const canManage = MANAGE_ROLES.includes(profile.role as UserRole);
+  const canManage = MANAGE_ROLES.includes(profile.role as MemberRole);
   const displayTasks = canManage ? allTasks : myTasks;
   const pending = displayTasks.filter((t) => t.status === "todo");
   const completed = displayTasks.filter((t) => t.status === "done");
