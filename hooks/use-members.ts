@@ -9,13 +9,13 @@
 import { db } from "@/firebaseConfig";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { UserRole, UserStatus } from "@/types";
+import { MemberRole, UserStatus } from "@/types";
 
 export type MemberEntry = {
     uid: string;
     firstName: string;
     lastName: string;
-    role: UserRole;
+    role: MemberRole;
     status: UserStatus;
     avatarPreset?: number;
 };
@@ -34,7 +34,7 @@ export function useMembers() {
                         uid: d.id,
                         firstName: d.data().firstName ?? "",
                         lastName: d.data().lastName ?? "",
-                        role: (d.data().role as UserRole) ?? "Membre",
+                        role: (d.data().role as MemberRole) ?? "Membre",
                         status: (d.data().status as UserStatus) ?? "Actif",
                         avatarPreset: d.data().avatarPreset ?? undefined,
                     }))
