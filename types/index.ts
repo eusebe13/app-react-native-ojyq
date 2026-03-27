@@ -6,8 +6,8 @@
  */
 
 // Re-export tous les types du module models
-export * from './models';
 import type { MemberRole } from './models';
+export * from './models';
 
 // Types legacy pour compatibilité avec le code existant
 export interface ScheduleEvent {
