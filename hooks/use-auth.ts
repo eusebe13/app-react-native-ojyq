@@ -1,4 +1,4 @@
-import { auth } from "@/firebaseConfig";
+import { auth, db } from "@/firebaseConfig";
 import {
     createUserWithEmailAndPassword,
     onAuthStateChanged,
@@ -6,6 +6,7 @@ import {
     signOut,
     User,
 } from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
 // Hook to manage authentication state
@@ -25,17 +26,28 @@ export default function useAuth() {
 }
 
 // Function to sign up a user
-export const signUp = async (email: string, password: string) => {
-    try {
-        const userCredential = await createUserWithEmailAndPassword(
-            auth,
-            email,
-            password,
-        );
-        return userCredential.user;
-    } catch (error) {
-        throw error;
-    }
+export const signUp = async (email: string, password: string, username: string) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        firstName: username,
+        lastName: "",
+        role: "Membre",
+        status: "Actif",
+        birthDate: null,
+        postalCode: "",
+        phoneNumber: "",
+        gender: null,
+        languages: [],
+        darkMode: false,
+        notifAgenda: true,
+        notifMessages: true,
+        createdAt: serverTimestamp(),
+    });
+
+    return user;
 };
 
 // Function to sign in a user

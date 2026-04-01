@@ -26,16 +26,23 @@ import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "@/firebaseConfig";
-import { UserRole, UserStatus } from "@/types";
+import { MemberRole, UserStatus } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ALL_ROLES: UserRole[] = [
+const ALL_ROLES: MemberRole[] = [
   "Membre",
   "Vice-Président",
   "Président",
   "Secrétaire",
+  "Vice-Secrétaire",
   "Trésorier",
+  "Vice-Trésorier",
+  "Responsable Communication",
+  "Vice-Responsable Communication",
+  "Responsable Loisir",
+  "Responsable Discipline",
+  "Conseiller",
   "Administrateur",
 ];
 
@@ -64,10 +71,10 @@ export default function MemberEditScreen() {
   const firstName = params.firstName ?? "";
   const lastName = params.lastName ?? "";
 
-  const initialRole = (params.role ?? "Membre") as UserRole;
+  const initialRole = (params.role ?? "Membre") as MemberRole;
   const initialStatus = (params.status ?? "Actif") as UserStatus;
 
-  const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
+  const [selectedRole, setSelectedRole] = useState<MemberRole>(initialRole);
   const [selectedStatus, setSelectedStatus] =
     useState<UserStatus>(initialStatus);
   const [saving, setSaving] = useState(false);

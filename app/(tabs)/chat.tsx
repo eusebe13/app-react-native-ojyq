@@ -370,23 +370,20 @@ export default function ChatListScreen(): ReactElement {
     // Règle 2 : Le créateur du groupe voit TOUJOURS son groupe !
     if (ch.createdBy === currentUser?.uid) return true;
 
-    // Règle 3 : Tout le monde voit les canaux publics
-    if (
-      !ch.audienceType ||
-      ch.audienceType === "public" ||
-      ch.type === "public"
-    )
-      return true;
+    // Règle 3 : Résoudre le type effectif (compatibilité anciens canaux sans audienceType)
+    const effectiveAudience =
+      ch.audienceType ?? (ch.type === "public" ? "public" : "private");
+
+    if (effectiveAudience === "public") return true;
 
     // Règle 4 : Canaux par Membres (privé)
-    if (ch.audienceType === "private") {
-      return ch.members && ch.members.includes(currentUser?.uid);
+    if (effectiveAudience === "private") {
+      return !!(ch.members && ch.members.includes(currentUser?.uid));
     }
 
     // Règle 5 : Canaux par Rôles
-    if (ch.audienceType === "roles") {
-      // Vérifie si "Vice-Président" se trouve dans la liste des rôles autorisés pour ce canal
-      return ch.allowedRoles && ch.allowedRoles.includes(userRole);
+    if (effectiveAudience === "roles") {
+      return !!(ch.allowedRoles && ch.allowedRoles.includes(userRole));
     }
 
     return false; // Si aucune condition n'est remplie, on cache le canal
@@ -427,9 +424,16 @@ export default function ChatListScreen(): ReactElement {
         );
 
       // Derive a consistent color from the channel name
-      const palette = [colors.primary, colors.accent1, colors.accent2, colors.accent3, colors.accent4];
+      const palette = [
+        colors.primary,
+        colors.accent1,
+        colors.accent2,
+        colors.accent3,
+        colors.accent4,
+      ];
       let h = 0;
-      for (const c of item.name) h = (h * 31 + c.charCodeAt(0)) % palette.length;
+      for (const c of item.name)
+        h = (h * 31 + c.charCodeAt(0)) % palette.length;
       const chColor = item.isPinned ? colors.primary : palette[Math.abs(h)];
 
       return (
@@ -441,10 +445,15 @@ export default function ChatListScreen(): ReactElement {
         >
           {/* Avatar */}
           {item.image ? (
-            <Image source={{ uri: item.image }} style={styles.channelAvatarImg} />
+            <Image
+              source={{ uri: item.image }}
+              style={styles.channelAvatarImg}
+            />
           ) : (
             <View style={[styles.avatar, { backgroundColor: chColor + "1a" }]}>
-              <Text style={[styles.avatarText, { color: chColor }]}>{initials}</Text>
+              <Text style={[styles.avatarText, { color: chColor }]}>
+                {initials}
+              </Text>
             </View>
           )}
 
@@ -453,10 +462,23 @@ export default function ChatListScreen(): ReactElement {
             <View style={styles.channelTop}>
               <View style={styles.channelNameRow}>
                 {item.isPinned && (
-                  <Ionicons name="pin" size={12} color={colors.primary} style={{ marginRight: 4 }} />
+                  <Ionicons
+                    name="pin"
+                    size={12}
+                    color={colors.primary}
+                    style={{ marginRight: 4 }}
+                  />
                 )}
                 <Text
-                  style={[styles.channelName, { fontWeight: hasUnread ? "700" : "600", color: hasUnread ? colors.textPrimary : colors.textSecondary }]}
+                  style={[
+                    styles.channelName,
+                    {
+                      fontWeight: hasUnread ? "700" : "600",
+                      color: hasUnread
+                        ? colors.textPrimary
+                        : colors.textSecondary,
+                    },
+                  ]}
                   numberOfLines={1}
                 >
                   {item.name}
@@ -467,10 +489,13 @@ export default function ChatListScreen(): ReactElement {
             </View>
 
             <Text
-              style={[styles.lastMessage, {
-                fontWeight: hasUnread ? "600" : "400",
-                color: hasUnread ? colors.textPrimary : colors.textSecondary,
-              }]}
+              style={[
+                styles.lastMessage,
+                {
+                  fontWeight: hasUnread ? "600" : "400",
+                  color: hasUnread ? colors.textPrimary : colors.textSecondary,
+                },
+              ]}
               numberOfLines={1}
             >
               {item.lastMessage || "Aucun message"}
@@ -480,10 +505,16 @@ export default function ChatListScreen(): ReactElement {
           {/* Right: unread badge or chevron */}
           {hasUnread ? (
             <View style={[styles.badge, { backgroundColor: chColor }]}>
-              <Text style={styles.badgeText}>{item.unreadCount! > 99 ? "99+" : item.unreadCount}</Text>
+              <Text style={styles.badgeText}>
+                {item.unreadCount! > 99 ? "99+" : item.unreadCount}
+              </Text>
             </View>
           ) : (
-            <Ionicons name="chevron-forward" size={16} color={colors.borderLight} />
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={colors.borderLight}
+            />
           )}
         </TouchableOpacity>
       );
@@ -498,7 +529,7 @@ export default function ChatListScreen(): ReactElement {
         titleIcon="message-text-outline"
         chip={{
           icon: "chat-outline",
-          label: `${channels.length} ${channels.length > 1 ? "Canaux" : "Canal"}`,
+          label: `${filteredChannels.length} ${filteredChannels.length > 1 ? "Canaux" : "Canal"}`,
         }}
       />
 
@@ -519,8 +550,15 @@ export default function ChatListScreen(): ReactElement {
             onChangeText={setSearchQuery}
           />
           {!!searchQuery && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
-              <Ionicons name="close-circle" size={17} color={colors.textTertiary} />
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="close-circle"
+                size={17}
+                color={colors.textTertiary}
+              />
             </TouchableOpacity>
           )}
         </View>
@@ -549,10 +587,16 @@ export default function ChatListScreen(): ReactElement {
           {filteredChannels.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconWrap}>
-                <Icon name="chat-remove-outline" size={32} color={colors.textTertiary} />
+                <Icon
+                  name="chat-remove-outline"
+                  size={32}
+                  color={colors.textTertiary}
+                />
               </View>
               <Text style={styles.emptyTitle}>Aucun canal trouvé</Text>
-              <Text style={styles.emptySub}>Créez un canal avec le bouton +</Text>
+              <Text style={styles.emptySub}>
+                Créez un canal avec le bouton +
+              </Text>
             </View>
           ) : (
             <Card variant="elevated" style={styles.listCard}>
@@ -560,7 +604,12 @@ export default function ChatListScreen(): ReactElement {
                 <View key={item.id}>
                   {renderChannel({ item } as any)}
                   {i < filteredChannels.length - 1 && (
-                    <View style={[styles.rowDivider, { marginLeft: tokens.space.md + 50 + tokens.space.md }]} />
+                    <View
+                      style={[
+                        styles.rowDivider,
+                        { marginLeft: tokens.space.md + 50 + tokens.space.md },
+                      ]}
+                    />
                   )}
                 </View>
               ))}
@@ -571,7 +620,10 @@ export default function ChatListScreen(): ReactElement {
 
       {/* ── FAB ── */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
+        style={[
+          styles.fab,
+          { backgroundColor: colors.primary, shadowColor: colors.primary },
+        ]}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.8}
       >
@@ -803,7 +855,12 @@ export default function ChatListScreen(): ReactElement {
 const getStyles = (colors: any, tokens: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.surfaceDim },
-    centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
+    centered: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 40,
+    },
 
     // ── FAB ───────────────────────────────────────────────────────────────────
     fab: {
@@ -888,7 +945,10 @@ const getStyles = (colors: any, tokens: any) =>
 
     // ── Channel list card ─────────────────────────────────────────────────────
     listCard: { overflow: "hidden" },
-    rowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight },
+    rowDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderLight,
+    },
 
     // ── Channel row (inside Card, no individual card styling) ─────────────────
     channelRow: {
@@ -922,7 +982,11 @@ const getStyles = (colors: any, tokens: any) =>
       marginRight: tokens.space.sm,
     },
     channelName: { fontSize: tokens.font.md },
-    channelTime: { fontSize: tokens.font.xs, color: colors.textTertiary, flexShrink: 0 },
+    channelTime: {
+      fontSize: tokens.font.xs,
+      color: colors.textTertiary,
+      flexShrink: 0,
+    },
     lastMessage: { fontSize: tokens.font.sm },
     badge: {
       borderRadius: 10,

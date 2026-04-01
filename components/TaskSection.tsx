@@ -14,15 +14,18 @@
  *  - Push notification sent to assignee on create / reassign
  */
 
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   addDoc,
   collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   Timestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -38,26 +41,37 @@ import {
   View,
 } from "react-native";
 
-import { db } from "@/firebaseConfig";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { db } from "@/firebaseConfig";
 import useAuth from "@/hooks/use-auth";
 import { useMembers } from "@/hooks/use-members";
 import { useProfile } from "@/hooks/use-profile";
 import { sendExpoPush } from "@/hooks/use-push-notifications";
-import { useTasks, Task } from "@/hooks/use-tasks";
-import { UserRole } from "@/types";
+import { Task, useTasks } from "@/hooks/use-tasks";
+import { MemberRole } from "@/types";
 import { Icon } from "./ui/Icon";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MANAGE_ROLES: UserRole[] = ["Président", "Administrateur", "Vice-Président"];
+const MANAGE_ROLES: MemberRole[] = [
+  "Président",
+  "Administrateur",
+  "Vice-Président",
+];
 
-const ALL_ROLES: UserRole[] = [
+const ALL_ROLES: MemberRole[] = [
   "Membre",
-  "Secrétaire",
-  "Trésorier",
   "Vice-Président",
   "Président",
+  "Secrétaire",
+  "Vice-Secrétaire",
+  "Trésorier",
+  "Vice-Trésorier",
+  "Responsable Communication",
+  "Vice-Responsable Communication",
+  "Responsable Loisir",
+  "Responsable Discipline",
+  "Conseiller",
   "Administrateur",
 ];
 
@@ -81,9 +95,17 @@ function getDeadlineInfo(date: Date, colors: any) {
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
 
   if (diff < 0)
-    return { label: "En retard", bg: colors.accent6 + "25", textColor: colors.accent6 };
+    return {
+      label: "En retard",
+      bg: colors.accent6 + "25",
+      textColor: colors.accent6,
+    };
   if (days === 0)
-    return { label: "Aujourd'hui", bg: colors.accent1 + "25", textColor: colors.accent1 };
+    return {
+      label: "Aujourd'hui",
+      bg: colors.accent1 + "25",
+      textColor: colors.accent1,
+    };
   if (days <= 3)
     return {
       label: `${days} jour${days > 1 ? "s" : ""}`,
@@ -117,18 +139,32 @@ async function notifyAssignee(
   assigneeType: "user" | "role",
   assigneeId: string,
   taskTitle: string,
-  senderName: string
+  senderName: string,
 ) {
-  if (assigneeType !== "user") return; // role notifications not supported client-side
   try {
-    const snap = await getDoc(doc(db, "users", assigneeId));
-    const token = snap.data()?.expoPushToken as string | undefined;
-    if (!token) return;
+    let tokens: string[] = [];
+
+    if (assigneeType === "user") {
+      const snap = await getDoc(doc(db, "users", assigneeId));
+      const token = snap.data()?.expoPushToken as string | undefined;
+      if (token) tokens = [token];
+    } else {
+      // Notify all users with the matching role
+      const snap = await getDocs(
+        query(collection(db, "users"), where("role", "==", assigneeId)),
+      );
+      tokens = snap.docs
+        .map((d) => d.data().expoPushToken as string | undefined)
+        .filter((t): t is string => !!t);
+    }
+
+    if (!tokens.length) return;
+
     await sendExpoPush(
-      token,
+      tokens,
       "Nouvelle tâche assignée",
       `${senderName} vous a assigné : ${taskTitle}`,
-      { type: "task" }
+      { type: "task" },
     );
   } catch (e) {
     console.warn("[notifyAssignee]", e);
@@ -144,14 +180,15 @@ export const TaskSection = () => {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { members } = useMembers();
-  const { myTasks, allTasks, loading: tasksLoading } = useTasks(
-    user?.uid ?? "",
-    profile.role
-  );
+  const {
+    myTasks,
+    allTasks,
+    loading: tasksLoading,
+  } = useTasks(user?.uid ?? "", profile.role);
 
   const styles = getStyles(colors, tokens);
 
-  const canManage = MANAGE_ROLES.includes(profile.role as UserRole);
+  const canManage = MANAGE_ROLES.includes(profile.role as MemberRole);
   const displayTasks = canManage ? allTasks : myTasks;
   const pending = displayTasks.filter((t) => t.status === "todo");
   const completed = displayTasks.filter((t) => t.status === "done");
@@ -277,8 +314,17 @@ export const TaskSection = () => {
       setSaving(false);
     }
   }, [
-    title, description, priority, deadlineDate, assigneeType, assigneeId,
-    members, user, profile, editingTask, closeForm,
+    title,
+    description,
+    priority,
+    deadlineDate,
+    assigneeType,
+    assigneeId,
+    members,
+    user,
+    profile,
+    editingTask,
+    closeForm,
   ]);
 
   const handleToggle = useCallback(async (task: Task) => {
@@ -286,36 +332,34 @@ export const TaskSection = () => {
     await updateDoc(doc(db, "tasks", task.id), {
       status: newStatus,
       completedAt: newStatus === "done" ? Timestamp.now() : null,
-    }).catch(() => Alert.alert("Erreur", "Impossible de mettre à jour la tâche"));
+    }).catch(() =>
+      Alert.alert("Erreur", "Impossible de mettre à jour la tâche"),
+    );
   }, []);
 
   const handleDelete = useCallback(
     (task: Task) => {
       if (!canManage) return;
-      Alert.alert(
-        "Supprimer la tâche",
-        `Supprimer "${task.title}" ?`,
-        [
-          { text: "Annuler", style: "cancel" },
-          {
-            text: "Supprimer",
-            style: "destructive",
-            onPress: () => {
-              setDetailTask(null);
-              const expireAt = new Date();
-              expireAt.setDate(expireAt.getDate() + 30);
-              updateDoc(doc(db, "tasks", task.id), {
-                deletedAt: Timestamp.now(),
-                expireAt: Timestamp.fromDate(expireAt),
-              }).catch(() =>
-                Alert.alert("Erreur", "Impossible de supprimer la tâche")
-              );
-            },
+      Alert.alert("Supprimer la tâche", `Supprimer "${task.title}" ?`, [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => {
+            setDetailTask(null);
+            const expireAt = new Date();
+            expireAt.setDate(expireAt.getDate() + 30);
+            updateDoc(doc(db, "tasks", task.id), {
+              deletedAt: Timestamp.now(),
+              expireAt: Timestamp.fromDate(expireAt),
+            }).catch(() =>
+              Alert.alert("Erreur", "Impossible de supprimer la tâche"),
+            );
           },
-        ]
-      );
+        },
+      ]);
     },
-    [canManage]
+    [canManage],
   );
 
   const handleLongPress = useCallback(
@@ -323,7 +367,7 @@ export const TaskSection = () => {
       if (!canManage) return;
       handleDelete(task);
     },
-    [canManage, handleDelete]
+    [canManage, handleDelete],
   );
 
   // ── Task card ─────────────────────────────────────────────────────────────
@@ -364,7 +408,10 @@ export const TaskSection = () => {
               onPress={() => handleToggle(task)}
               style={[
                 styles.checkbox,
-                isDone && { backgroundColor: colors.online, borderColor: colors.online },
+                isDone && {
+                  backgroundColor: colors.online,
+                  borderColor: colors.online,
+                },
               ]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
@@ -382,7 +429,11 @@ export const TaskSection = () => {
           {/* Row 3: deadline + assignee */}
           <View style={styles.taskMeta}>
             <View style={[styles.deadlineBadge, { backgroundColor: dl.bg }]}>
-              <Icon name="calendar-clock-outline" size={11} color={dl.textColor} />
+              <Icon
+                name="calendar-clock-outline"
+                size={11}
+                color={dl.textColor}
+              />
               <Text style={[styles.badgeText, { color: dl.textColor }]}>
                 {dl.label}
               </Text>
@@ -425,7 +476,11 @@ export const TaskSection = () => {
       <View style={styles.sectionHeader}>
         <View style={styles.sectionLeft}>
           <View style={styles.sectionIconWrap}>
-            <Icon name="clipboard-check-outline" size={18} color={colors.primary} />
+            <Icon
+              name="clipboard-check-outline"
+              size={18}
+              color={colors.primary}
+            />
           </View>
           <Text style={styles.sectionTitle}>Tâches</Text>
           {pending.length > 0 && (
@@ -449,7 +504,11 @@ export const TaskSection = () => {
       {/* ── Pending tasks ── */}
       {pending.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <Icon name="clipboard-check-outline" size={28} color={colors.textTertiary} />
+          <Icon
+            name="clipboard-check-outline"
+            size={28}
+            color={colors.textTertiary}
+          />
           <Text style={styles.emptyText}>
             {canManage ? "Aucune tâche créée" : "Aucune tâche assignée"}
           </Text>
@@ -513,11 +572,13 @@ export const TaskSection = () => {
                       backgroundColor:
                         detailTask.status === "done"
                           ? colors.online + "18"
-                          : getPriorityColor(detailTask.priority, colors) + "18",
+                          : getPriorityColor(detailTask.priority, colors) +
+                            "18",
                       borderColor:
                         detailTask.status === "done"
                           ? colors.online + "40"
-                          : getPriorityColor(detailTask.priority, colors) + "40",
+                          : getPriorityColor(detailTask.priority, colors) +
+                            "40",
                     },
                   ]}
                 >
@@ -609,11 +670,14 @@ export const TaskSection = () => {
                     <DetailRow
                       icon="check-circle-outline"
                       label="Terminé le"
-                      value={detailTask.completedAt.toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
+                      value={detailTask.completedAt.toLocaleDateString(
+                        "fr-FR",
+                        {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        },
+                      )}
                       colors={colors}
                       tokens={tokens}
                       valueColor={colors.online}
@@ -642,8 +706,11 @@ export const TaskSection = () => {
                       handleToggle(detailTask);
                       setDetailTask((t) =>
                         t
-                          ? { ...t, status: t.status === "todo" ? "done" : "todo" }
-                          : null
+                          ? {
+                              ...t,
+                              status: t.status === "todo" ? "done" : "todo",
+                            }
+                          : null,
                       );
                     }}
                     activeOpacity={0.7}
@@ -691,7 +758,11 @@ export const TaskSection = () => {
                       onPress={() => openEdit(detailTask)}
                       activeOpacity={0.7}
                     >
-                      <Icon name="pencil-outline" size={18} color={colors.primary} />
+                      <Icon
+                        name="pencil-outline"
+                        size={18}
+                        color={colors.primary}
+                      />
                       <Text
                         style={[
                           styles.detailActionLabel,
@@ -711,8 +782,17 @@ export const TaskSection = () => {
                     onPress={() => handleDelete(detailTask)}
                     activeOpacity={0.7}
                   >
-                    <Icon name="trash-can-outline" size={16} color={colors.accent6} />
-                    <Text style={[styles.detailDeleteLabel, { color: colors.accent6 }]}>
+                    <Icon
+                      name="trash-can-outline"
+                      size={16}
+                      color={colors.accent6}
+                    />
+                    <Text
+                      style={[
+                        styles.detailDeleteLabel,
+                        { color: colors.accent6 },
+                      ]}
+                    >
                       Supprimer la tâche
                     </Text>
                   </TouchableOpacity>
@@ -813,7 +893,12 @@ export const TaskSection = () => {
                 onPress={() => setShowDatePicker(true)}
                 activeOpacity={0.7}
               >
-                <Text style={{ color: colors.textPrimary, fontSize: tokens.font.md }}>
+                <Text
+                  style={{
+                    color: colors.textPrimary,
+                    fontSize: tokens.font.md,
+                  }}
+                >
                   {formatDeadlineDisplay(deadlineDate)}
                 </Text>
               </TouchableOpacity>
@@ -842,7 +927,9 @@ export const TaskSection = () => {
                         styles.chip,
                         styles.chipFlex,
                         {
-                          backgroundColor: active ? colors.primary : colors.surfaceDim,
+                          backgroundColor: active
+                            ? colors.primary
+                            : colors.surfaceDim,
                           borderColor: active ? colors.primary : colors.border,
                         },
                       ]}
@@ -853,7 +940,9 @@ export const TaskSection = () => {
                     >
                       <Icon
                         name={
-                          type === "user" ? "account-outline" : "account-group-outline"
+                          type === "user"
+                            ? "account-outline"
+                            : "account-group-outline"
                         }
                         size={14}
                         color={active ? "#FFFFFF" : colors.textSecondary}
@@ -889,7 +978,9 @@ export const TaskSection = () => {
                         style={[
                           styles.memberChip,
                           {
-                            backgroundColor: sel ? colors.primary : colors.surfaceDim,
+                            backgroundColor: sel
+                              ? colors.primary
+                              : colors.surfaceDim,
                             borderColor: sel ? colors.primary : colors.border,
                           },
                         ]}
@@ -956,7 +1047,9 @@ export const TaskSection = () => {
                         style={[
                           styles.chip,
                           {
-                            backgroundColor: sel ? colors.primary : colors.surfaceDim,
+                            backgroundColor: sel
+                              ? colors.primary
+                              : colors.surfaceDim,
                             borderColor: sel ? colors.primary : colors.border,
                           },
                         ]}

@@ -28,16 +28,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
-import { useAppTheme } from "@/contexts/ThemeContext";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { MemberEntry, useMembers } from "@/hooks/use-members";
-import { UserRole, UserStatus } from "@/types";
+import { MemberRole, UserStatus } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 // rgba so badges work on both light (white) and dark (slate-900) cards
 const ROLE_COLORS: Record<
-  UserRole,
+  MemberRole,
   { bg: string; text: string; border: string }
 > = {
   Membre: {
@@ -70,6 +70,41 @@ const ROLE_COLORS: Record<
     text: "#DC2626",
     border: "rgba(185,28,28,0.22)",
   },
+  "Vice-Secrétaire": {
+    bg: "rgba(109,40,217,0.10)",
+    text: "#7C3AED",
+    border: "rgba(109,40,217,0.22)",
+  },
+  "Vice-Trésorier": {
+    bg: "rgba(21,128,61,0.10)",
+    text: "#15803D",
+    border: "rgba(21,128,61,0.22)",
+  },
+  "Responsable Communication": {
+    bg: "rgba(6,182,212,0.10)",
+    text: "#0891B2",
+    border: "rgba(6,182,212,0.22)",
+  },
+  "Vice-Responsable Communication": {
+    bg: "rgba(6,182,212,0.10)",
+    text: "#0891B2",
+    border: "rgba(6,182,212,0.22)",
+  },
+  "Responsable Loisir": {
+    bg: "rgba(236,72,153,0.10)",
+    text: "#DB2777",
+    border: "rgba(236,72,153,0.22)",
+  },
+  "Responsable Discipline": {
+    bg: "rgba(234,88,12,0.10)",
+    text: "#EA580C",
+    border: "rgba(234,88,12,0.22)",
+  },
+  Conseiller: {
+    bg: "rgba(100,116,139,0.10)",
+    text: "#64748B",
+    border: "rgba(100,116,139,0.20)",
+  },
 };
 
 const STATUS_COLOR: Record<UserStatus, string> = {
@@ -79,13 +114,20 @@ const STATUS_COLOR: Record<UserStatus, string> = {
   Arrêt: "#EF4444",
 };
 
-const ROLE_FILTERS: Array<UserRole | "Tous"> = [
+const ROLE_FILTERS: (MemberRole | "Tous")[] = [
   "Tous",
   "Membre",
   "Vice-Président",
   "Président",
   "Secrétaire",
+  "Vice-Secrétaire",
   "Trésorier",
+  "Vice-Trésorier",
+  "Responsable Communication",
+  "Vice-Responsable Communication",
+  "Responsable Loisir",
+  "Responsable Discipline",
+  "Conseiller",
   "Administrateur",
 ];
 
@@ -96,7 +138,7 @@ export default function MembersScreen() {
   const { members, loading, refetch } = useMembers();
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<UserRole | "Tous">("Tous");
+  const [roleFilter, setRoleFilter] = useState<MemberRole | "Tous">("Tous");
 
   const filtered = useMemo(() => {
     return members.filter((m) => {
@@ -120,7 +162,11 @@ export default function MembersScreen() {
 
   // ── Member card ──────────────────────────────────────────────────────────
   const renderMember = ({ item }: { item: MemberEntry }) => {
-    const roleCfg = ROLE_COLORS[item.role];
+    const roleCfg = ROLE_COLORS[item.role] ?? {
+      bg: "rgba(100,116,139,0.10)",
+      text: "#64748B",
+      border: "rgba(100,116,139,0.20)",
+    };
     return (
       <TouchableOpacity
         style={styles.memberCard}
@@ -317,17 +363,18 @@ const getStyles = (colors: any, tokens: any) =>
     // ── Filters ──────────────────────────────────────────────────────────
     filterScroll: {
       flexGrow: 0,
-      marginBottom: tokens.space.md,
+      marginBottom: tokens.space.lg,
+      height: 50,
     },
     filterRow: {
       paddingHorizontal: tokens.space.lg,
-      gap: tokens.space.sm,
       flexDirection: "row",
       alignItems: "center",
+      gap: tokens.space.sm,
     },
     filterChip: {
       paddingHorizontal: tokens.space.md,
-      paddingVertical: tokens.space.xs,
+      paddingVertical: tokens.space.md,
       borderRadius: tokens.radius.pill,
       borderWidth: 1.5,
     },
