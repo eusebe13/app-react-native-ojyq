@@ -1,3 +1,5 @@
+import { showActionSheet } from "@/components/ActionSheet";
+import { showToast } from "@/components/Toast";
 import { Header } from "@/components/Header";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -446,13 +448,13 @@ export default function FirebaseCalendarScreen() {
   // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
   const handleSaveEvent = async () => {
     if (!title.trim()) {
-      Alert.alert("Erreur", "Le titre est obligatoire");
+      showToast("Le titre est obligatoire", "error");
       return;
     }
 
     // On utilise directement l'objet 'date' qui contient tout (jour + heure)
     if (!editingId && date < new Date()) {
-      Alert.alert("Action impossible", "L'événement est dans le passé.");
+      showToast("L'événement est dans le passé.", "error");
       return;
     }
 
@@ -471,7 +473,7 @@ export default function FirebaseCalendarScreen() {
       }
       closeModal();
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de sauvegarder.");
+      showToast("Impossible de sauvegarder.", "error");
     }
   };
 
@@ -489,12 +491,12 @@ export default function FirebaseCalendarScreen() {
     if (!user) return;
 
     if (availabilityStartTime >= availabilityEndTime) {
-      Alert.alert("Erreur", "L'heure de fin doit être après l'heure de début");
+      showToast("L'heure de fin doit être après l'heure de début", "error");
       return;
     }
 
     if (!selectedDays.some(Boolean)) {
-      Alert.alert("Erreur", "Sélectionnez au moins un jour");
+      showToast("Sélectionnez au moins un jour", "error");
       return;
     }
 
@@ -525,11 +527,11 @@ export default function FirebaseCalendarScreen() {
         createdAt: Timestamp.now(),
       });
 
-      Alert.alert("Succès", "Disponibilité récurrente enregistrée");
+      showToast("Disponibilité récurrente enregistrée", "success");
       closeAvailabilityModal();
     } catch (error) {
       console.error("Erreur:", error);
-      Alert.alert("Erreur", "Impossible de sauvegarder la disponibilité");
+      showToast("Impossible de sauvegarder la disponibilité", "error");
     }
   };
 
@@ -542,58 +544,55 @@ export default function FirebaseCalendarScreen() {
 
   const handleDeleteAvailability = async (id: string) => {
     if (!user) return;
-
-    Alert.alert(
-      "Confirmer la suppression",
-      "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
-      [
-        { text: "Annuler", style: "cancel" },
+    showActionSheet({
+      title: "Confirmer la suppression",
+      message: "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
+      actions: [
         {
-          text: "Supprimer",
+          label: "Supprimer",
           style: "destructive",
           onPress: async () => {
             try {
               await deleteDoc(doc(db, "users", user.uid, "availabilities", id));
-              Alert.alert("Succès", "Disponibilité supprimée");
+              showToast("Disponibilité supprimée", "success");
             } catch (error) {
               console.error("Erreur:", error);
-              Alert.alert("Erreur", "Impossible de supprimer");
+              showToast("Impossible de supprimer", "error");
             }
           },
         },
+        { label: "Annuler", style: "cancel", onPress: () => {} },
       ],
-    );
+    });
   };
 
   // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
   const handleLongPress = (item: any) => {
-    Alert.alert(
-      "Options de l'événement",
-      `Que souhaitez-vous faire pour "${item.title}" ?`,
-      [
-        { text: "Annuler", style: "cancel" },
+    showActionSheet({
+      title: "Options de l'événement",
+      message: `Que souhaitez-vous faire pour "${item.title}" ?`,
+      actions: [
         {
-          text: "Modifier",
+          label: "Modifier",
+          style: "default",
           onPress: () => {
             setEditingId(item.id);
             setTitle(item.title);
             setLocation(item.location);
-
-            // On met à jour l'objet date directement
             setDate(item.dateObj);
-
             setModalVisible(true);
           },
         },
         {
-          text: "Supprimer",
+          label: "Supprimer",
           style: "destructive",
           onPress: async () => {
             await deleteDoc(doc(db, "events", item.id));
           },
         },
+        { label: "Annuler", style: "cancel", onPress: () => {} },
       ],
-    );
+    });
   };
 
   // --- 5. FORMATAGE ---
@@ -684,61 +683,72 @@ export default function FirebaseCalendarScreen() {
           renderItem={({ item }) => {
             const past = isEventPast(item.dateObj);
             return (
-              <TouchableOpacity
-                onLongPress={() => handleLongPress(item)}
-                delayLongPress={500}
-                style={[
-                  dynamicStyles.eventCard,
-                  {
-                    borderLeftColor:
-                      item.type === "Shift" ? "#FF9500" : "#007AFF",
-                  },
-                  past && dynamicStyles.pastEventCard,
-                  { opacity: item.pending ? 0.6 : 1 },
-                ]}
-              >
-                <View style={dynamicStyles.dateContainer}>
-                  <Text
-                    style={[
-                      dynamicStyles.dateText,
-                      past && dynamicStyles.pastText,
-                    ]}
-                  >
-                    {formatDate(item.dateObj)}
-                  </Text>
-                  <Text style={dynamicStyles.timeText}>
-                    {formatTime(item.dateObj)}
-                  </Text>
-                </View>
-
-                <View style={dynamicStyles.contentContainer}>
-                  <Text
-                    style={[
-                      dynamicStyles.eventTitle,
-                      past && dynamicStyles.pastText,
-                    ]}
-                  >
-                    {item.title} {past && "(Terminé)"}
-                  </Text>
-                  <View style={dynamicStyles.detailsRow}>
+              <View style={{ position: 'relative' }}>
+                <TouchableOpacity
+                  onLongPress={() => handleLongPress(item)}
+                  delayLongPress={500}
+                  style={[
+                    dynamicStyles.eventCard,
+                    {
+                      borderLeftColor:
+                        item.type === "Shift" ? "#FF9500" : "#007AFF",
+                    },
+                    past && dynamicStyles.pastEventCard,
+                    { opacity: item.pending ? 0.6 : 1 },
+                  ]}
+                >
+                  <View style={dynamicStyles.dateContainer}>
                     <Text
                       style={[
-                        dynamicStyles.eventType,
-                        {
-                          color: past ? "#888" : "#007AFF",
-                        },
+                        dynamicStyles.dateText,
+                        past && dynamicStyles.pastText,
                       ]}
                     >
-                      ÉVÉNEMENT
+                      {formatDate(item.dateObj)}
                     </Text>
-                    {item.location && (
-                      <Text style={dynamicStyles.locationText}>
-                        📍 {item.location}
-                      </Text>
-                    )}
+                    <Text style={dynamicStyles.timeText}>
+                      {formatTime(item.dateObj)}
+                    </Text>
                   </View>
-                </View>
-              </TouchableOpacity>
+
+                  <View style={dynamicStyles.contentContainer}>
+                    <Text
+                      style={[
+                        dynamicStyles.eventTitle,
+                        past && dynamicStyles.pastText,
+                      ]}
+                    >
+                      {item.title} {past && "(Terminé)"}
+                    </Text>
+                    <View style={dynamicStyles.detailsRow}>
+                      <Text
+                        style={[
+                          dynamicStyles.eventType,
+                          {
+                            color: past ? "#888" : "#007AFF",
+                          },
+                        ]}
+                      >
+                        ÉVÉNEMENT
+                      </Text>
+                      {item.location && (
+                        <Text style={dynamicStyles.locationText}>
+                          📍 {item.location}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                {Platform.OS === 'web' && (
+                  <TouchableOpacity
+                    onPress={() => handleLongPress(item)}
+                    style={{ position: 'absolute', right: 8, top: 8, padding: 4, zIndex: 1 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={16} color="#8E8E93" />
+                  </TouchableOpacity>
+                )}
+              </View>
             );
           }}
         />
@@ -760,31 +770,42 @@ export default function FirebaseCalendarScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <TouchableOpacity
-              onLongPress={() => handleDeleteAvailability(item.id)}
-              delayLongPress={500}
-              style={[dynamicStyles.availabilityCard]}
-            >
-              <View style={dynamicStyles.dateContainer}>
-                <Text style={dynamicStyles.dateText}>
-                  {Array.isArray(item.days)
-                    ? item.days.join(", ")
-                    : "Jours multiples"}
-                </Text>
-              </View>
+            <View style={{ position: 'relative' }}>
+              <TouchableOpacity
+                onLongPress={() => handleDeleteAvailability(item.id)}
+                delayLongPress={500}
+                style={[dynamicStyles.availabilityCard]}
+              >
+                <View style={dynamicStyles.dateContainer}>
+                  <Text style={dynamicStyles.dateText}>
+                    {Array.isArray(item.days)
+                      ? item.days.join(", ")
+                      : "Jours multiples"}
+                  </Text>
+                </View>
 
-              <View style={dynamicStyles.contentContainer}>
-                <Text style={dynamicStyles.eventTitle}>
-                  {String(item.startHours).padStart(2, "0")}:
-                  {String(item.startMinutes).padStart(2, "0")} -{" "}
-                  {String(item.endHours).padStart(2, "0")}:
-                  {String(item.endMinutes).padStart(2, "0")}
-                </Text>
-                <Text style={dynamicStyles.locationText}>
-                  Disponible • Appuyez longuement pour supprimer
-                </Text>
-              </View>
-            </TouchableOpacity>
+                <View style={dynamicStyles.contentContainer}>
+                  <Text style={dynamicStyles.eventTitle}>
+                    {String(item.startHours).padStart(2, "0")}:
+                    {String(item.startMinutes).padStart(2, "0")} -{" "}
+                    {String(item.endHours).padStart(2, "0")}:
+                    {String(item.endMinutes).padStart(2, "0")}
+                  </Text>
+                  <Text style={dynamicStyles.locationText}>
+                    Disponible {Platform.OS !== 'web' ? '• Appuyez longuement pour supprimer' : ''}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              {Platform.OS === 'web' && (
+                <TouchableOpacity
+                  onPress={() => handleDeleteAvailability(item.id)}
+                  style={{ position: 'absolute', right: 8, top: 8, padding: 4, zIndex: 1 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         />
       )}

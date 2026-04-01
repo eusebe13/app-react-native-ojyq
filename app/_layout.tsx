@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 import "react-native-reanimated";
 
 import AppSplashScreen from "@/components/AppSplashScreen";
+import ActionSheet from "@/components/ActionSheet";
+import Toast from "@/components/Toast";
 import { ThemeContextProvider, useAppTheme } from "@/contexts/ThemeContext";
 import useAuth from "@/hooks/use-auth";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -90,6 +92,10 @@ function RootLayoutInner() {
           ))}
         <StatusBar style={isDark ? "light" : "dark"} />
       </ThemeProvider>
+
+      {/* Toast notifications — sits above everything */}
+      <Toast />
+      <ActionSheet />
 
       {/* Animated JS splash — sits on top until isReady, then fades out */}
       {!splashDone && (

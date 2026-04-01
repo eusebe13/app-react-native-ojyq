@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx expo:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(node -e \"const d = require\\(''@emoji-mart/data''\\); console.log\\(d.categories.map\\(c => c.id\\).join\\('', ''\\)\\); console.log\\(''total emojis:'', Object.keys\\(d.emojis\\).length\\)\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\(''''dependencies'''',{}\\), **d.get\\(''''devDependencies'''',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\) if any\\(x in k for x in [''''expo'''',''''media'''',''''image'''',''''clipboard'''',''''haptic'''',''''gesture'''',''''file'''']\\)]\")",
+      "Bash(python:*)"
+    ]
+  }
+}

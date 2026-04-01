@@ -11,8 +11,8 @@
  */
 
 import React from "react";
+import { showToast } from "@/components/Toast";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -33,7 +33,7 @@ export default function AppSettings() {
       await setDark(value);
       await saveProfile({ darkMode: value });
     } catch {
-      Alert.alert("Erreur", "Impossible de mettre à jour le mode sombre");
+      showToast("Impossible de mettre à jour le mode sombre", "error");
       await setDark(!value);
     }
   };

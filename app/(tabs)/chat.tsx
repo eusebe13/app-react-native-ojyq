@@ -4,6 +4,8 @@
 
 import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
+import { showActionSheet } from "@/components/ActionSheet";
+import { showToast } from "@/components/Toast";
 import { Icon } from "@/components/ui/Icon";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -186,13 +188,16 @@ export default function ChatListScreen(): ReactElement {
 
   // ── Choix d'image ─────────────────────────────────────────────────────────
   const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.5,
       base64: true,
-      allowsEditing: true, // Permet de recadrer l'image en carré
+      allowsEditing: true,
       aspect: [1, 1],
-    });
+    };
+    const result = await ImagePicker.launchImageLibraryAsync(
+      Platform.OS === "web" ? { ...options, allowsEditing: false } : options,
+    );
     if (!result.canceled && result.assets[0].base64) {
       setChannelImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
     }
@@ -202,16 +207,16 @@ export default function ChatListScreen(): ReactElement {
   const handleSaveChannel = useCallback(async () => {
     const trimmed = channelName.trim();
     if (!trimmed) {
-      Alert.alert("Erreur", "Le nom du canal est obligatoire");
+      showToast("Le nom du canal est obligatoire", "error");
       return;
     }
 
     if (audienceType === "roles" && selectedRoles.length === 0) {
-      Alert.alert("Erreur", "Veuillez sélectionner au moins un rôle.");
+      showToast("Veuillez sélectionner au moins un rôle.", "error");
       return;
     }
     if (audienceType === "private" && selectedUsers.length === 0) {
-      Alert.alert("Erreur", "Veuillez sélectionner au moins un membre.");
+      showToast("Veuillez sélectionner au moins un membre.", "error");
       return;
     }
 
@@ -252,7 +257,7 @@ export default function ChatListScreen(): ReactElement {
       }
       closeModal();
     } catch {
-      Alert.alert("Erreur", "Impossible de sauvegarder le canal");
+      showToast("Impossible de sauvegarder le canal", "error");
     }
   }, [
     channelName,
@@ -273,20 +278,20 @@ export default function ChatListScreen(): ReactElement {
       const isAdmin = userRole === "Administrateur" || userRole === "Admin";
 
       if (!isCreator && !isAdmin) {
-        Alert.alert(
-          "Accès refusé",
+        showToast(
           "Vous ne pouvez modifier que les canaux que vous avez créés.",
+          "error",
         );
         return;
       }
 
-      Alert.alert(
-        "Gérer le canal",
-        `Que voulez-vous faire avec "${channel.name}" ?`,
-        [
-          { text: "Annuler", style: "cancel" },
+      showActionSheet({
+        title: "Gérer le canal",
+        message: `Que voulez-vous faire avec "${channel.name}" ?`,
+        actions: [
           {
-            text: "Modifier",
+            label: "Modifier",
+            style: "default",
             onPress: () => {
               setChannelName(channel.name);
               setChannelDescription(channel.description || "");
@@ -307,31 +312,32 @@ export default function ChatListScreen(): ReactElement {
             },
           },
           {
-            text: "Supprimer",
+            label: "Supprimer",
             style: "destructive",
             onPress: () => {
-              Alert.alert(
-                "Confirmer",
-                "Voulez-vous vraiment supprimer ce canal ?",
-                [
-                  { text: "Annuler", style: "cancel" },
+              showActionSheet({
+                title: "Confirmer",
+                message: "Voulez-vous vraiment supprimer ce canal ?",
+                actions: [
                   {
-                    text: "Supprimer",
+                    label: "Supprimer",
                     style: "destructive",
                     onPress: async () => {
                       try {
                         await deleteDoc(doc(db, "channels", channel.id));
                       } catch {
-                        Alert.alert("Erreur", "Impossible de supprimer");
+                        showToast("Impossible de supprimer", "error");
                       }
                     },
                   },
+                  { label: "Annuler", style: "cancel", onPress: () => {} },
                 ],
-              );
+              });
             },
           },
+          { label: "Annuler", style: "cancel", onPress: () => {} },
         ],
-      );
+      });
     },
     [currentUser, userProfile],
   );
@@ -437,86 +443,103 @@ export default function ChatListScreen(): ReactElement {
       const chColor = item.isPinned ? colors.primary : palette[Math.abs(h)];
 
       return (
-        <TouchableOpacity
-          style={styles.channelRow}
-          onPress={() => navigateToChannel(item)}
-          onLongPress={() => handleLongPress(item)}
-          activeOpacity={0.8}
-        >
-          {/* Avatar */}
-          {item.image ? (
-            <Image
-              source={{ uri: item.image }}
-              style={styles.channelAvatarImg}
-            />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: chColor + "1a" }]}>
-              <Text style={[styles.avatarText, { color: chColor }]}>
-                {initials}
-              </Text>
-            </View>
-          )}
-
-          {/* Content */}
-          <View style={styles.channelBody}>
-            <View style={styles.channelTop}>
-              <View style={styles.channelNameRow}>
-                {item.isPinned && (
-                  <Ionicons
-                    name="pin"
-                    size={12}
-                    color={colors.primary}
-                    style={{ marginRight: 4 }}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.channelName,
-                    {
-                      fontWeight: hasUnread ? "700" : "600",
-                      color: hasUnread
-                        ? colors.textPrimary
-                        : colors.textSecondary,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.name}
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity
+            style={[styles.channelRow, { flex: 1 }]}
+            onPress={() => navigateToChannel(item)}
+            onLongPress={() => handleLongPress(item)}
+            activeOpacity={0.8}
+          >
+            {/* Avatar */}
+            {item.image ? (
+              <Image
+                source={{ uri: item.image }}
+                style={styles.channelAvatarImg}
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: chColor + "1a" }]}>
+                <Text style={[styles.avatarText, { color: chColor }]}>
+                  {initials}
                 </Text>
-                {AudienceIcon}
               </View>
-              <Text style={styles.channelTime}>{time}</Text>
-            </View>
+            )}
 
-            <Text
-              style={[
-                styles.lastMessage,
-                {
-                  fontWeight: hasUnread ? "600" : "400",
-                  color: hasUnread ? colors.textPrimary : colors.textSecondary,
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {item.lastMessage || "Aucun message"}
-            </Text>
-          </View>
+            {/* Content */}
+            <View style={styles.channelBody}>
+              <View style={styles.channelTop}>
+                <View style={styles.channelNameRow}>
+                  {item.isPinned && (
+                    <Ionicons
+                      name="pin"
+                      size={12}
+                      color={colors.primary}
+                      style={{ marginRight: 4 }}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.channelName,
+                      {
+                        fontWeight: hasUnread ? "700" : "600",
+                        color: hasUnread
+                          ? colors.textPrimary
+                          : colors.textSecondary,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+                  {AudienceIcon}
+                </View>
+                <Text style={styles.channelTime}>{time}</Text>
+              </View>
 
-          {/* Right: unread badge or chevron */}
-          {hasUnread ? (
-            <View style={[styles.badge, { backgroundColor: chColor }]}>
-              <Text style={styles.badgeText}>
-                {item.unreadCount! > 99 ? "99+" : item.unreadCount}
+              <Text
+                style={[
+                  styles.lastMessage,
+                  {
+                    fontWeight: hasUnread ? "600" : "400",
+                    color: hasUnread ? colors.textPrimary : colors.textSecondary,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {item.lastMessage || "Aucun message"}
               </Text>
             </View>
-          ) : (
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={colors.borderLight}
-            />
+
+            {/* Right: unread badge or chevron (native only) */}
+            {!Platform.OS.startsWith("web") && (hasUnread ? (
+              <View style={[styles.badge, { backgroundColor: chColor }]}>
+                <Text style={styles.badgeText}>
+                  {item.unreadCount! > 99 ? "99+" : item.unreadCount}
+                </Text>
+              </View>
+            ) : (
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={colors.borderLight}
+              />
+            ))}
+          </TouchableOpacity>
+
+          {/* Web: ⋮ button as sibling — no event bubbling issue */}
+          {Platform.OS === "web" && (
+            <TouchableOpacity
+              onPress={() => handleLongPress(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ padding: 8 }}
+            >
+              <Ionicons
+                name="ellipsis-vertical"
+                size={16}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+        </View>
       );
     },
     [colors, tokens, navigateToChannel, handleLongPress],
@@ -638,7 +661,14 @@ export default function ChatListScreen(): ReactElement {
         onRequestClose={closeModal}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={
+            Platform.OS === "ios"
+              ? "padding"
+              : Platform.OS === "android"
+                ? "height"
+                : undefined
+          }
+          enabled={Platform.OS !== "web"}
           style={styles.modalOverlay}
         >
           <View style={styles.modalSheet}>
