@@ -918,7 +918,7 @@ export default function ChannelScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: colors.surfaceDim }]}>
+    <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: colors.chatBackground }]}>
       {/* Custom header */}
       <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight }]}>
         <TouchableOpacity
