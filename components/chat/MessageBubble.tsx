@@ -5,6 +5,9 @@
  * forwarded label, date separators. Works on both native and web (react-native-web).
  */
 
+import { Icon } from "@/components/ui/Icon";
+import { PRESET_AVATARS } from "@/constants/avatarPresets";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import React, {
@@ -26,9 +29,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { PRESET_AVATARS } from "@/constants/avatarPresets";
-import { useAppTheme } from "@/contexts/ThemeContext";
-import { Icon } from "@/components/ui/Icon";
 import type { ChatMessage, PollData } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,8 @@ interface MessageBubbleProps {
   onPollVote: (messageId: string, poll: PollData, optionIndex: number) => void;
   onFileDownload: (uri: string, name: string) => void;
   onSwipeReply: (message: ChatMessage) => void;
+  searchQuery?: string;
+  isSearchFocus?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,96 +107,114 @@ interface AudioPlayerProps {
   tokens: any;
 }
 
-const AudioPlayer = React.memo(({ uri, isMe, colors, tokens }: AudioPlayerProps) => {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
+const AudioPlayer = React.memo(
+  ({ uri, isMe, colors, tokens }: AudioPlayerProps) => {
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [positionMs, setPositionMs] = useState(0);
+    const [durationMs, setDurationMs] = useState(0);
 
-  const accentColor = isMe ? "#FFFFFF" : colors.primary;
+    const accentColor = isMe ? "#FFFFFF" : colors.primary;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      sound?.unloadAsync();
-    };
-  }, [sound]);
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        sound?.unloadAsync();
+      };
+    }, [sound]);
 
-  const handlePlayPause = useCallback(async () => {
-    if (isLoading) return;
+    const handlePlayPause = useCallback(async () => {
+      if (isLoading) return;
 
-    if (!sound) {
-      setIsLoading(true);
-      try {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true },
-          (status) => {
-            if (!status.isLoaded) return;
-            setPositionMs(status.positionMillis ?? 0);
-            setDurationMs(status.durationMillis ?? 0);
-            setIsPlaying(status.isPlaying);
-            if (status.didJustFinish) {
-              setIsPlaying(false);
-              setPositionMs(0);
-              // Unload so next press recreates the sound from the beginning
-              newSound.unloadAsync().catch(() => {});
-              setSound(null);
-            }
-          }
-        );
-        setSound(newSound);
-        setIsPlaying(true);
-      } catch {
-        // silently ignore load errors
-      } finally {
-        setIsLoading(false);
+      if (!sound) {
+        setIsLoading(true);
+        try {
+          const { sound: newSound } = await Audio.Sound.createAsync(
+            { uri },
+            { shouldPlay: true },
+            (status) => {
+              if (!status.isLoaded) return;
+              setPositionMs(status.positionMillis ?? 0);
+              setDurationMs(status.durationMillis ?? 0);
+              setIsPlaying(status.isPlaying);
+              if (status.didJustFinish) {
+                setIsPlaying(false);
+                setPositionMs(0);
+                // Unload so next press recreates the sound from the beginning
+                newSound.unloadAsync().catch(() => {});
+                setSound(null);
+              }
+            },
+          );
+          setSound(newSound);
+          setIsPlaying(true);
+        } catch {
+          // silently ignore load errors
+        } finally {
+          setIsLoading(false);
+        }
+        return;
       }
-      return;
-    }
 
-    if (isPlaying) {
-      await sound.pauseAsync();
-    } else {
-      await sound.playAsync();
-    }
-  }, [isLoading, sound, isPlaying, uri]);
+      if (isPlaying) {
+        await sound.pauseAsync();
+      } else {
+        await sound.playAsync();
+      }
+    }, [isLoading, sound, isPlaying, uri]);
 
-  const progress = durationMs > 0 ? positionMs / durationMs : 0;
+    const progress = durationMs > 0 ? positionMs / durationMs : 0;
 
-  return (
-    <View style={audioStyles.container}>
-      {/* Play/Pause */}
-      <TouchableOpacity onPress={handlePlayPause} activeOpacity={0.7} style={audioStyles.button}>
-        {isLoading ? (
-          <ActivityIndicator size={32} color={accentColor} />
-        ) : (
-          <Ionicons
-            name={isPlaying ? "pause-circle" : "play-circle"}
-            size={32}
-            color={accentColor}
-          />
-        )}
-      </TouchableOpacity>
+    return (
+      <View style={audioStyles.container}>
+        {/* Play/Pause */}
+        <TouchableOpacity
+          onPress={handlePlayPause}
+          activeOpacity={0.7}
+          style={audioStyles.button}
+        >
+          {isLoading ? (
+            <ActivityIndicator size={32} color={accentColor} />
+          ) : (
+            <Ionicons
+              name={isPlaying ? "pause-circle" : "play-circle"}
+              size={32}
+              color={accentColor}
+            />
+          )}
+        </TouchableOpacity>
 
-      {/* Progress + time */}
-      <View style={audioStyles.trackArea}>
-        <View style={[audioStyles.trackBg, { backgroundColor: isMe ? "rgba(255,255,255,0.3)" : colors.border }]}>
+        {/* Progress + time */}
+        <View style={audioStyles.trackArea}>
           <View
             style={[
-              audioStyles.trackFill,
-              { width: `${progress * 100}%`, backgroundColor: accentColor },
+              audioStyles.trackBg,
+              {
+                backgroundColor: isMe ? "rgba(255,255,255,0.3)" : colors.border,
+              },
             ]}
-          />
+          >
+            <View
+              style={[
+                audioStyles.trackFill,
+                { width: `${progress * 100}%`, backgroundColor: accentColor },
+              ]}
+            />
+          </View>
+          <Text
+            style={[
+              audioStyles.time,
+              { color: isMe ? "rgba(255,255,255,0.8)" : colors.textSecondary },
+            ]}
+          >
+            {formatAudioTime(positionMs)} / {formatAudioTime(durationMs)}
+          </Text>
         </View>
-        <Text style={[audioStyles.time, { color: isMe ? "rgba(255,255,255,0.8)" : colors.textSecondary }]}>
-          {formatAudioTime(positionMs)} / {formatAudioTime(durationMs)}
-        </Text>
       </View>
-    </View>
-  );
-});
+    );
+  },
+);
 
 AudioPlayer.displayName = "AudioPlayer";
 
@@ -236,55 +256,123 @@ interface AvatarBubbleProps {
   size?: number;
 }
 
-const AvatarBubble = React.memo(({ avatarUri, avatarPreset, name, size = 32 }: AvatarBubbleProps) => {
-  const preset =
-    avatarPreset != null && avatarPreset >= 0 && avatarPreset < PRESET_AVATARS.length
-      ? PRESET_AVATARS[avatarPreset]
-      : null;
+const AvatarBubble = React.memo(
+  ({ avatarUri, avatarPreset, name, size = 32 }: AvatarBubbleProps) => {
+    const preset =
+      avatarPreset != null &&
+      avatarPreset >= 0 &&
+      avatarPreset < PRESET_AVATARS.length
+        ? PRESET_AVATARS[avatarPreset]
+        : null;
 
-  const initials = name
-    .split(" ")
-    .map((w) => w[0] ?? "")
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+    const initials = name
+      .split(" ")
+      .map((w) => w[0] ?? "")
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
 
-  const containerStyle: any = {
-    width: size,
-    height: size,
-    borderRadius: size / 2,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: preset ? preset.bg : "#94A3B8",
-  };
+    const containerStyle: any = {
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      overflow: "hidden",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: preset ? preset.bg : "#94A3B8",
+    };
 
-  if (avatarUri) {
+    if (avatarUri) {
+      return (
+        <View style={containerStyle}>
+          <Image
+            source={{ uri: avatarUri }}
+            style={{ width: size, height: size }}
+          />
+        </View>
+      );
+    }
+
+    if (preset) {
+      return (
+        <View style={containerStyle}>
+          <Icon name={preset.icon} size={size * 0.6} color="#FFFFFF" />
+        </View>
+      );
+    }
+
     return (
       <View style={containerStyle}>
-        <Image source={{ uri: avatarUri }} style={{ width: size, height: size }} />
+        <Text
+          style={{ color: "#FFFFFF", fontSize: size * 0.38, fontWeight: "700" }}
+        >
+          {initials}
+        </Text>
       </View>
     );
-  }
-
-  if (preset) {
-    return (
-      <View style={containerStyle}>
-        <Icon name={preset.icon} size={size * 0.6} color="#FFFFFF" />
-      </View>
-    );
-  }
-
-  return (
-    <View style={containerStyle}>
-      <Text style={{ color: "#FFFFFF", fontSize: size * 0.38, fontWeight: "700" }}>
-        {initials}
-      </Text>
-    </View>
-  );
-});
+  },
+);
 
 AvatarBubble.displayName = "AvatarBubble";
+
+// ---------------------------------------------------------------------------
+// HighlightedText — renders text with query matches highlighted
+// ---------------------------------------------------------------------------
+
+interface HighlightedTextProps {
+  text: string;
+  query: string;
+  isFocus: boolean;
+  isMe: boolean;
+  textStyle: any;
+}
+
+const HighlightedText = React.memo(
+  ({ text, query, isFocus, isMe, textStyle }: HighlightedTextProps) => {
+    const q = (query ?? "").trim().toLowerCase();
+    if (!q) {
+      return <Text style={textStyle}>{text}</Text>;
+    }
+
+    const lower = text.toLowerCase();
+    const parts: { content: string; match: boolean }[] = [];
+    let cursor = 0;
+    let idx = lower.indexOf(q, cursor);
+
+    while (idx !== -1) {
+      if (idx > cursor)
+        parts.push({ content: text.slice(cursor, idx), match: false });
+      parts.push({ content: text.slice(idx, idx + q.length), match: true });
+      cursor = idx + q.length;
+      idx = lower.indexOf(q, cursor);
+    }
+    if (cursor < text.length)
+      parts.push({ content: text.slice(cursor), match: false });
+
+    return (
+      <Text style={textStyle}>
+        {parts.map((part, i) =>
+          part.match ? (
+            <Text
+              key={i}
+              style={{
+                backgroundColor: isFocus ? "#FF9500" : "#FFD60A",
+                color: "#000",
+                borderRadius: 2,
+              }}
+            >
+              {part.content}
+            </Text>
+          ) : (
+            <Text key={i}>{part.content}</Text>
+          ),
+        )}
+      </Text>
+    );
+  },
+);
+
+HighlightedText.displayName = "HighlightedText";
 
 // ---------------------------------------------------------------------------
 // StyleSheet factory
@@ -437,6 +525,7 @@ const getStyles = (colors: any, tokens: any) =>
     messageImage: {
       width: 220,
       height: 160,
+      marginHorizontal: 12,
       borderRadius: 12,
     },
 
@@ -562,6 +651,15 @@ const getStyles = (colors: any, tokens: any) =>
       color: colors.textTertiary,
     },
 
+    // Search focus ring
+    bubbleSearchFocus: {
+      shadowColor: "#FF9500",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.7,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+
     // Reactions
     reactionsRow: {
       flexDirection: "row",
@@ -612,7 +710,6 @@ const getStyles = (colors: any, tokens: any) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-
   });
 
 // ---------------------------------------------------------------------------
@@ -632,6 +729,8 @@ const MessageBubble = React.memo(
     onPollVote,
     onFileDownload,
     onSwipeReply,
+    searchQuery = "",
+    isSearchFocus = false,
   }: MessageBubbleProps) => {
     const { colors, tokens } = useAppTheme();
     const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
@@ -640,8 +739,7 @@ const MessageBubble = React.memo(
 
     // Consecutive message detection
     const isFirstInGroup =
-      previousMessage === null ||
-      previousMessage.user._id !== message.user._id;
+      previousMessage === null || previousMessage.user._id !== message.user._id;
     const isLastInGroup =
       nextMessage === null || nextMessage.user._id !== message.user._id;
 
@@ -699,7 +797,7 @@ const MessageBubble = React.memo(
       previousMessage === null ||
       !isSameDay(
         new Date(message.createdAt),
-        new Date(previousMessage.createdAt)
+        new Date(previousMessage.createdAt),
       );
 
     // Handlers
@@ -730,7 +828,7 @@ const MessageBubble = React.memo(
     const reactionEntries = useMemo(() => {
       if (!message.reactions) return [];
       return Object.entries(message.reactions).filter(
-        ([, users]) => users.length > 0
+        ([, users]) => users.length > 0,
       );
     }, [message.reactions]);
 
@@ -752,12 +850,7 @@ const MessageBubble = React.memo(
     const renderForwardedLabel = useCallback(() => {
       if (!message.forwarded) return null;
       return (
-        <Text
-          style={[
-            styles.forwardedLabel,
-            isMe && styles.forwardedLabelMe,
-          ]}
-        >
+        <Text style={[styles.forwardedLabel, isMe && styles.forwardedLabelMe]}>
           ↗ Transferé
         </Text>
       );
@@ -939,17 +1032,20 @@ const MessageBubble = React.memo(
 
     const renderText = useCallback(() => {
       if (!message.text || message.poll) return null;
+      const textStyle = [
+        styles.messageText,
+        isMe ? styles.messageTextMe : styles.messageTextOther,
+      ];
       return (
-        <Text
-          style={[
-            styles.messageText,
-            isMe ? styles.messageTextMe : styles.messageTextOther,
-          ]}
-        >
-          {message.text}
-        </Text>
+        <HighlightedText
+          text={message.text}
+          query={searchQuery}
+          isFocus={isSearchFocus}
+          isMe={isMe}
+          textStyle={textStyle}
+        />
       );
-    }, [message.text, message.poll, isMe, styles]);
+    }, [message.text, message.poll, isMe, styles, searchQuery, isSearchFocus]);
 
     const renderMeta = useCallback(() => {
       return (
@@ -960,11 +1056,21 @@ const MessageBubble = React.memo(
           ]}
         >
           {message.edited && (
-            <Text style={[styles.editedText, isMe ? styles.editedTextMe : styles.editedTextOther]}>
+            <Text
+              style={[
+                styles.editedText,
+                isMe ? styles.editedTextMe : styles.editedTextOther,
+              ]}
+            >
               modifié
             </Text>
           )}
-          <Text style={[styles.timeText, isMe ? styles.timeTextMe : styles.timeTextOther]}>
+          <Text
+            style={[
+              styles.timeText,
+              isMe ? styles.timeTextMe : styles.timeTextOther,
+            ]}
+          >
             {formatTime(new Date(message.createdAt))}
           </Text>
         </View>
@@ -1051,12 +1157,7 @@ const MessageBubble = React.memo(
             {renderAvatar()}
 
             {/* Bubble column */}
-            <View
-              style={[
-                styles.bubbleColumn,
-                isMe && styles.bubbleColumnMe,
-              ]}
-            >
+            <View style={[styles.bubbleColumn, isMe && styles.bubbleColumnMe]}>
               {/* Bubble */}
               <TouchableOpacity
                 onLongPress={handleLongPress}
@@ -1068,6 +1169,7 @@ const MessageBubble = React.memo(
                     styles.bubble,
                     isMe ? styles.bubbleMe : styles.bubbleOther,
                     bubbleTailStyle,
+                    isSearchFocus && styles.bubbleSearchFocus,
                   ]}
                 >
                   {renderReplyQuote()}
@@ -1087,7 +1189,7 @@ const MessageBubble = React.memo(
         </Animated.View>
       </View>
     );
-  }
+  },
 );
 
 MessageBubble.displayName = "MessageBubble";

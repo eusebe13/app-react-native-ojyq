@@ -78,9 +78,7 @@ function RootLayoutInner() {
               />
               <Stack.Screen
                 name="channel/[id]"
-                options={({ route }) => ({
-                  title: route.params?.name || "Canal",
-                })}
+                options={{ headerShown: false }}
               />
               <Stack.Screen
                 name="treasury/member-payment"

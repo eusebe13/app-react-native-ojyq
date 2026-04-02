@@ -14,7 +14,7 @@ import MessageBubble from "@/components/chat/MessageBubble";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import type { ChatMessage, FileData, PollData, ReplyInfo } from "@/components/chat/types";
 import { sendExpoPush } from "@/hooks/use-push-notifications";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -53,6 +53,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -314,6 +315,63 @@ export default function ChannelScreen() {
       }
     };
   }, [id, user]);
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const searchInputRef = useRef<TextInput>(null);
+  const searchBarAnim = useRef(new Animated.Value(0)).current;
+
+  // Animate the search bar in/out
+  useEffect(() => {
+    Animated.timing(searchBarAnim, {
+      toValue: searchActive ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start(() => {
+      if (searchActive) searchInputRef.current?.focus();
+    });
+    if (!searchActive) {
+      setSearchQuery("");
+      setSearchMatchIndex(0);
+    }
+  }, [searchActive, searchBarAnim]);
+
+  // Compute matches — indices into `messages` (newest-first order)
+  const searchMatches = useMemo(() => {
+    const q = (searchQuery ?? "").trim().toLowerCase();
+    if (!q) return [];
+    return messages
+      .map((msg, index) => ({ index, id: msg._id }))
+      .filter(({ index }) => (messages[index].text ?? "").toLowerCase().includes(q));
+  }, [searchQuery, messages]);
+
+  // Scroll to the focused match whenever index changes
+  useEffect(() => {
+    if (!searchMatches.length) return;
+    const safeIdx = Math.min(searchMatchIndex, searchMatches.length - 1);
+    try {
+      flatListRef.current?.scrollToIndex({ index: searchMatches[safeIdx].index, animated: true });
+    } catch {
+      // ignore if not rendered yet
+    }
+  }, [searchMatchIndex, searchMatches]);
+
+  const handleSearchNext = useCallback(() => {
+    if (!searchMatches.length) return;
+    setSearchMatchIndex((i) => (i + 1) % searchMatches.length);
+  }, [searchMatches.length]);
+
+  const handleSearchPrev = useCallback(() => {
+    if (!searchMatches.length) return;
+    setSearchMatchIndex((i) => (i - 1 + searchMatches.length) % searchMatches.length);
+  }, [searchMatches.length]);
+
+  // Reset match cursor when query changes
+  useEffect(() => {
+    setSearchMatchIndex(0);
+  }, [searchQuery]);
 
   // ── Accessible channels (for forward) ────────────────────────────────────
   const [accessibleChannels, setAccessibleChannels] = useState<
@@ -800,6 +858,8 @@ export default function ChannelScreen() {
   // Messages are ordered newest-first (inverted FlatList), so:
   //   - previousMessage (visually above) = messages[index + 1]
   //   - nextMessage     (visually below) = messages[index - 1]
+  const activeSearchMatchId = searchMatches[searchMatchIndex]?.id ?? null;
+
   const renderItem = useCallback(
     ({ item, index }: { item: ChatMessage; index: number }) => (
       <MessageBubble
@@ -814,6 +874,8 @@ export default function ChannelScreen() {
         onPollVote={handlePollVote}
         onFileDownload={handleFileDownload}
         onSwipeReply={handleSwipeReply}
+        searchQuery={searchActive ? searchQuery : ""}
+        isSearchFocus={searchActive && item._id === activeSearchMatchId}
       />
     ),
     [
@@ -826,6 +888,9 @@ export default function ChannelScreen() {
       handlePollVote,
       handleFileDownload,
       handleSwipeReply,
+      searchActive,
+      searchQuery,
+      activeSearchMatchId,
     ],
   );
 
@@ -836,12 +901,74 @@ export default function ChannelScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: colors.surfaceDim }]}>
+    <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: colors.surfaceDim }]}>
+      {/* Custom header */}
+      <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.headerBack}
+        >
+          <Ionicons name="chevron-back" size={26} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+          {name ?? "Canal"}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setSearchActive((v) => !v)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.headerAction}
+        >
+          <Ionicons
+            name={searchActive ? "close" : "search-outline"}
+            size={22}
+            color={searchActive ? colors.primary : colors.textPrimary}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Search bar */}
+      {searchActive && (
+        <View style={[styles.searchBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <Ionicons name="search" size={18} color={colors.textTertiary} style={{ marginLeft: 12 }} />
+          <TextInput
+            ref={searchInputRef}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
+            placeholder="Rechercher dans la conversation..."
+            placeholderTextColor={colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            onSubmitEditing={handleSearchNext}
+            autoCorrect={false}
+            autoCapitalize="none"
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <Text style={[styles.searchCount, { color: colors.textSecondary }]}>
+              {searchMatches.length > 0
+                ? `${searchMatchIndex + 1}/${searchMatches.length}`
+                : "0"}
+            </Text>
+          )}
+          {searchMatches.length > 1 && (
+            <>
+              <TouchableOpacity onPress={handleSearchPrev} style={styles.searchNavBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                <Ionicons name="chevron-up" size={20} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSearchNext} style={styles.searchNavBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                <Ionicons name="chevron-down" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      )}
+
       <KeyboardAvoidingView
         style={styles.flex1}
         behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
         enabled={Platform.OS !== "web"}
-        keyboardVerticalOffset={Platform.select({ ios: 90, android: 80, default: 0 })}
+        keyboardVerticalOffset={Platform.select({ ios: 0, android: 0, default: 0 })}
       >
         {loading ? (
           <View style={styles.centered}>
@@ -865,6 +992,12 @@ export default function ChannelScreen() {
             initialNumToRender={20}
             onEndReached={loadMoreMessages}
             onEndReachedThreshold={0.3}
+            onScrollToIndexFailed={(info) => {
+              flatListRef.current?.scrollToOffset({
+                offset: info.averageItemLength * info.index,
+                animated: true,
+              });
+            }}
             ListFooterComponent={
               loadingMore ? (
                 <ActivityIndicator color={colors.primary} style={{ padding: 16 }} />
@@ -1043,6 +1176,53 @@ const getStyles = (colors: any, tokens: any) =>
     flex1: { flex: 1 },
     centered: { flex: 1, justifyContent: "center", alignItems: "center" },
     listContent: { paddingVertical: tokens.space.md },
+
+    // Custom header
+    customHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      height: 52,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 4,
+    },
+    headerBack: {
+      padding: 8,
+    },
+    headerTitle: {
+      flex: 1,
+      fontSize: 17,
+      fontWeight: "700",
+      marginHorizontal: 4,
+    },
+    headerAction: {
+      padding: 10,
+    },
+
+    // Search bar
+    searchBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      overflow: "hidden",
+      borderBottomWidth: 1,
+      gap: 4,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: tokens.font.base,
+      paddingVertical: 8,
+      paddingHorizontal: 6,
+    },
+    searchCount: {
+      fontSize: tokens.font.sm,
+      minWidth: 38,
+      textAlign: "center",
+    },
+    searchNavBtn: {
+      padding: 6,
+    },
+    searchCloseBtn: {
+      padding: 10,
+    },
 
     // Image modal
     imageModal: {
