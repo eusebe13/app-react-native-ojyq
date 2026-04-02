@@ -408,6 +408,7 @@ export default function ChannelScreen() {
           audio: audioUrl ?? null,
           replyTo: replyData,
         });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
         const preview = poll
           ? poll.question
@@ -566,6 +567,21 @@ export default function ChannelScreen() {
         });
       }
 
+      // Copy available for text messages
+      if (msg.text && !msg.poll) {
+        actions.unshift({
+          id: "copy",
+          label: "Copier",
+          icon: "copy-outline",
+          style: "default" as const,
+          onPress: () => {
+            Clipboard.setStringAsync(msg.text).then(() =>
+              showToast("Message copié", "success"),
+            );
+          },
+        });
+      }
+
       setActionModalMessage(msg);
       setActionModalActions(actions);
       setActionModalVisible(true);
@@ -577,6 +593,7 @@ export default function ChannelScreen() {
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       const msgRef = doc(db, "channels", id, "messages", messageId);
       const snap = await getDoc(msgRef);
       if (!snap.exists()) return;
@@ -685,15 +702,13 @@ export default function ChannelScreen() {
           showToast("Permission galerie refusée", "error");
           return;
         }
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const fs = require("expo-file-system") as any;
-        const localUri = fs.cacheDirectory + `img_${Date.now()}.jpg`;
+        const localUri = (FileSystem.cacheDirectory ?? "") + `img_${Date.now()}.jpg`;
         if (imageUri.startsWith("data:")) {
-          await fs.writeAsStringAsync(localUri, imageUri.split(",")[1], {
-            encoding: "base64",
+          await FileSystem.writeAsStringAsync(localUri, imageUri.split(",")[1], {
+            encoding: FileSystem.EncodingType.Base64,
           });
         } else {
-          await fs.downloadAsync(imageUri, localUri);
+          await FileSystem.downloadAsync(imageUri, localUri);
         }
         await MediaLibrary.saveToLibraryAsync(localUri);
         showToast("Image sauvegardée dans la galerie", "success");

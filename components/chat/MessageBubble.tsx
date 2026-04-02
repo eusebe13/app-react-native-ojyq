@@ -610,24 +610,6 @@ const getStyles = (colors: any, tokens: any) =>
       borderColor: colors.border,
     },
 
-    // Reply icon (shown behind bubble during swipe)
-    replyIcon: {
-      position: "absolute",
-      top: "50%",
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.surfaceDim,
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: -1,
-    },
-    replyIconOther: {
-      left: 4,
-    },
-    replyIconMe: {
-      right: 4,
-    },
   });
 
 // ---------------------------------------------------------------------------
@@ -1054,25 +1036,6 @@ const MessageBubble = React.memo(
           style={[styles.rowWrapper, { transform: [{ translateX }] }]}
           {...(panResponder ? panResponder.panHandlers : {})}
         >
-          {/* Reply icon shown during swipe (absolute, behind bubble) */}
-          {Platform.OS !== "web" && (
-            <Animated.View
-              style={[
-                styles.replyIcon,
-                isMe ? styles.replyIconMe : styles.replyIconOther,
-                {
-                  opacity: translateX.interpolate({
-                    inputRange: isMe ? [-SWIPE_THRESHOLD, 0] : [0, SWIPE_THRESHOLD],
-                    outputRange: [1, 0],
-                    extrapolate: "clamp",
-                  }),
-                },
-              ]}
-            >
-              <Ionicons name="arrow-undo" size={18} color={colors.textSecondary} />
-            </Animated.View>
-          )}
-
           {/* Forwarded label */}
           {renderForwardedLabel()}
 
