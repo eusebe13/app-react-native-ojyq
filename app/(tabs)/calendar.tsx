@@ -1194,8 +1194,8 @@ export default function FirebaseCalendarScreen() {
 
           return (
             <FlatList
-              data={canManageSchedule ? memberGroups : []}
-              keyExtractor={(item) => item.userId}
+              data={canManageSchedule ? memberGroups : availabilities}
+              keyExtractor={(item) => item.userId ?? item.id}
               contentContainerStyle={dynamicStyles.listContent}
               ListHeaderComponent={
                 <>
