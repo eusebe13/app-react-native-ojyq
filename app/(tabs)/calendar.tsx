@@ -1,3 +1,5 @@
+import { showActionSheet } from "@/components/ActionSheet";
+import { showToast } from "@/components/Toast";
 import { Header } from "@/components/Header";
 import { WeeklyCoverageChart } from "@/components/calendar/WeeklyCoverageChart";
 import { DismissableModal } from "@/components/ui/DismissableModal";
@@ -576,7 +578,7 @@ export default function FirebaseCalendarScreen() {
   // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
   const handleSaveEvent = async () => {
     if (!title.trim()) {
-      Alert.alert("Erreur", "Le titre est obligatoire");
+      showToast("Le titre est obligatoire", "error");
       return;
     }
     if (!locationLabel.trim()) {
@@ -584,7 +586,7 @@ export default function FirebaseCalendarScreen() {
       return;
     }
     if (!editingId && date < new Date()) {
-      Alert.alert("Action impossible", "L'événement est dans le passé.");
+      showToast("L'événement est dans le passé.", "error");
       return;
     }
 
@@ -630,7 +632,7 @@ export default function FirebaseCalendarScreen() {
 
       closeModal();
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de sauvegarder.");
+      showToast("Impossible de sauvegarder.", "error");
     }
   };
 
@@ -650,12 +652,12 @@ export default function FirebaseCalendarScreen() {
     if (!user) return;
 
     if (availabilityStartTime >= availabilityEndTime) {
-      Alert.alert("Erreur", "L'heure de fin doit être après l'heure de début");
+      showToast("L'heure de fin doit être après l'heure de début", "error");
       return;
     }
 
     if (!selectedDays.some(Boolean)) {
-      Alert.alert("Erreur", "Sélectionnez au moins un jour");
+      showToast("Sélectionnez au moins un jour", "error");
       return;
     }
 
@@ -686,11 +688,11 @@ export default function FirebaseCalendarScreen() {
         createdAt: Timestamp.now(),
       });
 
-      Alert.alert("Succès", "Disponibilité récurrente enregistrée");
+      showToast("Disponibilité récurrente enregistrée", "success");
       closeAvailabilityModal();
     } catch (error) {
       console.error("Erreur:", error);
-      Alert.alert("Erreur", "Impossible de sauvegarder la disponibilité");
+      showToast("Impossible de sauvegarder la disponibilité", "error");
     }
   };
 
@@ -703,27 +705,26 @@ export default function FirebaseCalendarScreen() {
 
   const handleDeleteAvailability = async (id: string) => {
     if (!user) return;
-
-    Alert.alert(
-      "Confirmer la suppression",
-      "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
-      [
-        { text: "Annuler", style: "cancel" },
+    showActionSheet({
+      title: "Confirmer la suppression",
+      message: "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
+      actions: [
         {
-          text: "Supprimer",
+          label: "Supprimer",
           style: "destructive",
           onPress: async () => {
             try {
               await deleteDoc(doc(db, "users", user.uid, "availabilities", id));
-              Alert.alert("Succès", "Disponibilité supprimée");
+              showToast("Disponibilité supprimée", "success");
             } catch (error) {
               console.error("Erreur:", error);
-              Alert.alert("Erreur", "Impossible de supprimer");
+              showToast("Impossible de supprimer", "error");
             }
           },
         },
+        { label: "Annuler", style: "cancel", onPress: () => {} },
       ],
-    );
+    });
   };
 
   // --- EXPORTER UN ÉVÉNEMENT VERS LE CALENDRIER NATIF ---
@@ -771,13 +772,13 @@ export default function FirebaseCalendarScreen() {
 
   // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
   const handleLongPress = (item: any) => {
-    Alert.alert(
-      "Options de l'événement",
-      `Que souhaitez-vous faire pour "${item.title}" ?`,
-      [
-        { text: "Annuler", style: "cancel" },
+    showActionSheet({
+      title: "Options de l'événement",
+      message: `Que souhaitez-vous faire pour "${item.title}" ?`,
+      actions: [
         {
-          text: "Modifier",
+          label: "Modifier",
+          style: "default",
           onPress: () => {
             setEditingId(item.id);
             setTitle(item.title);
@@ -790,14 +791,15 @@ export default function FirebaseCalendarScreen() {
           },
         },
         {
-          text: "Supprimer",
+          label: "Supprimer",
           style: "destructive",
           onPress: async () => {
             await deleteDoc(doc(db, "events", item.id));
           },
         },
+        { label: "Annuler", style: "cancel", onPress: () => {} },
       ],
-    );
+    });
   };
 
   // --- Vue détail & Participation ---

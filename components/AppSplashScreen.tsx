@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet } from "react-native";
+import { Animated, Platform, StyleSheet } from "react-native";
 
 // Must match the native splash background (app.json) for a seamless handoff
 const BG_COLOR = "#081129";
@@ -23,12 +23,12 @@ function PulseDot({ delay }: { delay: number }) {
       Animated.sequence([
         Animated.delay(delay),
         Animated.parallel([
-          Animated.timing(opacity, { toValue: 1, duration: 450, useNativeDriver: true }),
-          Animated.timing(scale, { toValue: 1, duration: 450, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1, duration: 450, useNativeDriver: Platform.OS !== "web" }),
+          Animated.timing(scale, { toValue: 1, duration: 450, useNativeDriver: Platform.OS !== "web" }),
         ]),
         Animated.parallel([
-          Animated.timing(opacity, { toValue: 0.25, duration: 500, useNativeDriver: true }),
-          Animated.timing(scale, { toValue: 0.7, duration: 500, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.25, duration: 500, useNativeDriver: Platform.OS !== "web" }),
+          Animated.timing(scale, { toValue: 0.7, duration: 500, useNativeDriver: Platform.OS !== "web" }),
         ]),
       ])
     );
@@ -77,23 +77,23 @@ export default function AppSplashScreen({ isReady, onAnimationEnd }: Props) {
       Animated.delay(120),
       // Phase 1: glows bloom, icon springs in simultaneously
       Animated.parallel([
-        Animated.timing(outerGlowOpacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(outerGlowScale, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(innerGlowOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(innerGlowScale, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.spring(logoScale, { toValue: 1, tension: 55, friction: 7, useNativeDriver: true }),
-        Animated.timing(logoOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+        Animated.timing(outerGlowOpacity, { toValue: 1, duration: 700, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(outerGlowScale, { toValue: 1, duration: 800, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(innerGlowOpacity, { toValue: 1, duration: 600, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(innerGlowScale, { toValue: 1, duration: 700, useNativeDriver: Platform.OS !== "web" }),
+        Animated.spring(logoScale, { toValue: 1, tension: 55, friction: 7, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 380, useNativeDriver: Platform.OS !== "web" }),
       ]),
       // Phase 2: halo ring contracts and settles around the icon
       Animated.parallel([
-        Animated.timing(ringOpacity, { toValue: 0.45, duration: 360, useNativeDriver: true }),
-        Animated.timing(ringScale, { toValue: 1, duration: 460, useNativeDriver: true }),
+        Animated.timing(ringOpacity, { toValue: 0.45, duration: 360, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(ringScale, { toValue: 1, duration: 460, useNativeDriver: Platform.OS !== "web" }),
       ]),
       // Phase 3: name slides up, dots fade in
       Animated.parallel([
-        Animated.timing(nameOpacity, { toValue: 1, duration: 430, useNativeDriver: true }),
-        Animated.timing(nameY, { toValue: 0, duration: 430, useNativeDriver: true }),
-        Animated.timing(dotsOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.timing(nameOpacity, { toValue: 1, duration: 430, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(nameY, { toValue: 0, duration: 430, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(dotsOpacity, { toValue: 1, duration: 350, useNativeDriver: Platform.OS !== "web" }),
       ]),
     ]).start();
   }, [outerGlowOpacity, outerGlowScale, innerGlowOpacity, innerGlowScale, logoScale, logoOpacity, ringOpacity, ringScale, nameOpacity, nameY, dotsOpacity]);
@@ -109,13 +109,13 @@ export default function AppSplashScreen({ isReady, onAnimationEnd }: Props) {
       Animated.timing(containerOpacity, {
         toValue: 0,
         duration: 580,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
       // Slight scale-up gives a premium "zoom through" feeling
       Animated.timing(containerScale, {
         toValue: 1.05,
         duration: 580,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
     ]).start(({ finished }) => {
       if (finished) onAnimationEnd();
@@ -124,10 +124,9 @@ export default function AppSplashScreen({ isReady, onAnimationEnd }: Props) {
 
   return (
     <Animated.View
-      pointerEvents={shouldExit ? "none" : "auto"}
       style={[
         styles.container,
-        { opacity: containerOpacity, transform: [{ scale: containerScale }] },
+        { opacity: containerOpacity, transform: [{ scale: containerScale }], pointerEvents: shouldExit ? "none" : "auto" },
       ]}
     >
       {/* Outer glow — large, very subtle bloom */}

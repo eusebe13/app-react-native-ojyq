@@ -5,8 +5,9 @@
  */
 
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { showToast } from '@/components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { CallType } from '../../types/models';
 
@@ -28,11 +29,7 @@ export const CallControls: React.FC<CallControlsProps> = ({
       onStartCall('audio');
     } else {
       // Simulation pour le moment
-      Alert.alert(
-        'Appel Audio',
-        `Lancement d'un appel audio vers "${channelName}"...\n\nCette fonctionnalité sera bientôt disponible avec WebRTC.`,
-        [{ text: 'OK' }]
-      );
+      showToast(`Appel audio vers "${channelName}" — bientôt disponible avec WebRTC.`, 'info');
     }
   };
 
@@ -41,11 +38,7 @@ export const CallControls: React.FC<CallControlsProps> = ({
       onStartCall('video');
     } else {
       // Simulation pour le moment
-      Alert.alert(
-        'Appel Vidéo',
-        `Lancement d'un appel vidéo vers "${channelName}"...\n\nCette fonctionnalité sera bientôt disponible avec WebRTC.`,
-        [{ text: 'OK' }]
-      );
+      showToast(`Appel vidéo vers "${channelName}" — bientôt disponible avec WebRTC.`, 'info');
     }
   };
 

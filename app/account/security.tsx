@@ -18,7 +18,6 @@ import {
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +27,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { showToast } from "@/components/Toast";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { auth } from "@/firebaseConfig";
 
@@ -96,34 +96,28 @@ export default function SecuritySettings() {
   const handleChangePassword = async () => {
     // Validation
     if (!currentPassword.trim()) {
-      Alert.alert("Erreur", "Veuillez entrer votre mot de passe actuel");
+      showToast("Veuillez entrer votre mot de passe actuel", "error");
       return;
     }
 
     if (!newPassword.trim() || !confirmPassword.trim()) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs");
+      showToast("Veuillez remplir tous les champs", "error");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Erreur", "Les mots de passe ne correspondent pas");
+      showToast("Les mots de passe ne correspondent pas", "error");
       return;
     }
 
     const strength = getPasswordStrength(newPassword);
     if (strength === "weak") {
-      Alert.alert(
-        "Erreur",
-        "Le mot de passe est trop faible (minimum 8 caractères)",
-      );
+      showToast("Le mot de passe est trop faible (minimum 8 caractères)", "error");
       return;
     }
 
     if (currentPassword === newPassword) {
-      Alert.alert(
-        "Erreur",
-        "Le nouveau mot de passe doit être différent de l'ancien",
-      );
+      showToast("Le nouveau mot de passe doit être différent de l'ancien", "error");
       return;
     }
 
@@ -131,7 +125,7 @@ export default function SecuritySettings() {
     try {
       const user = auth.currentUser;
       if (!user || !user.email) {
-        Alert.alert("Erreur", "Utilisateur non trouvé");
+        showToast("Utilisateur non trouvé", "error");
         return;
       }
 
@@ -145,21 +139,18 @@ export default function SecuritySettings() {
       // Update password
       await updatePassword(user, newPassword);
 
-      Alert.alert("Succès", "Mot de passe changé avec succès");
+      showToast("Mot de passe changé avec succès", "success");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordStrength("weak");
     } catch (error: any) {
       if (error.code === "auth/wrong-password") {
-        Alert.alert("Erreur", "Le mot de passe actuel est incorrect");
+        showToast("Le mot de passe actuel est incorrect", "error");
       } else if (error.code === "auth/weak-password") {
-        Alert.alert("Erreur", "Le nouveau mot de passe est trop faible");
+        showToast("Le nouveau mot de passe est trop faible", "error");
       } else {
-        Alert.alert(
-          "Erreur",
-          error.message || "Impossible de changer le mot de passe",
-        );
+        showToast(error.message || "Impossible de changer le mot de passe", "error");
       }
     } finally {
       setLoading(false);
