@@ -8,6 +8,7 @@
 import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { normalizeUrl, splitLinkParts } from "@/utils/urlParsing";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import React, {
@@ -22,6 +23,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  Linking,
   PanResponder,
   Platform,
   StyleSheet,
@@ -330,43 +332,70 @@ interface HighlightedTextProps {
 const HighlightedText = React.memo(
   ({ text, query, isFocus, isMe, textStyle }: HighlightedTextProps) => {
     const q = (query ?? "").trim().toLowerCase();
-    if (!q) {
-      return <Text style={textStyle}>{text}</Text>;
-    }
 
-    const lower = text.toLowerCase();
-    const parts: { content: string; match: boolean }[] = [];
-    let cursor = 0;
-    let idx = lower.indexOf(q, cursor);
-
-    while (idx !== -1) {
-      if (idx > cursor)
-        parts.push({ content: text.slice(cursor, idx), match: false });
-      parts.push({ content: text.slice(idx, idx + q.length), match: true });
-      cursor = idx + q.length;
-      idx = lower.indexOf(q, cursor);
-    }
-    if (cursor < text.length)
-      parts.push({ content: text.slice(cursor), match: false });
+    // Split by links first
+    const linkParts = splitLinkParts(text);
 
     return (
       <Text style={textStyle}>
-        {parts.map((part, i) =>
-          part.match ? (
-            <Text
-              key={i}
-              style={{
-                backgroundColor: isFocus ? "#FF9500" : "#FFD60A",
-                color: "#000",
-                borderRadius: 2,
-              }}
-            >
-              {part.content}
+        {linkParts.map((linkPart, linkIdx) => {
+          if (linkPart.type === "link") {
+            return (
+              <Text
+                key={`link-${linkIdx}`}
+                style={{ color: "#0EA5E9", textDecorationLine: "underline" }}
+                onPress={() => Linking.openURL(normalizeUrl(linkPart.value))}
+              >
+                {linkPart.value}
+              </Text>
+            );
+          }
+
+          // For non-link text, apply search highlighting
+          if (!q) return <Text key={`text-${linkIdx}`}>{linkPart.value}</Text>;
+
+          const lower = linkPart.value.toLowerCase();
+          const parts: { content: string; match: boolean }[] = [];
+          let cursor = 0;
+          let idx = lower.indexOf(q, cursor);
+
+          while (idx !== -1) {
+            if (idx > cursor)
+              parts.push({
+                content: linkPart.value.slice(cursor, idx),
+                match: false,
+              });
+            parts.push({
+              content: linkPart.value.slice(idx, idx + q.length),
+              match: true,
+            });
+            cursor = idx + q.length;
+            idx = lower.indexOf(q, cursor);
+          }
+          if (cursor < linkPart.value.length)
+            parts.push({ content: linkPart.value.slice(cursor), match: false });
+
+          return (
+            <Text key={`text-${linkIdx}`}>
+              {parts.map((part, i) =>
+                part.match ? (
+                  <Text
+                    key={i}
+                    style={{
+                      backgroundColor: isFocus ? "#FF9500" : "#FFD60A",
+                      color: "#000",
+                      borderRadius: 2,
+                    }}
+                  >
+                    {part.content}
+                  </Text>
+                ) : (
+                  <Text key={i}>{part.content}</Text>
+                ),
+              )}
             </Text>
-          ) : (
-            <Text key={i}>{part.content}</Text>
-          ),
-        )}
+          );
+        })}
       </Text>
     );
   },
@@ -475,7 +504,7 @@ const getStyles = (colors: any, tokens: any) =>
       borderBottomLeftRadius: 4,
     },
     bubbleMe: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.bubbleMe,
       borderBottomRightRadius: 20,
       shadowColor: colors.primary,
       shadowOpacity: 0.3,
@@ -533,6 +562,7 @@ const getStyles = (colors: any, tokens: any) =>
       width: 240,
       height: 180,
       marginHorizontal: 12,
+      backgroundColor: "transparent",
       borderRadius: 14,
     },
 
@@ -746,7 +776,7 @@ const getStyles = (colors: any, tokens: any) =>
       fontSize: 10,
     },
     timeTextMe: {
-      color: "rgba(255,255,255,0.6)",
+      color: colors.textTertiary,
     },
     timeTextOther: {
       color: colors.textTertiary,
@@ -1047,7 +1077,9 @@ const MessageBubble = React.memo(
       if (!message.poll) return null;
       const poll = message.poll;
       const totalVotes = poll.options.reduce((s, o) => s + o.voters.length, 0);
-      const myVoteIndex = poll.options.findIndex((o) => o.voters.includes(currentUserId));
+      const myVoteIndex = poll.options.findIndex((o) =>
+        o.voters.includes(currentUserId),
+      );
       const hasVoted = myVoteIndex !== -1;
 
       return (
@@ -1059,32 +1091,48 @@ const MessageBubble = React.memo(
               size={13}
               color={isMe ? "rgba(255,255,255,0.7)" : colors.primary}
             />
-            <Text style={[styles.pollLabel, isMe ? styles.pollLabelMe : styles.pollLabelOther]}>
+            <Text
+              style={[
+                styles.pollLabel,
+                isMe ? styles.pollLabelMe : styles.pollLabelOther,
+              ]}
+            >
               Sondage
             </Text>
           </View>
 
           {/* Question */}
-          <Text style={[styles.pollQuestion, isMe ? styles.pollQuestionMe : styles.pollQuestionOther]}>
+          <Text
+            style={[
+              styles.pollQuestion,
+              isMe ? styles.pollQuestionMe : styles.pollQuestionOther,
+            ]}
+          >
             {poll.question}
           </Text>
 
           {/* Options */}
           {poll.options.map((opt, idx) => {
             const count = opt.voters.length;
-            const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+            const percent =
+              totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
             const isMyVote = myVoteIndex === idx;
             const canVote = poll.isActive;
 
             return (
               <TouchableOpacity
                 key={idx}
-                onPress={() => { if (canVote) onPollVote(message._id, poll, idx); }}
+                onPress={() => {
+                  if (canVote) onPollVote(message._id, poll, idx);
+                }}
                 activeOpacity={canVote ? 0.7 : 1}
                 style={[
                   styles.pollOption,
                   isMe ? styles.pollOptionMe : styles.pollOptionOther,
-                  isMyVote && (isMe ? styles.pollOptionSelectedMe : styles.pollOptionSelectedOther),
+                  isMyVote &&
+                    (isMe
+                      ? styles.pollOptionSelectedMe
+                      : styles.pollOptionSelectedOther),
                 ]}
               >
                 {/* Progress bar fill behind the row */}
@@ -1092,8 +1140,13 @@ const MessageBubble = React.memo(
                   <View
                     style={[
                       styles.pollProgressFill,
-                      isMe ? styles.pollProgressFillMe : styles.pollProgressFillOther,
-                      isMyVote && (isMe ? styles.pollProgressFillSelectedMe : styles.pollProgressFillSelectedOther),
+                      isMe
+                        ? styles.pollProgressFillMe
+                        : styles.pollProgressFillOther,
+                      isMyVote &&
+                        (isMe
+                          ? styles.pollProgressFillSelectedMe
+                          : styles.pollProgressFillSelectedOther),
                       { width: `${percent}%` },
                     ]}
                   />
@@ -1104,7 +1157,9 @@ const MessageBubble = React.memo(
                   <Text
                     style={[
                       styles.pollOptionText,
-                      isMe ? styles.pollOptionTextMe : styles.pollOptionTextOther,
+                      isMe
+                        ? styles.pollOptionTextMe
+                        : styles.pollOptionTextOther,
                       isMyVote && styles.pollOptionTextSelected,
                     ]}
                     numberOfLines={2}
@@ -1113,7 +1168,12 @@ const MessageBubble = React.memo(
                   </Text>
                   <View style={styles.pollOptionRight}>
                     {hasVoted && (
-                      <Text style={[styles.pollPercent, isMe ? styles.pollPercentMe : styles.pollPercentOther]}>
+                      <Text
+                        style={[
+                          styles.pollPercent,
+                          isMe ? styles.pollPercentMe : styles.pollPercentOther,
+                        ]}
+                      >
                         {percent}%
                       </Text>
                     )}
@@ -1132,19 +1192,37 @@ const MessageBubble = React.memo(
 
           {/* Footer */}
           <View style={styles.pollFooter}>
-            <Text style={[styles.pollTotalText, isMe ? styles.pollTotalTextMe : styles.pollTotalTextOther]}>
+            <Text
+              style={[
+                styles.pollTotalText,
+                isMe ? styles.pollTotalTextMe : styles.pollTotalTextOther,
+              ]}
+            >
               {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
               {hasVoted ? " · Appuyez pour changer ou annuler" : ""}
             </Text>
             {!poll.isActive && (
-              <Text style={[styles.pollEndedText, isMe ? styles.pollEndedTextMe : styles.pollEndedTextOther]}>
+              <Text
+                style={[
+                  styles.pollEndedText,
+                  isMe ? styles.pollEndedTextMe : styles.pollEndedTextOther,
+                ]}
+              >
                 Terminé
               </Text>
             )}
           </View>
         </View>
       );
-    }, [message.poll, message._id, currentUserId, isMe, styles, colors, onPollVote]);
+    }, [
+      message.poll,
+      message._id,
+      currentUserId,
+      isMe,
+      styles,
+      colors,
+      onPollVote,
+    ]);
 
     const renderFile = useCallback(() => {
       if (!message.file) return null;
@@ -1194,6 +1272,7 @@ const MessageBubble = React.memo(
         styles.messageText,
         isMe ? styles.messageTextMe : styles.messageTextOther,
       ];
+      const parts = splitLinkParts(message.text);
       return (
         <HighlightedText
           text={message.text}
@@ -1328,6 +1407,11 @@ const MessageBubble = React.memo(
                     isMe ? styles.bubbleMe : styles.bubbleOther,
                     bubbleTailStyle,
                     isSearchFocus && styles.bubbleSearchFocus,
+                    message.image && {
+                      backgroundColor: colors.chatBackground,
+                      borderWidth: 0,
+                      borderColor: "transparent",
+                    },
                   ]}
                 >
                   {renderReplyQuote()}
