@@ -1195,6 +1195,7 @@ export default function FirebaseCalendarScreen() {
           return (
             <FlatList
               data={canManageSchedule ? memberGroups : availabilities}
+              // memberGroups items have userId; availabilities items have id
               keyExtractor={(item) => item.userId ?? item.id}
               contentContainerStyle={dynamicStyles.listContent}
               ListHeaderComponent={
@@ -1235,7 +1236,14 @@ export default function FirebaseCalendarScreen() {
                       Aucune disponibilité enregistrée
                     </Text>
                   </View>
-                ) : null
+                ) : (
+                  <View style={dynamicStyles.emptyContainer}>
+                    <Ionicons name="time-outline" size={48} color="#999" />
+                    <Text style={dynamicStyles.emptyText}>
+                      Aucun créneau enregistré.{"\n"}Appuyez sur + pour en ajouter un.
+                    </Text>
+                  </View>
+                )
               }
               renderItem={({ item }) => {
                 if (canManageSchedule) {
