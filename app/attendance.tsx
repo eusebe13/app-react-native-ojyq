@@ -17,6 +17,7 @@
  * Dependencies: expo-camera ~17.0.x, firebase/firestore
  */
 
+import { showToast } from "@/components/Toast";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -25,7 +26,6 @@ import { getAuth } from "firebase/auth";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -91,11 +91,8 @@ export default function AttendanceScreen() {
         setScannedPayload(payload);
         setScanState("confirming");
       } catch {
-        Alert.alert(
-          "QR invalide",
-          "Ce code QR n'est pas un code de présence OJYQ.",
-          [{ text: "OK", onPress: () => (isProcessing.current = false) }],
-        );
+        showToast("Ce code QR n'est pas un code de présence OJYQ.", "error");
+        isProcessing.current = false;
         setScanState("scanning");
         // Release lock after a short delay to prevent rapid re-trigger
         setTimeout(() => {
@@ -121,7 +118,7 @@ export default function AttendanceScreen() {
       setScanState("saved");
     } catch (error) {
       console.error("Attendance save error:", error);
-      Alert.alert("Erreur", "Impossible d'enregistrer la présence.");
+      showToast("Impossible d'enregistrer la présence.", "error");
       setScanState("confirming");
     }
   };

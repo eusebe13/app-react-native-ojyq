@@ -383,22 +383,25 @@ const getStyles = (colors: any, tokens: any) =>
     // Date separator
     dateSeparatorWrapper: {
       alignItems: "center",
-      marginVertical: 12,
+      marginVertical: 16,
     },
     dateSeparatorText: {
       fontSize: tokens.font.xs,
-      color: colors.textTertiary,
-      backgroundColor: colors.surfaceDim,
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderRadius: 10,
+      color: colors.textSecondary,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 5,
+      borderRadius: tokens.radius.pill,
       overflow: "hidden",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
+      fontWeight: "500",
     },
 
     // Row wrapper
     rowWrapper: {
       paddingHorizontal: 12,
-      paddingVertical: 2,
+      paddingVertical: 3,
     },
 
     // Forwarded label
@@ -417,8 +420,9 @@ const getStyles = (colors: any, tokens: any) =>
     // Username label (others only)
     usernameLabel: {
       fontSize: tokens.font.xs,
-      color: colors.textSecondary,
-      marginBottom: 2,
+      color: colors.primary,
+      fontWeight: "600",
+      marginBottom: 3,
       marginLeft: 40,
     },
 
@@ -452,27 +456,30 @@ const getStyles = (colors: any, tokens: any) =>
 
     // Bubble
     bubble: {
-      borderRadius: 18,
+      borderRadius: 20,
       paddingVertical: 10,
       paddingHorizontal: 14,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.06,
-      shadowRadius: 2,
+      shadowOpacity: 0.07,
+      shadowRadius: 3,
       elevation: 1,
     },
     bubbleOther: {
       backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderBottomLeftRadius: 18, // default; overridden when tail
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
+      borderBottomLeftRadius: 20,
     },
     bubbleOtherTail: {
       borderBottomLeftRadius: 4,
     },
     bubbleMe: {
       backgroundColor: colors.primary,
-      borderBottomRightRadius: 18, // default; overridden when tail
+      borderBottomRightRadius: 20,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
     },
     bubbleMeTail: {
       borderBottomRightRadius: 4,
@@ -520,19 +527,19 @@ const getStyles = (colors: any, tokens: any) =>
       marginHorizontal: -14,
       marginVertical: 2,
       overflow: "hidden",
-      borderRadius: 12,
+      borderRadius: 14,
     },
     messageImage: {
-      width: 220,
-      height: 160,
+      width: 240,
+      height: 180,
       marginHorizontal: 12,
-      borderRadius: 12,
+      borderRadius: 14,
     },
 
     // Text
     messageText: {
       fontSize: tokens.font.base,
-      lineHeight: 20,
+      lineHeight: 21,
     },
     messageTextMe: {
       color: "#FFFFFF",
@@ -542,11 +549,33 @@ const getStyles = (colors: any, tokens: any) =>
     },
 
     // Poll
+    pollContainer: {
+      minWidth: 200,
+      maxWidth: 260,
+    },
+    pollHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginBottom: 6,
+    },
+    pollLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    pollLabelMe: {
+      color: "rgba(255,255,255,0.65)",
+    },
+    pollLabelOther: {
+      color: colors.primary,
+    },
     pollQuestion: {
       fontSize: tokens.font.base,
       fontWeight: "700",
-      textAlign: "center",
-      marginBottom: 8,
+      marginBottom: 10,
+      lineHeight: 20,
     },
     pollQuestionMe: {
       color: "#FFFFFF",
@@ -555,37 +584,109 @@ const getStyles = (colors: any, tokens: any) =>
       color: colors.textPrimary,
     },
     pollOption: {
-      borderRadius: 20,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
       marginBottom: 6,
-      borderWidth: 1,
-      alignItems: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      overflow: "hidden",
+      position: "relative",
     },
     pollOptionMe: {
-      borderColor: "rgba(255,255,255,0.6)",
-      backgroundColor: "rgba(255,255,255,0.15)",
+      borderColor: "rgba(255,255,255,0.35)",
+      backgroundColor: "rgba(255,255,255,0.1)",
     },
     pollOptionOther: {
-      borderColor: colors.primary,
+      borderColor: colors.borderLight,
       backgroundColor: colors.surfaceDim,
+    },
+    pollOptionSelectedMe: {
+      borderColor: "rgba(255,255,255,0.8)",
+      backgroundColor: "rgba(255,255,255,0.18)",
+    },
+    pollOptionSelectedOther: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryTint ?? colors.surfaceDim,
+    },
+    pollProgressFill: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      bottom: 0,
+      borderRadius: 10,
+    },
+    pollProgressFillMe: {
+      backgroundColor: "rgba(255,255,255,0.12)",
+    },
+    pollProgressFillOther: {
+      backgroundColor: colors.borderLight,
+    },
+    pollProgressFillSelectedMe: {
+      backgroundColor: "rgba(255,255,255,0.22)",
+    },
+    pollProgressFillSelectedOther: {
+      backgroundColor: colors.primaryTint ?? colors.borderLight,
+    },
+    pollOptionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
     pollOptionText: {
       fontSize: tokens.font.sm,
-      fontWeight: "600",
+      fontWeight: "500",
+      flex: 1,
     },
     pollOptionTextMe: {
-      color: "#FFFFFF",
+      color: "rgba(255,255,255,0.9)",
     },
     pollOptionTextOther: {
-      color: colors.primary,
+      color: colors.textPrimary,
+    },
+    pollOptionTextSelected: {
+      fontWeight: "700",
+    },
+    pollOptionRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginLeft: 8,
+    },
+    pollPercent: {
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    pollPercentMe: {
+      color: "rgba(255,255,255,0.75)",
+    },
+    pollPercentOther: {
+      color: colors.textSecondary,
+    },
+    pollFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 4,
+    },
+    pollTotalText: {
+      fontSize: 10,
+      fontStyle: "italic",
+    },
+    pollTotalTextMe: {
+      color: "rgba(255,255,255,0.5)",
+    },
+    pollTotalTextOther: {
+      color: colors.textTertiary,
     },
     pollEndedText: {
-      fontSize: tokens.font.xs,
+      fontSize: 10,
+      fontWeight: "600",
+    },
+    pollEndedTextMe: {
+      color: "rgba(255,255,255,0.5)",
+    },
+    pollEndedTextOther: {
       color: colors.textTertiary,
-      textAlign: "center",
-      marginTop: 4,
-      fontStyle: "italic",
     },
 
     // File
@@ -671,16 +772,16 @@ const getStyles = (colors: any, tokens: any) =>
     reactionPill: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 14,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 16,
       backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.06,
-      shadowRadius: 1,
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
       elevation: 1,
       gap: 3,
     },
@@ -851,7 +952,7 @@ const MessageBubble = React.memo(
       if (!message.forwarded) return null;
       return (
         <Text style={[styles.forwardedLabel, isMe && styles.forwardedLabelMe]}>
-          ↗ Transferé
+          Transferé
         </Text>
       );
     }, [message.forwarded, isMe, styles]);
@@ -945,48 +1046,105 @@ const MessageBubble = React.memo(
     const renderPoll = useCallback(() => {
       if (!message.poll) return null;
       const poll = message.poll;
+      const totalVotes = poll.options.reduce((s, o) => s + o.voters.length, 0);
+      const myVoteIndex = poll.options.findIndex((o) => o.voters.includes(currentUserId));
+      const hasVoted = myVoteIndex !== -1;
+
       return (
-        <View style={{ minWidth: 180 }}>
-          <Text
-            style={[
-              styles.pollQuestion,
-              isMe ? styles.pollQuestionMe : styles.pollQuestionOther,
-            ]}
-          >
+        <View style={styles.pollContainer}>
+          {/* Header */}
+          <View style={styles.pollHeader}>
+            <Ionicons
+              name="stats-chart"
+              size={13}
+              color={isMe ? "rgba(255,255,255,0.7)" : colors.primary}
+            />
+            <Text style={[styles.pollLabel, isMe ? styles.pollLabelMe : styles.pollLabelOther]}>
+              Sondage
+            </Text>
+          </View>
+
+          {/* Question */}
+          <Text style={[styles.pollQuestion, isMe ? styles.pollQuestionMe : styles.pollQuestionOther]}>
             {poll.question}
           </Text>
+
+          {/* Options */}
           {poll.options.map((opt, idx) => {
-            const voteCount = opt.voters.length;
-            const handleVote = () => {
-              if (poll.isActive) onPollVote(message._id, poll, idx);
-            };
+            const count = opt.voters.length;
+            const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+            const isMyVote = myVoteIndex === idx;
+            const canVote = poll.isActive;
+
             return (
               <TouchableOpacity
                 key={idx}
-                onPress={handleVote}
-                activeOpacity={poll.isActive ? 0.7 : 1}
+                onPress={() => { if (canVote) onPollVote(message._id, poll, idx); }}
+                activeOpacity={canVote ? 0.7 : 1}
                 style={[
                   styles.pollOption,
                   isMe ? styles.pollOptionMe : styles.pollOptionOther,
+                  isMyVote && (isMe ? styles.pollOptionSelectedMe : styles.pollOptionSelectedOther),
                 ]}
               >
-                <Text
-                  style={[
-                    styles.pollOptionText,
-                    isMe ? styles.pollOptionTextMe : styles.pollOptionTextOther,
-                  ]}
-                >
-                  {opt.text} ({voteCount})
-                </Text>
+                {/* Progress bar fill behind the row */}
+                {hasVoted && (
+                  <View
+                    style={[
+                      styles.pollProgressFill,
+                      isMe ? styles.pollProgressFillMe : styles.pollProgressFillOther,
+                      isMyVote && (isMe ? styles.pollProgressFillSelectedMe : styles.pollProgressFillSelectedOther),
+                      { width: `${percent}%` },
+                    ]}
+                  />
+                )}
+
+                {/* Row content */}
+                <View style={styles.pollOptionRow}>
+                  <Text
+                    style={[
+                      styles.pollOptionText,
+                      isMe ? styles.pollOptionTextMe : styles.pollOptionTextOther,
+                      isMyVote && styles.pollOptionTextSelected,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {opt.text}
+                  </Text>
+                  <View style={styles.pollOptionRight}>
+                    {hasVoted && (
+                      <Text style={[styles.pollPercent, isMe ? styles.pollPercentMe : styles.pollPercentOther]}>
+                        {percent}%
+                      </Text>
+                    )}
+                    {isMyVote && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={isMe ? "#FFFFFF" : colors.primary}
+                      />
+                    )}
+                  </View>
+                </View>
               </TouchableOpacity>
             );
           })}
-          {!poll.isActive && (
-            <Text style={styles.pollEndedText}>Sondage terminé</Text>
-          )}
+
+          {/* Footer */}
+          <View style={styles.pollFooter}>
+            <Text style={[styles.pollTotalText, isMe ? styles.pollTotalTextMe : styles.pollTotalTextOther]}>
+              {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+              {hasVoted ? " · Appuyez pour changer ou annuler" : ""}
+            </Text>
+            {!poll.isActive && (
+              <Text style={[styles.pollEndedText, isMe ? styles.pollEndedTextMe : styles.pollEndedTextOther]}>
+                Terminé
+              </Text>
+            )}
+          </View>
         </View>
       );
-    }, [message.poll, message._id, isMe, styles, onPollVote]);
+    }, [message.poll, message._id, currentUserId, isMe, styles, colors, onPollVote]);
 
     const renderFile = useCallback(() => {
       if (!message.file) return null;

@@ -26,7 +26,6 @@ import {
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
-  Alert,
   Linking,
   ScrollView,
   Share,
@@ -37,6 +36,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { showToast } from "@/components/Toast";
+import { showActionSheet } from "@/components/ActionSheet";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "@/firebaseConfig";
 
@@ -195,63 +196,44 @@ export default function PaymentPage() {
       title: "Email de l'organisation",
     }).catch((error) => {
       console.error("Erreur lors du partage:", error);
-      Alert.alert("Email", `Veuillez copier cet email: ${transferEmail}`);
+      showToast(`Email: ${transferEmail}`, "info");
     });
   };
 
   // Ouvrir une application bancaire (app bancaire par défaut du système)
   const handleOpenBankingApp = () => {
-    Alert.alert(
-      "Effectuer un virement",
-      `Veuillez envoyer ${monthlyAmount}$ (ou ${annualAmount}$ pour l'année) à:\n\n${transferEmail}\n\nRéférence de virement: ${transferReference}`,
-      [
+    showActionSheet({
+      title: "Effectuer un virement",
+      message: `${monthlyAmount}$/mois ou ${annualAmount}$/an · Réf: ${transferReference}`,
+      actions: [
         {
-          text: "Copier l'email",
+          label: "Copier l'email de virement",
+          icon: "copy-outline",
           onPress: handleCopyEmail,
         },
         {
-          text: "Ouvrir app bancaire",
+          label: "Desjardins",
+          icon: "business-outline",
+          iconBg: "#006B3F",
           onPress: () => {
-            // Proposer les banques les plus populaires
-            Alert.alert(
-              "Choisir votre banque",
-              "Sélectionnez votre institution bancaire pour effectuer le virement:",
-              [
-                {
-                  text: "Desjardins",
-                  onPress: () => {
-                    Linking.openURL("https://www.desjardins.com/").catch(() => {
-                      Alert.alert(
-                        "Information",
-                        "Veuillez utiliser votre application bancaire Desjardins",
-                      );
-                    });
-                  },
-                },
-                {
-                  text: "RBC",
-                  onPress: () => {
-                    Linking.openURL("https://www.rbcbanqueroyale.com/").catch(
-                      () => {
-                        Alert.alert(
-                          "Information",
-                          "Veuillez utiliser votre application bancaire RBC",
-                        );
-                      },
-                    );
-                  },
-                },
-                {
-                  text: "Annuler",
-                  style: "cancel",
-                },
-              ],
-            );
+            Linking.openURL("https://www.desjardins.com/").catch(() => {
+              showToast("Veuillez utiliser votre application Desjardins", "info");
+            });
           },
         },
-        { text: "Annuler", style: "cancel" },
+        {
+          label: "RBC Banque Royale",
+          icon: "business-outline",
+          iconBg: "#003168",
+          onPress: () => {
+            Linking.openURL("https://www.rbcbanqueroyale.com/").catch(() => {
+              showToast("Veuillez utiliser votre application RBC", "info");
+            });
+          },
+        },
+        { label: "Annuler", style: "cancel", onPress: () => {} },
       ],
-    );
+    });
   };
 
   // Ouvrir Google Sheets historique
@@ -276,10 +258,10 @@ export default function PaymentPage() {
         lastModified: new Date().toISOString(),
       });
 
-      Alert.alert("Succès", "Montants mis à jour avec succès");
+      showToast("Montants mis à jour avec succès", "success");
     } catch (error) {
       console.error("Erreur lors de la sauvegarde:", error);
-      Alert.alert("Erreur", "Impossible de sauvegarder les modifications");
+      showToast("Impossible de sauvegarder les modifications", "error");
     }
   };
 

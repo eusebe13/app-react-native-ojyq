@@ -6,6 +6,7 @@ import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { showActionSheet } from "@/components/ActionSheet";
 import { showToast } from "@/components/Toast";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 import { Icon } from "@/components/ui/Icon";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -288,10 +289,11 @@ export default function ChatListScreen(): ReactElement {
 
       showActionSheet({
         title: "Gérer le canal",
-        message: `Que voulez-vous faire avec "${channel.name}" ?`,
+        message: `"${channel.name}"`,
         actions: [
           {
             label: "Modifier",
+            icon: "create-outline",
             style: "default",
             onPress: () => {
               setChannelName(channel.name);
@@ -314,25 +316,21 @@ export default function ChatListScreen(): ReactElement {
           },
           {
             label: "Supprimer",
+            icon: "trash-outline",
             style: "destructive",
             onPress: () => {
-              showActionSheet({
-                title: "Confirmer",
-                message: "Voulez-vous vraiment supprimer ce canal ?",
-                actions: [
-                  {
-                    label: "Supprimer",
-                    style: "destructive",
-                    onPress: async () => {
-                      try {
-                        await deleteDoc(doc(db, "channels", channel.id));
-                      } catch {
-                        showToast("Impossible de supprimer", "error");
-                      }
-                    },
-                  },
-                  { label: "Annuler", style: "cancel", onPress: () => {} },
-                ],
+              showConfirm({
+                title: "Supprimer le canal",
+                message: `Voulez-vous vraiment supprimer "${channel.name}" ?`,
+                confirmLabel: "Supprimer",
+                destructive: true,
+                onConfirm: async () => {
+                  try {
+                    await deleteDoc(doc(db, "channels", channel.id));
+                  } catch {
+                    showToast("Impossible de supprimer", "error");
+                  }
+                },
               });
             },
           },

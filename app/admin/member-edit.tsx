@@ -13,7 +13,6 @@ import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +22,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
+import { showToast } from "@/components/Toast";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "@/firebaseConfig";
@@ -111,10 +111,10 @@ export default function MemberEditScreen() {
         },
         { merge: true },
       );
-      Alert.alert("Succès", `${displayName} mis à jour avec succès`);
+      showToast(`${displayName} mis à jour avec succès`, "success");
       router.back();
     } catch {
-      Alert.alert("Erreur", "Impossible de mettre à jour ce membre");
+      showToast("Impossible de mettre à jour ce membre", "error");
     } finally {
       setSaving(false);
     }

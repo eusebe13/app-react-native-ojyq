@@ -140,6 +140,17 @@ export default function ChannelScreen() {
   const { colors, tokens } = useAppTheme();
   const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
 
+  // ── Channel color + initials (consistent with chat list) ─────────────────
+  const channelPalette = [colors.primary, colors.accent1, colors.accent2, colors.accent3, colors.accent4];
+  const channelColor = (() => {
+    const n = name ?? "Canal";
+    let h = 0;
+    for (const c of n) h = (h * 31 + c.charCodeAt(0)) % channelPalette.length;
+    return channelPalette[Math.abs(h)];
+  })();
+  const channelInitials = (name ?? "Canal")
+    .split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("");
+
   // ── Auth & user profile ───────────────────────────────────────────────────
   const auth = getAuth();
   const user = auth.currentUser;
@@ -719,18 +730,24 @@ export default function ChannelScreen() {
   const handlePollVote = useCallback(
     async (messageId: string, poll: PollData, optionIndex: number) => {
       if (!id) return;
-      const hasVoted = poll.options.some((o) =>
-        o.voters.includes(currentUser._id),
-      );
-      if (hasVoted) {
-        showToast("Vous avez déjà voté.", "info");
-        return;
+      const uid = currentUser._id;
+      const previousIndex = poll.options.findIndex((o) => o.voters.includes(uid));
+      let updated: typeof poll.options;
+      if (previousIndex === optionIndex) {
+        // Same option tapped → cancel vote
+        updated = poll.options.map((o, i) =>
+          i === optionIndex
+            ? { ...o, voters: o.voters.filter((v) => v !== uid) }
+            : o,
+        );
+      } else {
+        // Different option (or first vote) → move / add vote
+        updated = poll.options.map((o, i) => {
+          if (i === previousIndex) return { ...o, voters: o.voters.filter((v) => v !== uid) };
+          if (i === optionIndex) return { ...o, voters: [...o.voters, uid] };
+          return o;
+        });
       }
-      const updated = poll.options.map((o, i) =>
-        i === optionIndex
-          ? { ...o, voters: [...o.voters, currentUser._id] }
-          : o,
-      );
       await updateDoc(doc(db, "channels", id, "messages", messageId), {
         poll: { ...poll, options: updated },
       });
@@ -903,7 +920,7 @@ export default function ChannelScreen() {
   return (
     <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: colors.surfaceDim }]}>
       {/* Custom header */}
-      <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -911,9 +928,24 @@ export default function ChannelScreen() {
         >
           <Ionicons name="chevron-back" size={26} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-          {name ?? "Canal"}
-        </Text>
+
+        {/* Center: avatar + name + subtitle */}
+        <View style={styles.headerCenter}>
+          <View style={[styles.headerAvatar, { backgroundColor: channelColor + "22" }]}>
+            <Text style={[styles.headerAvatarText, { color: channelColor }]}>
+              {channelInitials}
+            </Text>
+          </View>
+          <View style={styles.headerTitleGroup}>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+              {name ?? "Canal"}
+            </Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
+              Canal de discussion
+            </Text>
+          </View>
+        </View>
+
         <TouchableOpacity
           onPress={() => setSearchActive((v) => !v)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -922,7 +954,7 @@ export default function ChannelScreen() {
           <Ionicons
             name={searchActive ? "close" : "search-outline"}
             size={22}
-            color={searchActive ? colors.primary : colors.textPrimary}
+            color={searchActive ? colors.primary : colors.textSecondary}
           />
         </TouchableOpacity>
       </View>
@@ -1181,18 +1213,50 @@ const getStyles = (colors: any, tokens: any) =>
     customHeader: {
       flexDirection: "row",
       alignItems: "center",
-      height: 52,
+      height: 62,
       borderBottomWidth: StyleSheet.hairlineWidth,
       paddingHorizontal: 4,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 4,
+      elevation: 2,
     },
     headerBack: {
       padding: 8,
+      marginRight: 2,
+    },
+    headerCenter: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginRight: 4,
+    },
+    headerAvatar: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    headerAvatarText: {
+      fontSize: 14,
+      fontWeight: "800",
+      letterSpacing: 0.5,
+    },
+    headerTitleGroup: {
+      flex: 1,
     },
     headerTitle: {
-      flex: 1,
-      fontSize: 17,
+      fontSize: 16,
       fontWeight: "700",
-      marginHorizontal: 4,
+      letterSpacing: -0.2,
+    },
+    headerSubtitle: {
+      fontSize: 11,
+      marginTop: 1,
     },
     headerAction: {
       padding: 10,

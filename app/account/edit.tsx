@@ -15,7 +15,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +24,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { showToast } from "@/components/Toast";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { useProfile } from "@/hooks/use-profile";
 import { Language, UserProfile } from "@/types";
@@ -183,12 +183,12 @@ export default function EditProfile() {
     });
 
     if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
-      Alert.alert("Erreur", "Le nom et prénom sont requis");
+      showToast("Le nom et prénom sont requis", "error");
       return;
     }
 
     if (Object.keys(errors).length > 0) {
-      Alert.alert("Erreur", "Veuillez corriger les erreurs");
+      showToast("Veuillez corriger les erreurs", "error");
       return;
     }
 
@@ -203,10 +203,10 @@ export default function EditProfile() {
         languages: selectedLanguages,
         birthDate,
       });
-      Alert.alert("Succès", "Profil mis à jour avec succès");
+      showToast("Profil mis à jour avec succès", "success");
       router.back();
     } catch {
-      Alert.alert("Erreur", "Impossible de sauvegarder le profil");
+      showToast("Impossible de sauvegarder le profil", "error");
     }
   };
 

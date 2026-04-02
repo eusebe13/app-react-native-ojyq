@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { useAppTheme } from "@/contexts/ThemeContext";
 
 // ---------------------------------------------------------------------------
@@ -8,16 +8,6 @@ import { useAppTheme } from "@/contexts/ThemeContext";
 
 interface TypingIndicatorProps {
   typingNames: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function buildLabel(names: string[]): string {
-  if (names.length === 1) return `${names[0]} est en train d'écrire...`;
-  if (names.length === 2) return `${names[0]} et ${names[1]} écrivent...`;
-  return "Plusieurs personnes écrivent...";
 }
 
 // ---------------------------------------------------------------------------
@@ -88,17 +78,12 @@ const TypingIndicator = React.memo(function TypingIndicator({
 
   return (
     <View style={styles.wrapper}>
-      {/* Bubble */}
+      {/* Bubble only — no text label (Instagram style) */}
       <View style={[styles.bubble, { backgroundColor: colors.surface }]}>
         <Animated.View style={dotStyle(dot1)} />
         <Animated.View style={dotStyle(dot2)} />
         <Animated.View style={dotStyle(dot3)} />
       </View>
-
-      {/* Label */}
-      <Text style={[styles.label, { color: colors.textSecondary }]}>
-        {buildLabel(typingNames)}
-      </Text>
     </View>
   );
 });
@@ -119,12 +104,13 @@ const getStyles = (colors: any, tokens: any) =>
     bubble: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 5,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderRadius: 18,
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      borderRadius: 20,
       borderBottomLeftRadius: 4,
-      // subtle shadow
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
       shadowColor: "#000",
       shadowOpacity: 0.06,
       shadowRadius: 4,
@@ -132,13 +118,8 @@ const getStyles = (colors: any, tokens: any) =>
       elevation: 2,
     },
     dot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-    },
-    label: {
-      marginTop: 4,
-      fontSize: tokens.font.xs ?? 10,
-      marginLeft: 4,
+      width: 9,
+      height: 9,
+      borderRadius: 4.5,
     },
   });

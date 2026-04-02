@@ -668,17 +668,22 @@ function getStyles(colors: any, tokens: any) {
       flex: 1,
     },
     actionPanelBtnCircle: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
+      width: 54,
+      height: 54,
+      borderRadius: 27,
       backgroundColor: colors.primaryTint,
       alignItems: "center",
       justifyContent: "center",
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 4,
+      elevation: 2,
     },
     actionPanelBtnLabel: {
       fontSize: 11,
       color: colors.textSecondary,
-      fontWeight: "500",
+      fontWeight: "600",
       textAlign: "center",
     },
 
@@ -725,24 +730,28 @@ function getStyles(colors: any, tokens: any) {
     inputRow: {
       flexDirection: "row",
       alignItems: "flex-end",
-      paddingHorizontal: tokens.space.sm,
-      paddingVertical: tokens.space.sm,
-      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      gap: 8,
     },
 
     // -------------------------------------------------------------------------
     // Buttons
     // -------------------------------------------------------------------------
     circleButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
     sendButton: {
-      // backgroundColor set inline via colors.primary
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.35,
+      shadowRadius: 6,
+      elevation: 4,
     },
     iconButton: {
       width: 38,
@@ -756,14 +765,16 @@ function getStyles(colors: any, tokens: any) {
     // -------------------------------------------------------------------------
     textInput: {
       flex: 1,
-      borderRadius: 22,
+      borderRadius: 24,
       backgroundColor: colors.surfaceDim,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
       color: colors.textPrimary,
       fontSize: tokens.font.md,
       paddingHorizontal: 16,
       paddingTop: Platform.OS === "ios" ? 10 : 9,
       paddingBottom: Platform.OS === "ios" ? 10 : 9,
-      minHeight: 38,
+      minHeight: 40,
       lineHeight: 20,
       ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
     },
