@@ -1,4 +1,5 @@
 import { showToast } from "@/components/Toast";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 /**
  * TaskSection — Task management section for the home screen.
  *
@@ -30,7 +31,6 @@ import {
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -348,14 +348,13 @@ export const TaskSection = () => {
           expireAt: Timestamp.fromDate(expireAt),
         }).catch(() => showToast("Impossible de supprimer la tâche", "error"));
       };
-      if (Platform.OS === "web") {
-        if (window.confirm(`Supprimer "${task.title}" ?`)) doDelete();
-      } else {
-        Alert.alert("Supprimer la tâche", `Supprimer "${task.title}" ?`, [
-          { text: "Annuler", style: "cancel" },
-          { text: "Supprimer", style: "destructive", onPress: doDelete },
-        ]);
-      }
+      showConfirm({
+        title: "Supprimer la tâche",
+        message: `Supprimer "${task.title}" ?`,
+        confirmLabel: "Supprimer",
+        destructive: true,
+        onConfirm: doDelete,
+      });
     },
     [canManage],
   );

@@ -6,6 +6,7 @@ import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { showActionSheet } from "@/components/ActionSheet";
 import { showToast } from "@/components/Toast";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 import { Icon } from "@/components/ui/Icon";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -23,13 +24,14 @@ import {
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
-import React, { ReactElement, useCallback, useEffect, useState } from "react";
+import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -287,10 +289,11 @@ export default function ChatListScreen(): ReactElement {
 
       showActionSheet({
         title: "Gérer le canal",
-        message: `Que voulez-vous faire avec "${channel.name}" ?`,
+        message: `"${channel.name}"`,
         actions: [
           {
             label: "Modifier",
+            icon: "create-outline",
             style: "default",
             onPress: () => {
               setChannelName(channel.name);
@@ -313,25 +316,21 @@ export default function ChatListScreen(): ReactElement {
           },
           {
             label: "Supprimer",
+            icon: "trash-outline",
             style: "destructive",
             onPress: () => {
-              showActionSheet({
-                title: "Confirmer",
-                message: "Voulez-vous vraiment supprimer ce canal ?",
-                actions: [
-                  {
-                    label: "Supprimer",
-                    style: "destructive",
-                    onPress: async () => {
-                      try {
-                        await deleteDoc(doc(db, "channels", channel.id));
-                      } catch {
-                        showToast("Impossible de supprimer", "error");
-                      }
-                    },
-                  },
-                  { label: "Annuler", style: "cancel", onPress: () => {} },
-                ],
+              showConfirm({
+                title: "Supprimer le canal",
+                message: `Voulez-vous vraiment supprimer "${channel.name}" ?`,
+                confirmLabel: "Supprimer",
+                destructive: true,
+                onConfirm: async () => {
+                  try {
+                    await deleteDoc(doc(db, "channels", channel.id));
+                  } catch {
+                    showToast("Impossible de supprimer", "error");
+                  }
+                },
               });
             },
           },
@@ -402,6 +401,20 @@ export default function ChatListScreen(): ReactElement {
 
   const styles = getStyles(colors, tokens);
 
+  // ── Swipe-down to dismiss modal ───────────────────────────────────────────
+  const dragY = useRef(0);
+  const modalPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 5,
+      onPanResponderMove: (_, g) => { dragY.current = g.dy; },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 80) closeModal();
+        dragY.current = 0;
+      },
+    })
+  ).current;
+
   // ── Rendu d'un canal ──────────────────────────────────────────────────────
   const renderChannel = useCallback(
     ({ item }: { item: any }) => {
@@ -448,21 +461,27 @@ export default function ChatListScreen(): ReactElement {
             style={[styles.channelRow, { flex: 1 }]}
             onPress={() => navigateToChannel(item)}
             onLongPress={() => handleLongPress(item)}
-            activeOpacity={0.8}
+            activeOpacity={0.82}
           >
-            {/* Avatar */}
-            {item.image ? (
-              <Image
-                source={{ uri: item.image }}
-                style={styles.channelAvatarImg}
-              />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: chColor + "1a" }]}>
-                <Text style={[styles.avatarText, { color: chColor }]}>
-                  {initials}
-                </Text>
-              </View>
-            )}
+            {/* Avatar with unread ring (Instagram Stories style) */}
+            <View style={[
+              styles.avatarRingWrap,
+              hasUnread && { borderColor: chColor, borderWidth: 2.5 },
+              !hasUnread && { borderColor: "transparent", borderWidth: 2.5 },
+            ]}>
+              {item.image ? (
+                <Image
+                  source={{ uri: item.image }}
+                  style={styles.channelAvatarImg}
+                />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: chColor + "22" }]}>
+                  <Text style={[styles.avatarText, { color: chColor }]}>
+                    {initials}
+                  </Text>
+                </View>
+              )}
+            </View>
 
             {/* Content */}
             <View style={styles.channelBody}>
@@ -471,7 +490,7 @@ export default function ChatListScreen(): ReactElement {
                   {item.isPinned && (
                     <Ionicons
                       name="pin"
-                      size={12}
+                      size={11}
                       color={colors.primary}
                       style={{ marginRight: 4 }}
                     />
@@ -480,7 +499,7 @@ export default function ChatListScreen(): ReactElement {
                     style={[
                       styles.channelName,
                       {
-                        fontWeight: hasUnread ? "700" : "600",
+                        fontWeight: hasUnread ? "700" : "500",
                         color: hasUnread
                           ? colors.textPrimary
                           : colors.textSecondary,
@@ -492,15 +511,15 @@ export default function ChatListScreen(): ReactElement {
                   </Text>
                   {AudienceIcon}
                 </View>
-                <Text style={styles.channelTime}>{time}</Text>
+                <Text style={[styles.channelTime, hasUnread && { color: chColor, fontWeight: "600" }]}>{time}</Text>
               </View>
 
               <Text
                 style={[
                   styles.lastMessage,
                   {
-                    fontWeight: hasUnread ? "600" : "400",
-                    color: hasUnread ? colors.textPrimary : colors.textSecondary,
+                    fontWeight: hasUnread ? "500" : "400",
+                    color: hasUnread ? colors.textPrimary : colors.textTertiary,
                   },
                 ]}
                 numberOfLines={1}
@@ -509,23 +528,25 @@ export default function ChatListScreen(): ReactElement {
               </Text>
             </View>
 
-            {/* Right: unread badge or chevron (native only) */}
-            {!Platform.OS.startsWith("web") && (hasUnread ? (
+            {/* Right: unread dot badge or nothing */}
+            {hasUnread ? (
               <View style={[styles.badge, { backgroundColor: chColor }]}>
                 <Text style={styles.badgeText}>
                   {item.unreadCount! > 99 ? "99+" : item.unreadCount}
                 </Text>
               </View>
             ) : (
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={colors.borderLight}
-              />
-            ))}
+              !Platform.OS.startsWith("web") && (
+                <Ionicons
+                  name="chevron-forward"
+                  size={15}
+                  color={colors.borderLight}
+                />
+              )
+            )}
           </TouchableOpacity>
 
-          {/* Web: ⋮ button as sibling — no event bubbling issue */}
+          {/* Web: ⋮ button as sibling */}
           {Platform.OS === "web" && (
             <TouchableOpacity
               onPress={() => handleLongPress(item)}
@@ -599,10 +620,7 @@ export default function ChatListScreen(): ReactElement {
         >
           {/* Section header */}
           <View style={styles.sectionHead}>
-            <View style={styles.sectionIconWrap}>
-              <Icon name="chat-outline" size={15} color={colors.primary} />
-            </View>
-            <Text style={styles.sectionTitle}>Canaux disponibles</Text>
+            <Text style={styles.sectionTitle}>Canaux</Text>
             <Text style={styles.sectionCount}>{filteredChannels.length}</Text>
           </View>
 
@@ -630,7 +648,7 @@ export default function ChatListScreen(): ReactElement {
                     <View
                       style={[
                         styles.rowDivider,
-                        { marginLeft: tokens.space.md + 50 + tokens.space.md },
+                        { marginLeft: tokens.space.lg + 58 + tokens.space.md },
                       ]}
                     />
                   )}
@@ -672,8 +690,12 @@ export default function ChatListScreen(): ReactElement {
           style={styles.modalOverlay}
         >
           <View style={styles.modalSheet}>
+            {/* Drag handle — swipe down to dismiss */}
+            <View style={styles.modalHandleArea} {...modalPanResponder.panHandlers}>
+              <View style={styles.modalHandle} />
+            </View>
             <Text style={styles.modalTitle}>
-              {editingId ? "Modifier" : "Nouveau Canal"}
+              {editingId ? "Modifier le canal" : "Nouveau Canal"}
             </Text>
 
             {/* Sélecteur d'image */}
@@ -917,16 +939,21 @@ const getStyles = (colors: any, tokens: any) =>
     searchBar: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 11,
-      borderRadius: tokens.radius.lg,
+      borderRadius: tokens.radius.pill,
       backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 4,
+      elevation: 1,
     },
     searchInput: {
       flex: 1,
-      fontSize: tokens.font.md,
+      fontSize: tokens.font.base,
       color: colors.textPrimary,
     },
 
@@ -943,12 +970,13 @@ const getStyles = (colors: any, tokens: any) =>
       flexDirection: "row",
       alignItems: "center",
       gap: tokens.space.sm,
-      marginBottom: tokens.space.md,
-      marginTop: tokens.space.sm,
+      marginBottom: tokens.space.sm,
+      marginTop: tokens.space.xs,
+      paddingHorizontal: 2,
     },
     sectionIconWrap: {
-      width: 30,
-      height: 30,
+      width: 28,
+      height: 28,
       borderRadius: tokens.radius.sm,
       backgroundColor: colors.primaryTint,
       alignItems: "center",
@@ -956,21 +984,19 @@ const getStyles = (colors: any, tokens: any) =>
     },
     sectionTitle: {
       flex: 1,
-      fontSize: tokens.font.lg,
-      fontWeight: "700",
-      color: colors.textPrimary,
-      letterSpacing: -0.2,
+      fontSize: tokens.font.base,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      letterSpacing: 0.1,
     },
     sectionCount: {
-      fontSize: tokens.font.sm,
-      fontWeight: "600",
-      color: colors.textTertiary,
-      backgroundColor: colors.surfaceDim,
+      fontSize: tokens.font.xs,
+      fontWeight: "700",
+      color: colors.primary,
+      backgroundColor: colors.primaryTint,
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: tokens.radius.pill,
-      borderWidth: 1,
-      borderColor: colors.border,
     },
 
     // ── Channel list card ─────────────────────────────────────────────────────
@@ -984,20 +1010,29 @@ const getStyles = (colors: any, tokens: any) =>
     channelRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: tokens.space.md,
-      paddingVertical: tokens.space.md,
+      paddingHorizontal: tokens.space.lg,
+      paddingVertical: 12,
       gap: tokens.space.md,
-      minHeight: 66,
+      minHeight: 72,
     },
-    avatar: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
+    // Instagram-style story ring wrapper
+    avatarRingWrap: {
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      padding: 2,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
-    avatarText: { fontWeight: "800", fontSize: tokens.font.base },
+    avatar: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarText: { fontWeight: "700", fontSize: tokens.font.md },
     channelBody: { flex: 1, minWidth: 0 },
     channelTop: {
       flexDirection: "row",
@@ -1019,7 +1054,7 @@ const getStyles = (colors: any, tokens: any) =>
     },
     lastMessage: { fontSize: tokens.font.sm },
     badge: {
-      borderRadius: 10,
+      borderRadius: 12,
       minWidth: 22,
       height: 22,
       alignItems: "center",
@@ -1029,20 +1064,21 @@ const getStyles = (colors: any, tokens: any) =>
     },
     badgeText: {
       color: "#FFFFFF",
-      fontWeight: "700",
-      fontSize: tokens.font.xs,
+      fontWeight: "800",
+      fontSize: 11,
+      letterSpacing: -0.2,
     },
 
     // ── Empty state ───────────────────────────────────────────────────────────
     emptyState: {
       alignItems: "center",
-      paddingVertical: tokens.space.xxxl,
+      paddingVertical: 48,
       gap: tokens.space.sm,
     },
     emptyIconWrap: {
-      width: 64,
-      height: 64,
-      borderRadius: tokens.radius.xl,
+      width: 72,
+      height: 72,
+      borderRadius: 36,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -1062,22 +1098,37 @@ const getStyles = (colors: any, tokens: any) =>
 
     modalOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
+      backgroundColor: "rgba(0,0,0,0.55)",
       justifyContent: "flex-end",
     },
     modalSheet: {
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 24,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingTop: 12,
+      paddingHorizontal: 24,
+      paddingBottom: 32,
       backgroundColor: colors.surface,
       maxHeight: "90%",
+    },
+    modalHandleArea: {
+      width: "100%",
+      alignItems: "center",
+      paddingVertical: 10,
+      marginBottom: 8,
+    },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
     },
     modalTitle: {
       fontWeight: "800",
       textAlign: "center",
       marginBottom: 20,
-      fontSize: tokens.font.lg,
+      fontSize: tokens.font.xl,
       color: colors.textPrimary,
+      letterSpacing: -0.3,
     },
     label: {
       fontWeight: "600",
@@ -1088,10 +1139,11 @@ const getStyles = (colors: any, tokens: any) =>
       color: colors.textSecondary,
     },
     input: {
-      borderWidth: 1,
-      borderRadius: tokens.radius.md,
-      padding: 14,
-      marginBottom: 15,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: tokens.radius.lg,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      marginBottom: 12,
       fontSize: tokens.font.md,
       backgroundColor: colors.surfaceDim,
       borderColor: colors.border,
@@ -1101,17 +1153,17 @@ const getStyles = (colors: any, tokens: any) =>
     audienceTabs: {
       flexDirection: "row",
       backgroundColor: colors.surfaceDim,
-      borderRadius: 8,
-      padding: 4,
-      marginBottom: 10,
+      borderRadius: tokens.radius.lg,
+      padding: 3,
+      marginBottom: 12,
     },
     tabBtn: {
       flex: 1,
-      paddingVertical: 8,
+      paddingVertical: 9,
       alignItems: "center",
-      borderRadius: 6,
+      borderRadius: tokens.radius.md,
     },
-    tabText: { fontWeight: "600", color: colors.textSecondary },
+    tabText: { fontWeight: "600", fontSize: tokens.font.sm, color: colors.textSecondary },
     audienceContent: { minHeight: 60, marginBottom: 15 },
     checkRow: {
       flexDirection: "row",
@@ -1121,27 +1173,32 @@ const getStyles = (colors: any, tokens: any) =>
       borderBottomColor: colors.border,
     },
 
-    modalButtons: { flexDirection: "row", marginTop: 10 },
+    modalButtons: { flexDirection: "row", marginTop: 16, gap: 10 },
     cancelBtn: {
       flex: 1,
-      padding: 14,
-      borderRadius: tokens.radius.md,
+      paddingVertical: 15,
+      borderRadius: tokens.radius.lg,
       borderWidth: 1.5,
       alignItems: "center",
-      marginRight: tokens.space.md,
-      borderColor: colors.accent6,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceDim,
     },
     cancelBtnText: {
-      color: colors.accent6,
+      color: colors.textSecondary,
       fontWeight: "600",
       fontSize: tokens.font.md,
     },
     saveBtn: {
       flex: 1,
-      padding: 14,
-      borderRadius: tokens.radius.md,
+      paddingVertical: 15,
+      borderRadius: tokens.radius.lg,
       alignItems: "center",
       backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
     },
     saveBtnText: {
       color: "#FFFFFF",
@@ -1149,10 +1206,9 @@ const getStyles = (colors: any, tokens: any) =>
       fontSize: tokens.font.md,
     },
     channelAvatarImg: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
-      marginRight: 14,
+      width: 50,
+      height: 50,
+      borderRadius: 25,
     },
     imagePickerBtn: {
       width: 80,

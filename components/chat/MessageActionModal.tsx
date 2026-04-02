@@ -1,5 +1,26 @@
+/**
+ * MessageActionModal — iOS/Instagram-style context menu
+ *
+ * Layout (bottom-anchored):
+ *   ┌───────────────────────────────┐
+ *   │  [😍][👍][😂][😮][😢][🔥][•••] │  ← floating reaction pill row
+ *   ├───────────────────────────────┤
+ *   │  [icon]  Action label         │  ← action card (colored icon squares)
+ *   │  ─────────────────────────── │
+ *   │  [icon]  Action label         │
+ *   ├───────────────────────────────┤
+ *   │            Annuler            │  ← separate cancel card
+ *   └───────────────────────────────┘
+ */
+
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   Modal,
@@ -36,110 +57,150 @@ interface MessageActionModalProps {
 const QUICK_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "🔥", "👏", "🙏"] as const;
 const DESTRUCTIVE_COLOR = "#EF4444";
 
+// Colored icon backgrounds per action id
+const ACTION_ICON_MAP: Record<string, { bg: string; color: string }> = {
+  copy:    { bg: "#3B82F6",  color: "#FFFFFF" },
+  reply:   { bg: "#6366F1",  color: "#FFFFFF" },
+  edit:    { bg: "#F59E0B",  color: "#FFFFFF" },
+  forward: { bg: "#06B6D4",  color: "#FFFFFF" },
+  save:    { bg: "#10B981",  color: "#FFFFFF" },
+  delete:  { bg: DESTRUCTIVE_COLOR, color: "#FFFFFF" },
+};
+
+function getActionColors(id: string, isDestructive: boolean, primaryColor: string) {
+  if (isDestructive) return { bg: DESTRUCTIVE_COLOR, color: "#FFFFFF" };
+  return ACTION_ICON_MAP[id] ?? { bg: primaryColor, color: "#FFFFFF" };
+}
+
 // ─── Styles factory ───────────────────────────────────────────────────────────
 
 const getStyles = (colors: any, tokens: any) =>
   StyleSheet.create({
-    // Backdrop
+    // Full-screen backdrop
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "center",
-      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "flex-end",
     },
 
-    // Card
-    card: {
-      width: "100%",
-      maxWidth: 300,
-      marginHorizontal: 24,
-      borderRadius: 20,
+    // Everything sits inside this bottom container
+    bottomContainer: {
+      paddingHorizontal: 12,
+      paddingBottom: Platform.OS === "ios" ? 32 : 20,
+      gap: 10,
+    },
+
+    // ── Reaction pill row ─────────────────────────────────────────────────────
+    reactionCard: {
       backgroundColor: colors.surface,
-      overflow: "hidden",
-      // Android
-      elevation: 24,
-      // iOS / web
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.2,
-      shadowRadius: 20,
-    },
-
-    // Quick reactions bar
-    reactionsContainer: {
-      paddingHorizontal: 10,
-      paddingVertical: 12,
-    },
-    reactionsRow: {
+      borderRadius: 50,
+      paddingHorizontal: 6,
+      paddingVertical: 6,
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
+      alignSelf: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 8,
     },
     emojiButton: {
-      width: 44,
-      height: 44,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    emojiCircle: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.surfaceDim,
+      width: 46,
+      height: 46,
       justifyContent: "center",
       alignItems: "center",
     },
     emojiText: {
-      fontSize: 18,
-      lineHeight: Platform.OS === "android" ? 22 : undefined,
+      fontSize: 22,
+      lineHeight: Platform.OS === "android" ? 26 : undefined,
+    },
+    moreCircle: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.surfaceDim,
+      justifyContent: "center",
+      alignItems: "center",
+      marginHorizontal: 3,
     },
     moreButtonText: {
-      fontSize: 13,
-      fontWeight: "700",
+      fontSize: 12,
+      fontWeight: "800",
       color: colors.textSecondary,
       letterSpacing: 1,
     },
 
-    // Separators
-    separator: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginHorizontal: 0,
+    // ── Action card ───────────────────────────────────────────────────────────
+    actionCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 8,
     },
 
-    // Action rows
+    // Action row
     actionRow: {
       flexDirection: "row",
       alignItems: "center",
-      height: 52,
-      paddingHorizontal: 0,
+      height: 58,
+      paddingHorizontal: 16,
+      gap: 14,
     },
     actionRowPressed: {
       backgroundColor: colors.surfaceDim,
     },
-    actionIconArea: {
-      width: 44,
+    actionIconSquare: {
+      width: 34,
+      height: 34,
+      borderRadius: 9,
       justifyContent: "center",
       alignItems: "center",
+      flexShrink: 0,
     },
     actionLabel: {
       flex: 1,
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: "500",
+      letterSpacing: -0.1,
     },
 
-    // Cancel button
-    cancelSeparator: {
+    // Separator
+    separator: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderLight,
+      marginLeft: 16 + 34 + 14, // indent past icon
+    },
+
+    // Destructive group separator (full-width, slightly more visible)
+    destructiveSeparator: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.border,
+      marginLeft: 0,
+    },
+
+    // ── Cancel card ───────────────────────────────────────────────────────────
+    cancelCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 4,
     },
     cancelButton: {
-      height: 52,
+      height: 58,
       justifyContent: "center",
       alignItems: "center",
     },
     cancelLabel: {
-      fontSize: 16,
+      fontSize: 17,
       fontWeight: "600",
       color: colors.textSecondary,
     },
@@ -159,20 +220,18 @@ const EmojiButton = React.memo(({ emoji, onPress, styles }: EmojiButtonProps) =>
   const handlePress = useCallback(() => {
     Animated.sequence([
       Animated.spring(scaleAnim, {
-        toValue: 1.3,
-        tension: 300,
-        friction: 10,
+        toValue: 1.35,
+        tension: 320,
+        friction: 8,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        tension: 300,
+        tension: 320,
         friction: 12,
         useNativeDriver: true,
       }),
-    ]).start(() => {
-      onPress(emoji);
-    });
+    ]).start(() => onPress(emoji));
   }, [emoji, onPress, scaleAnim]);
 
   return (
@@ -182,58 +241,77 @@ const EmojiButton = React.memo(({ emoji, onPress, styles }: EmojiButtonProps) =>
       activeOpacity={0.7}
       hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
     >
-      <Animated.View style={[styles.emojiCircle, { transform: [{ scale: scaleAnim }] }]}>
-        <Text style={styles.emojiText}>{emoji}</Text>
-      </Animated.View>
+      <Animated.Text style={[styles.emojiText, { transform: [{ scale: scaleAnim }] }]}>
+        {emoji}
+      </Animated.Text>
     </TouchableOpacity>
   );
 });
-
 EmojiButton.displayName = "EmojiButton";
 
 // ─── ActionRow sub-component ──────────────────────────────────────────────────
 
-interface ActionRowProps {
+interface ActionRowItemProps {
   action: MessageAction;
   isLast: boolean;
+  isDestructive: boolean;
+  isFirstDestructive: boolean;
   onPress: (action: MessageAction) => void;
   colors: any;
   styles: ReturnType<typeof getStyles>;
 }
 
-const ActionRow = React.memo(({ action, isLast, onPress, colors, styles }: ActionRowProps) => {
-  const isDestructive = action.style === "destructive";
-  const iconColor = isDestructive ? DESTRUCTIVE_COLOR : colors.textPrimary;
-  const labelColor = isDestructive ? DESTRUCTIVE_COLOR : colors.textPrimary;
-  const [pressed, setPressed] = useState(false);
+const ActionRowItem = React.memo(
+  ({
+    action,
+    isLast,
+    isDestructive,
+    isFirstDestructive,
+    onPress,
+    colors,
+    styles,
+  }: ActionRowItemProps) => {
+    const [pressed, setPressed] = useState(false);
+    const { bg: iconBg, color: iconColor } = getActionColors(
+      action.id,
+      isDestructive,
+      colors.primary,
+    );
+    const labelColor = isDestructive ? DESTRUCTIVE_COLOR : colors.textPrimary;
 
-  const handlePress = useCallback(() => {
-    onPress(action);
-  }, [action, onPress]);
+    const handlePress = useCallback(() => onPress(action), [action, onPress]);
 
-  return (
-    <>
-      <TouchableOpacity
-        style={[
-          styles.actionRow,
-          pressed && styles.actionRowPressed,
-        ]}
-        onPress={handlePress}
-        onPressIn={() => setPressed(true)}
-        onPressOut={() => setPressed(false)}
-        activeOpacity={1}
-      >
-        <View style={styles.actionIconArea}>
-          <Ionicons name={action.icon as any} size={20} color={iconColor} />
-        </View>
-        <Text style={[styles.actionLabel, { color: labelColor }]}>{action.label}</Text>
-      </TouchableOpacity>
-      {!isLast && <View style={styles.separator} />}
-    </>
-  );
-});
+    return (
+      <>
+        {/* Show a full-width separator before the first destructive action */}
+        {isFirstDestructive && <View style={styles.destructiveSeparator} />}
 
-ActionRow.displayName = "ActionRow";
+        <TouchableOpacity
+          style={[styles.actionRow, pressed && styles.actionRowPressed]}
+          onPress={handlePress}
+          onPressIn={() => setPressed(true)}
+          onPressOut={() => setPressed(false)}
+          activeOpacity={1}
+        >
+          <View style={[styles.actionIconSquare, { backgroundColor: iconBg }]}>
+            <Ionicons name={action.icon as any} size={17} color={iconColor} />
+          </View>
+          <Text style={[styles.actionLabel, { color: labelColor }]}>
+            {action.label}
+          </Text>
+          {!isDestructive && (
+            <Ionicons name="chevron-forward" size={16} color={colors.borderLight} />
+          )}
+        </TouchableOpacity>
+
+        {!isLast && !isDestructive && (
+          <View style={styles.separator} />
+        )}
+      </>
+    );
+  },
+);
+ActionRowItem.displayName = "ActionRowItem";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -248,52 +326,53 @@ const MessageActionModal = React.memo(
     const { colors, tokens } = useAppTheme();
     const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
 
-    // Internal visibility state so the modal stays mounted during exit animation
     const [modalVisible, setModalVisible] = useState(visible);
 
-    // Single progress value: 0 = hidden, 1 = shown
-    const progress = useRef(new Animated.Value(0)).current;
-
-    // Derived animated values
-    const opacity = progress;
-    const scale = useMemo(
-      () =>
-        progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.85, 1],
-          extrapolate: "clamp",
-        }),
-      [progress]
-    );
+    // Slide-up + fade animation
+    const translateY = useRef(new Animated.Value(60)).current;
+    const opacity = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
       if (visible) {
         setModalVisible(true);
-        Animated.spring(progress, {
-          toValue: 1,
-          tension: 280,
-          friction: 22,
-          useNativeDriver: true,
-        }).start();
+        Animated.parallel([
+          Animated.spring(translateY, {
+            toValue: 0,
+            tension: 260,
+            friction: 24,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 180,
+            useNativeDriver: true,
+          }),
+        ]).start();
       } else {
-        Animated.timing(progress, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }).start(() => {
+        Animated.parallel([
+          Animated.timing(translateY, {
+            toValue: 40,
+            duration: 160,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 160,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
           setModalVisible(false);
+          translateY.setValue(60);
         });
       }
-    }, [visible, progress]);
-
-    // ── Handlers ──
+    }, [visible, translateY, opacity]);
 
     const handleReaction = useCallback(
       (emoji: string) => {
         onReaction(emoji);
         onClose();
       },
-      [onReaction, onClose]
+      [onReaction, onClose],
     );
 
     const handleOpenFullPicker = useCallback(() => {
@@ -306,14 +385,13 @@ const MessageActionModal = React.memo(
         action.onPress();
         onClose();
       },
-      [onClose]
+      [onClose],
     );
 
-    const handleBackdropPress = useCallback(() => {
-      onClose();
-    }, [onClose]);
-
-    // ── Render ──
+    // Split actions: default vs destructive
+    const defaultActions = actions.filter((a) => a.style !== "destructive");
+    const destructiveActions = actions.filter((a) => a.style === "destructive");
+    const allActions = [...defaultActions, ...destructiveActions];
 
     if (!modalVisible) return null;
 
@@ -325,79 +403,84 @@ const MessageActionModal = React.memo(
         statusBarTranslucent
         onRequestClose={onClose}
       >
-        <TouchableWithoutFeedback onPress={handleBackdropPress}>
+        <TouchableWithoutFeedback onPress={onClose}>
           <Animated.View style={[styles.backdrop, { opacity }]}>
-            {/* Block touch propagation on the card itself */}
+            {/* Block touch on content */}
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation?.()}>
               <Animated.View
                 style={[
-                  styles.card,
-                  { transform: [{ scale }] },
+                  styles.bottomContainer,
+                  { transform: [{ translateY }] },
                 ]}
               >
-                {/* ── Quick reactions bar ── */}
-                <View style={styles.reactionsContainer}>
-                  <View style={styles.reactionsRow}>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ flexDirection: "row", alignItems: "center" }}
-                      scrollEnabled={true}
+                {/* ── Reaction pill row ── */}
+                <View style={styles.reactionCard}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ flexDirection: "row", alignItems: "center" }}
+                  >
+                    {QUICK_EMOJIS.map((emoji) => (
+                      <EmojiButton
+                        key={emoji}
+                        emoji={emoji}
+                        onPress={handleReaction}
+                        styles={styles}
+                      />
+                    ))}
+                    {/* Full picker */}
+                    <TouchableOpacity
+                      style={styles.emojiButton}
+                      onPress={handleOpenFullPicker}
+                      activeOpacity={0.7}
                     >
-                      {QUICK_EMOJIS.map((emoji) => (
-                        <EmojiButton
-                          key={emoji}
-                          emoji={emoji}
-                          onPress={handleReaction}
-                          styles={styles}
-                        />
-                      ))}
-
-                      {/* ••• full picker button */}
-                      <TouchableOpacity
-                        style={styles.emojiButton}
-                        onPress={handleOpenFullPicker}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.emojiCircle}>
-                          <Text style={styles.moreButtonText}>•••</Text>
-                        </View>
-                      </TouchableOpacity>
-                    </ScrollView>
-                  </View>
+                      <View style={styles.moreCircle}>
+                        <Text style={styles.moreButtonText}>•••</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </ScrollView>
                 </View>
 
-                {/* ── Separator ── */}
-                <View style={styles.separator} />
+                {/* ── Action card ── */}
+                <View style={styles.actionCard}>
+                  {allActions.map((action, index) => {
+                    const isDestructive = action.style === "destructive";
+                    const isFirstDestructive =
+                      isDestructive && defaultActions.length > 0 && index === defaultActions.length;
+                    const isLast = index === allActions.length - 1;
 
-                {/* ── Action rows ── */}
-                {actions.map((action, index) => (
-                  <ActionRow
-                    key={action.id}
-                    action={action}
-                    isLast={index === actions.length - 1}
-                    onPress={handleActionPress}
-                    colors={colors}
-                    styles={styles}
-                  />
-                ))}
+                    return (
+                      <ActionRowItem
+                        key={action.id}
+                        action={action}
+                        isLast={isLast}
+                        isDestructive={isDestructive}
+                        isFirstDestructive={isFirstDestructive}
+                        onPress={handleActionPress}
+                        colors={colors}
+                        styles={styles}
+                      />
+                    );
+                  })}
+                </View>
 
-                {/* ── Cancel button ── */}
-                <View style={styles.cancelSeparator} />
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={onClose}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelLabel}>Annuler</Text>
-                </TouchableOpacity>
+                {/* ── Cancel card ── */}
+                <View style={styles.cancelCard}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={onClose}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cancelLabel}>Annuler</Text>
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
             </TouchableWithoutFeedback>
           </Animated.View>
         </TouchableWithoutFeedback>
       </Modal>
     );
-  }
+  },
 );
 
 MessageActionModal.displayName = "MessageActionModal";

@@ -23,7 +23,6 @@ import {
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   ScrollView,
@@ -35,6 +34,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { showToast } from "@/components/Toast";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "@/firebaseConfig";
 
@@ -166,13 +166,13 @@ export default function MemberPaymentPage() {
   // Ajouter un paiement pour un membre
   const handleAddPayment = async () => {
     if (!selectedMember || !paymentAmount || !paymentDate) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs");
+      showToast("Veuillez remplir tous les champs", "error");
       return;
     }
 
     const amount = Number.parseFloat(paymentAmount);
     if (Number.isNaN(amount) || amount <= 0) {
-      Alert.alert("Erreur", "Le montant doit être un nombre positif");
+      showToast("Le montant doit être un nombre positif", "error");
       return;
     }
 
@@ -218,10 +218,7 @@ export default function MemberPaymentPage() {
         { merge: true },
       );
 
-      Alert.alert(
-        "Succès",
-        `Paiement de $${amount} enregistré pour ${selectedMember.firstName || selectedMember.email}`,
-      );
+      showToast(`Paiement de $${amount} enregistré pour ${selectedMember.firstName || selectedMember.email}`, "success");
 
       // Réinitialiser le formulaire
       setPaymentAmount("");
@@ -231,7 +228,7 @@ export default function MemberPaymentPage() {
       setModalMode("add");
     } catch (error) {
       console.error("Erreur lors de l'enregistrement du paiement:", error);
-      Alert.alert("Erreur", "Impossible d'enregistrer le paiement");
+      showToast("Impossible d'enregistrer le paiement", "error");
     } finally {
       setSaving(false);
     }
@@ -240,14 +237,14 @@ export default function MemberPaymentPage() {
   // Modifier le solde d'un membre (ajouter/enlever/changer)
   const handleEditBalance = async () => {
     if (!selectedMember || !paymentAmount) {
-      Alert.alert("Erreur", "Veuillez entrer un montant");
+      showToast("Veuillez entrer un montant", "error");
       return;
     }
 
     const amount = Number.parseFloat(paymentAmount);
 
     if (Number.isNaN(amount) || amount < 0) {
-      Alert.alert("Erreur", "Le montant doit être un nombre positif");
+      showToast("Le montant doit être un nombre positif", "error");
       return;
     }
 
@@ -299,10 +296,7 @@ export default function MemberPaymentPage() {
             ? `Paiement de $${amount} retiré`
             : `Total du modifié à $${amount}`;
 
-      Alert.alert(
-        "Succès",
-        `${actionText}\nSolde ${selectedMember.firstName || selectedMember.email}: $${newPaid} payé, $${newDebt} du`,
-      );
+      showToast(`${actionText} — Solde: $${newPaid} payé, $${newDebt} dû`, "success");
 
       // Réinitialiser le formulaire
       setPaymentAmount("");
@@ -312,7 +306,7 @@ export default function MemberPaymentPage() {
       setActionType("add");
     } catch (error) {
       console.error("Erreur lors de la modification du solde:", error);
-      Alert.alert("Erreur", "Impossible de modifier le solde");
+      showToast("Impossible de modifier le solde", "error");
     } finally {
       setSaving(false);
     }
