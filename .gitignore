@@ -63,3 +63,9 @@ GoogleService-Info.plist
 
 # Environment variables
 .env
+
+
+# AI
+.claude/*
+.github/agent/*
+docs/superpowers/*
