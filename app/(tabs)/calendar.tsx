@@ -2,6 +2,8 @@ import { showActionSheet } from "@/components/ActionSheet";
 import { showToast } from "@/components/Toast";
 import { showConfirm } from "@/components/ui/ConfirmModal";
 import { Header } from "@/components/Header";
+import { formatAttendanceText } from "@/utils/attendanceUtils";
+import * as Clipboard from "expo-clipboard";
 import { WeeklyCoverageChart } from "@/components/calendar/WeeklyCoverageChart";
 import { DismissableModal } from "@/components/ui/DismissableModal";
 import { useAppTheme } from "@/contexts/ThemeContext";
@@ -385,6 +387,7 @@ export default function FirebaseCalendarScreen() {
   // États vue détail événement
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
+  const [copiedAttendance, setCopiedAttendance] = useState(false);
   const [showDowngradeConfirm, setShowDowngradeConfirm] = useState(false);
   const [allUsersMap, setAllUsersMap] = useState<Record<string, string>>({});
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
@@ -1046,7 +1049,7 @@ export default function FirebaseCalendarScreen() {
 
             return (
               <TouchableOpacity
-                onPress={() => phase !== "past" && handleEventPress(item)}
+                onPress={() => handleEventPress(item)}
                 onLongPress={() => handleLongPress(item)}
                 delayLongPress={500}
                 style={[
@@ -1186,12 +1189,13 @@ export default function FirebaseCalendarScreen() {
           return (
             <FlatList
               data={canManageSchedule ? memberGroups : availabilities}
-              keyExtractor={(item) => (canManageSchedule ? item.userId : item.id)}
+              // memberGroups items have userId; availabilities items have id
+              keyExtractor={(item) => item.userId ?? item.id}
               contentContainerStyle={dynamicStyles.listContent}
               ListHeaderComponent={
                 <>
                   <WeeklyCoverageChart
-                    availabilities={canManageSchedule ? allAvailabilities : availabilities}
+                    availabilities={allAvailabilities}
                   />
 
                   {/* Bouton Générer horaire (admin/président) */}
@@ -1219,12 +1223,21 @@ export default function FirebaseCalendarScreen() {
                 </>
               }
               ListEmptyComponent={
-                <View style={dynamicStyles.emptyContainer}>
-                  <Ionicons name="checkmark-circle-outline" size={48} color="#999" />
-                  <Text style={dynamicStyles.emptyText}>
-                    Aucune disponibilité enregistrée
-                  </Text>
-                </View>
+                canManageSchedule ? (
+                  <View style={dynamicStyles.emptyContainer}>
+                    <Ionicons name="checkmark-circle-outline" size={48} color="#999" />
+                    <Text style={dynamicStyles.emptyText}>
+                      Aucune disponibilité enregistrée
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={dynamicStyles.emptyContainer}>
+                    <Ionicons name="time-outline" size={48} color="#999" />
+                    <Text style={dynamicStyles.emptyText}>
+                      Aucun créneau enregistré.{"\n"}Appuyez sur + pour en ajouter un.
+                    </Text>
+                  </View>
+                )
               }
               renderItem={({ item }) => {
                 if (canManageSchedule) {
@@ -2264,105 +2277,179 @@ export default function FirebaseCalendarScreen() {
                 )}
 
                 {/* ══════════════════════════════════════════════════
-                    PHASE 3 — PAST : résumé lecture seule
+                    PHASE 3 — PAST : liste de présence (lecture seule)
                 ══════════════════════════════════════════════════ */}
-                {phase === "past" && (
-                  <View
-                    style={{
-                      backgroundColor: colors.surfaceDim,
-                      borderRadius: 14,
-                      padding: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text
+                {phase === "past" && (() => {
+                  const attendanceList = participants
+                    .filter((p) => p.status === "online" || p.status === "present_physical")
+                    .sort((a, b) => {
+                      if (a.status === b.status)
+                        return (a.userName ?? "").localeCompare(b.userName ?? "");
+                      return a.status === "present_physical" ? -1 : 1;
+                    });
+
+                  const physicalNames = attendanceList
+                    .filter((p) => p.status === "present_physical")
+                    .map((p) => p.userName ?? "?");
+                  const onlineNames = attendanceList
+                    .filter((p) => p.status === "online")
+                    .map((p) => p.userName ?? "?");
+
+                  const handleCopy = async () => {
+                    const text = formatAttendanceText(ev.title, ev.dateObj, onlineNames, physicalNames);
+                    await Clipboard.setStringAsync(text);
+                    setCopiedAttendance(true);
+                    setTimeout(() => setCopiedAttendance(false), 2000);
+                  };
+
+                  return (
+                    <View
                       style={{
-                        fontSize: 11,
-                        fontWeight: "700",
-                        color: colors.textSecondary,
-                        marginBottom: 12,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.8,
+                        backgroundColor: colors.surfaceDim,
+                        borderRadius: 14,
+                        padding: 14,
+                        borderWidth: 1,
+                        borderColor: colors.border,
                       }}
                     >
-                      Récapitulatif des présences ({presenceList.length})
-                    </Text>
-                    {presenceList.length === 0 ? (
-                      <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                        <Ionicons name="people-outline" size={32} color={colors.textTertiary} />
-                        <Text style={{ fontSize: 13, color: colors.textTertiary, marginTop: 8 }}>
-                          Aucune présence enregistrée.
-                        </Text>
-                      </View>
-                    ) : (
-                      presenceList.map((p, idx) => {
-                        const isOnline = p.status === "online";
-                        const isPhysical = p.status === "present_physical";
-                        const at = p.updatedAt?.toDate?.();
-                        const statusColor = isPhysical ? "#007AFF" : isOnline ? "#06B6D4" : "#F59E0B";
-                        const statusLabel = isPhysical ? "Présentiel" : isOnline ? "En ligne" : "Absent";
-                        const statusIcon = isPhysical ? "checkmark-circle" : isOnline ? "wifi" : "moon";
-
-                        return (
-                          <View
-                            key={p.id}
+                      {/* Header */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 12,
+                        }}
+                      >
+                        <View>
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: "700",
+                              color: colors.textSecondary,
+                              textTransform: "uppercase",
+                              letterSpacing: 0.8,
+                            }}
+                          >
+                            Liste de présence
+                          </Text>
+                          {attendanceList.length > 0 && (
+                            <Text style={{ fontSize: 12, color: colors.textTertiary, marginTop: 2 }}>
+                              {physicalNames.length > 0 && `${physicalNames.length} présentiel`}
+                              {physicalNames.length > 0 && onlineNames.length > 0 && " · "}
+                              {onlineNames.length > 0 && `${onlineNames.length} en ligne`}
+                            </Text>
+                          )}
+                        </View>
+                        {attendanceList.length > 0 && (
+                          <TouchableOpacity
+                            onPress={handleCopy}
                             style={{
                               flexDirection: "row",
                               alignItems: "center",
-                              paddingVertical: 10,
-                              borderTopWidth: idx > 0 ? 1 : 0,
-                              borderTopColor: colors.border,
-                              gap: 12,
+                              gap: 5,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                              borderRadius: 8,
+                              backgroundColor: copiedAttendance ? "#10B98120" : colors.surface,
+                              borderWidth: 1,
+                              borderColor: copiedAttendance ? "#10B981" : colors.border,
                             }}
                           >
-                            <View
+                            <Ionicons
+                              name={copiedAttendance ? "checkmark" : "copy-outline"}
+                              size={14}
+                              color={copiedAttendance ? "#10B981" : colors.textSecondary}
+                            />
+                            <Text
                               style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 18,
-                                backgroundColor: statusColor + "22",
-                                alignItems: "center",
-                                justifyContent: "center",
+                                fontSize: 12,
+                                fontWeight: "600",
+                                color: copiedAttendance ? "#10B981" : colors.textSecondary,
                               }}
                             >
-                              <Text style={{ fontSize: 14, fontWeight: "700", color: statusColor }}>
-                                {(p.userName?.[0] ?? "?").toUpperCase()}
-                              </Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textPrimary }}>
-                                {p.userName}
-                              </Text>
-                              {at && (
-                                <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
-                                  {at.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}{" "}
-                                  à {at.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                                </Text>
-                              )}
-                            </View>
+                              {copiedAttendance ? "Copié !" : "Copier"}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* List */}
+                      {attendanceList.length === 0 ? (
+                        <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                          <Ionicons name="people-outline" size={32} color={colors.textTertiary} />
+                          <Text style={{ fontSize: 13, color: colors.textTertiary, marginTop: 8 }}>
+                            Aucune présence enregistrée.
+                          </Text>
+                        </View>
+                      ) : (
+                        attendanceList.map((p, idx) => {
+                          const isPhysical = p.status === "present_physical";
+                          const statusColor = isPhysical ? "#007AFF" : "#06B6D4";
+                          const statusLabel = isPhysical ? "Présentiel" : "En ligne";
+                          const statusIcon = isPhysical ? "checkmark-circle" : "wifi";
+                          const at = p.updatedAt?.toDate?.();
+
+                          return (
                             <View
+                              key={p.id}
                               style={{
                                 flexDirection: "row",
                                 alignItems: "center",
-                                gap: 4,
-                                backgroundColor: statusColor + "22",
-                                borderRadius: 8,
-                                paddingHorizontal: 8,
-                                paddingVertical: 3,
+                                paddingVertical: 10,
+                                borderTopWidth: idx > 0 ? 1 : 0,
+                                borderTopColor: colors.border,
+                                gap: 12,
                               }}
                             >
-                              <Ionicons name={statusIcon as any} size={12} color={statusColor} />
-                              <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
-                                {statusLabel}
-                              </Text>
+                              <View
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 18,
+                                  backgroundColor: statusColor + "22",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: statusColor }}>
+                                  {(p.userName?.[0] ?? "?").toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textPrimary }}>
+                                  {p.userName}
+                                </Text>
+                                {at && (
+                                  <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
+                                    {at.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}{" "}
+                                    à {at.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                                  </Text>
+                                )}
+                              </View>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  backgroundColor: statusColor + "22",
+                                  borderRadius: 8,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 3,
+                                }}
+                              >
+                                <Ionicons name={statusIcon as any} size={12} color={statusColor} />
+                                <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
+                                  {statusLabel}
+                                </Text>
+                              </View>
                             </View>
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
-                )}
+                          );
+                        })
+                      )}
+                    </View>
+                  );
+                })()}
 
                 <View style={{ height: 32 }} />
               </ScrollView>
