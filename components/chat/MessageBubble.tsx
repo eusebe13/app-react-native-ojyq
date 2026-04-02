@@ -138,6 +138,9 @@ const AudioPlayer = React.memo(({ uri, isMe, colors, tokens }: AudioPlayerProps)
             if (status.didJustFinish) {
               setIsPlaying(false);
               setPositionMs(0);
+              // Unload so next press recreates the sound from the beginning
+              newSound.unloadAsync().catch(() => {});
+              setSound(null);
             }
           }
         );

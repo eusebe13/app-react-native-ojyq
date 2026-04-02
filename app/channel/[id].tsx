@@ -35,10 +35,15 @@ import {
 } from "firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
+import {
+  uploadDocument,
+  uploadImageBase64,
+  uploadImageUri,
+} from "@/lib/uploadToSupabase";
 import {
   useCallback,
   useEffect,
@@ -448,20 +453,46 @@ export default function ChannelScreen() {
     [sendToFirestore],
   );
 
+  // Camera image from ChatInputBar — upload to Supabase then store URL
   const handleSendImage = useCallback(
-    (base64Uri: string) => sendToFirestore("", base64Uri),
-    [sendToFirestore],
+    async (uri: string) => {
+      if (!id) return;
+      setSending(true);
+      try {
+        let imageUrl: string;
+        if (uri.startsWith("data:")) {
+          imageUrl = await uploadImageBase64(uri, id);
+        } else {
+          imageUrl = await uploadImageUri(uri, id);
+        }
+        await sendToFirestore("", imageUrl);
+      } catch {
+        showToast("Erreur upload image", "error");
+      } finally {
+        setSending(false);
+      }
+    },
+    [id, sendToFirestore],
   );
 
   const handleOpenGallery = useCallback(async () => {
-    const opts: ImagePicker.ImagePickerOptions = { quality: 0.7, base64: true };
+    if (!id) return;
+    const opts: ImagePicker.ImagePickerOptions = { quality: 0.7 };
     const result = await ImagePicker.launchImageLibraryAsync(
       Platform.OS === "web" ? { ...opts, allowsEditing: false } : opts,
     );
-    if (!result.canceled && result.assets[0].base64) {
-      await sendToFirestore("", `data:image/jpeg;base64,${result.assets[0].base64}`);
+    if (!result.canceled) {
+      setSending(true);
+      try {
+        const imageUrl = await uploadImageUri(result.assets[0].uri, id);
+        await sendToFirestore("", imageUrl);
+      } catch {
+        showToast("Erreur upload image", "error");
+      } finally {
+        setSending(false);
+      }
     }
-  }, [sendToFirestore]);
+  }, [id, sendToFirestore]);
 
   const handleOpenPoll = useCallback(() => {
     setPollQuestion("");
@@ -470,42 +501,31 @@ export default function ChannelScreen() {
   }, []);
 
   const handleOpenDocument = useCallback(async () => {
+    if (!id) return;
     const { getDocumentAsync } = await import("expo-document-picker");
     const result = await getDocumentAsync({ type: "*/*" });
     if (!result.canceled) {
       const file = result.assets[0];
       setSending(true);
       try {
-        const formData = new FormData();
-        formData.append("file", {
-          uri: file.uri,
+        const publicUrl = await uploadDocument(
+          file.uri,
+          file.name,
+          id,
+          file.mimeType ?? "application/octet-stream",
+        );
+        await sendToFirestore(file.name, undefined, undefined, {
+          uri: publicUrl,
           name: file.name,
-          type: "application/octet-stream",
-        } as any);
-        const resp = await fetch("https://media.ojyq.org/wp-json/wp/v2/media", {
-          method: "POST",
-          headers: {
-            Authorization:
-              "Basic " + btoa("App Mobile OJYQ:0Mn5v59uy*A1gVYzuikEHX()"),
-            "Content-Disposition": `attachment; filename="${file.name}"`,
-          },
-          body: formData,
+          size: file.size ?? 0,
         });
-        const data = await resp.json();
-        if (data.source_url) {
-          await sendToFirestore(file.name, undefined, undefined, {
-            uri: data.source_url,
-            name: file.name,
-            size: file.size ?? 0,
-          });
-        }
       } catch {
         showToast("Erreur upload document", "error");
       } finally {
         setSending(false);
       }
     }
-  }, [sendToFirestore]);
+  }, [id, sendToFirestore]);
 
   const handleCancelReply = useCallback(() => {
     setReplyToMessage(null);

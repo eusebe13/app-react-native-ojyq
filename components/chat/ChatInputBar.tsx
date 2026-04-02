@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { uploadAudio } from "@/lib/uploadToSupabase";
 import React, {
   useCallback,
   useEffect,
@@ -20,7 +20,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { storage } from "../../firebaseConfig";
 import { ChatMessage } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -168,13 +167,9 @@ export default function ChatInputBar({
   // -------------------------------------------------------------------------
 
   const uploadAudioBlob = useCallback(
-    async (blob: Blob, ext: string): Promise<string> => {
-      const path = `voice/${channelId}/${Date.now()}.${ext}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, blob);
-      return getDownloadURL(storageRef);
-    },
-    [channelId]
+    (blob: Blob, ext: "m4a" | "webm"): Promise<string> =>
+      uploadAudio(blob, channelId, ext),
+    [channelId],
   );
 
   // -------------------------------------------------------------------------
@@ -334,19 +329,11 @@ export default function ChatInputBar({
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) return;
 
-    const result = await ImagePicker.launchCameraAsync({
-      base64: true,
-      quality: 0.8,
-    });
+    // No base64 — use the local file URI directly; uploadImageUri fetches it as a blob
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
 
     if (result.canceled) return;
-    const asset = result.assets[0];
-    if (asset.base64) {
-      const uri = `data:image/jpeg;base64,${asset.base64}`;
-      onSendImage(uri);
-    } else if (asset.uri) {
-      onSendImage(asset.uri);
-    }
+    onSendImage(result.assets[0].uri);
   }, [onSendImage]);
 
   const handleCameraWeb = useCallback(() => {
