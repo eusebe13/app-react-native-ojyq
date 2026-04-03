@@ -68,4 +68,6 @@ export interface UserProfile {
     avatarUrl?: string;
     avatarPreset?: number | null;
     email: string;
+    approvalTaskId?: string;
+    expoPushToken?: string;
 }

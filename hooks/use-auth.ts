@@ -78,28 +78,25 @@ export const signUp = async (email: string, password: string, username: string) 
     // 3. Store approvalTaskId on the user document
     await updateDoc(doc(db, "users", user.uid), { approvalTaskId: taskRef.id });
 
-    // 4. Push notification to admins (fire-and-forget)
-    try {
-        const adminSnap = await getDocs(
-            query(
-                collection(db, "users"),
-                where("role", "in", ["Administrateur", "Président", "Vice-Président"])
-            )
-        );
+    // 4. Push notification to admins (truly fire-and-forget — does not block signUp)
+    getDocs(
+        query(
+            collection(db, "users"),
+            where("role", "in", ["Administrateur", "Président", "Vice-Président"])
+        )
+    ).then((adminSnap) => {
         const tokens = adminSnap.docs
             .map((d) => d.data().expoPushToken as string | undefined)
             .filter((t): t is string => Boolean(t));
         if (tokens.length > 0) {
-            await sendExpoPush(
+            sendExpoPush(
                 tokens,
                 "Nouvelle inscription",
                 `${username} attend une validation`,
                 { type: "approval" }
-            );
+            ).catch((e) => console.warn("[signUp] Failed to send push:", e));
         }
-    } catch (e) {
-        console.warn("[signUp] Failed to notify admins:", e);
-    }
+    }).catch((e) => console.warn("[signUp] Failed to notify admins:", e));
 
     return user;
 };
