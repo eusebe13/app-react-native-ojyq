@@ -43,7 +43,7 @@ import {
   uploadDocument,
   uploadImageBase64,
   uploadImageUri,
-} from "@/lib/uploadToSupabase";
+} from "@/lib/uploadToR2";
 import {
   useCallback,
   useEffect,
