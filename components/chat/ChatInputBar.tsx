@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
-import { uploadAudio } from "@/lib/uploadToSupabase";
+import { uploadAudio, uploadAudioUri } from "@/lib/uploadToR2";
 import React, {
   useCallback,
   useEffect,
@@ -213,15 +213,13 @@ export default function ChatInputBar({
 
       setIsUploading(true);
       try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const url = await uploadAudioBlob(blob, "m4a");
+        const url = await uploadAudioUri(uri, channelId, "m4a");
         onSendAudio(url);
       } finally {
         setIsUploading(false);
       }
     },
-    [stopPulse, stopTimer, uploadAudioBlob, onSendAudio]
+    [stopPulse, stopTimer, onSendAudio, channelId]
   );
 
   // -------------------------------------------------------------------------
