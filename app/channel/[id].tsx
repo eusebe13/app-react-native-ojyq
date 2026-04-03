@@ -40,6 +40,7 @@ import * as Haptics from "expo-haptics";
 import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
 import {
+  deleteFromR2,
   uploadDocument,
   uploadImageBase64,
   uploadImageUri,
@@ -601,6 +602,19 @@ export default function ChannelScreen() {
     setEditingMessage(null);
   }, []);
 
+  const handleDeleteMessage = useCallback(
+    async (msg: ChatMessage) => {
+      if (!id) return;
+      await deleteDoc(doc(db, "channels", id, "messages", msg._id));
+      // Clean up R2 media — non-blocking, FIFO may have already removed it
+      const r2Path = (url: string) => url.split(".r2.dev/")[1];
+      if (msg.image) deleteFromR2(r2Path(msg.image) ?? msg.image).catch(() => {});
+      if (msg.audio) deleteFromR2(r2Path(msg.audio) ?? msg.audio).catch(() => {});
+      if (msg.file)  deleteFromR2(r2Path(msg.file.uri) ?? msg.file.uri).catch(() => {});
+    },
+    [id],
+  );
+
   // ── MessageBubble callbacks ───────────────────────────────────────────────
   const handleLongPress = useCallback(
     (msg: ChatMessage) => {
@@ -651,8 +665,7 @@ export default function ChannelScreen() {
           label: "Supprimer",
           icon: "trash-outline",
           style: "destructive",
-          onPress: () =>
-            deleteDoc(doc(db, "channels", id!, "messages", msg._id)),
+          onPress: () => handleDeleteMessage(msg),
         });
       }
 
