@@ -18,7 +18,7 @@ import useAuth from "@/hooks/use-auth";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import AuthScreen from "./auth/auth-screen";
 import { useProfile } from "@/hooks/use-profile";
-import WaitingRoomScreen from "./waiting-room";
+import WaitingRoomScreen from "@/components/WaitingRoomScreen";
 
 // Prevent the native splash from auto-hiding — our JS splash takes over.
 SplashScreen.preventAutoHideAsync().catch(() => {});

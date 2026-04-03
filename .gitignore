@@ -67,6 +67,7 @@ GoogleService-Info.plist
 
 # AI
 .claude/*
+.superpowers/
 .github/agent/*
 docs/superpowers/*
 /docs/superpowers
