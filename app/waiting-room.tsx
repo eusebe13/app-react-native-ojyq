@@ -32,13 +32,17 @@ export default function WaitingRoomScreen() {
         {/* ── Stepper ─────────────────────────────────────────────────── */}
         <View style={styles.stepper}>
           {/* Step 1 — done */}
-          <View style={[styles.stepCircle, styles.stepDone]}>
+          <View style={[styles.stepCircle, { backgroundColor: colors.accent5 }]}>
             <Text style={styles.stepCheckmark}>✓</Text>
           </View>
           <View style={[styles.stepLine, { backgroundColor: colors.border }]} />
           {/* Step 2 — current */}
-          <View style={[styles.stepCircle, styles.stepCurrent]}>
-            <Text style={styles.stepCurrentText}>2</Text>
+          <View style={[styles.stepCircle, {
+            backgroundColor: "rgba(245,158,11,0.20)",
+            borderWidth: 2,
+            borderColor: colors.accent1,
+          }]}>
+            <Text style={[styles.stepCurrentText, { color: colors.accent1 }]}>2</Text>
           </View>
           <View style={[styles.stepLine, { backgroundColor: colors.border }]} />
           {/* Step 3 — future */}
@@ -53,8 +57,8 @@ export default function WaitingRoomScreen() {
 
         {/* ── Step labels ─────────────────────────────────────────────── */}
         <View style={styles.stepLabels}>
-          <Text style={[styles.stepLabel, { color: "#10B981" }]}>Inscrit</Text>
-          <Text style={[styles.stepLabel, { color: "#F59E0B" }]}>Validation</Text>
+          <Text style={[styles.stepLabel, { color: colors.accent5 }]}>Inscrit</Text>
+          <Text style={[styles.stepLabel, { color: colors.accent1 }]}>Validation</Text>
           <Text style={[styles.stepLabel, { color: colors.textTertiary }]}>Accès</Text>
         </View>
 
@@ -78,7 +82,7 @@ export default function WaitingRoomScreen() {
           <Text style={[styles.contactLabel, { color: colors.textSecondary }]}>
             Des questions ?
           </Text>
-          <Text style={styles.contactEmail}>info@ojyq.org</Text>
+          <Text style={[styles.contactEmail, { color: colors.accent1 }]}>info@ojyq.org</Text>
         </TouchableOpacity>
 
         {/* ── Logout ──────────────────────────────────────────────────── */}
@@ -114,15 +118,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stepDone: { backgroundColor: "#10B981" },
-  stepCurrent: {
-    backgroundColor: "rgba(245,158,11,0.20)",
-    borderWidth: 2,
-    borderColor: "#F59E0B",
-  },
   stepLine: { height: 2, width: 40 },
   stepCheckmark: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  stepCurrentText: { color: "#F59E0B", fontWeight: "700", fontSize: 14 },
+  stepCurrentText: { fontWeight: "700", fontSize: 14 },
   stepNumber: { fontWeight: "700", fontSize: 14 },
   stepLabels: {
     flexDirection: "row",
@@ -147,7 +145,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   contactLabel: { fontSize: 12, marginBottom: 4 },
-  contactEmail: { color: "#F59E0B", fontWeight: "700", fontSize: 15 },
+  contactEmail: { fontWeight: "700", fontSize: 15 },
   logoutButton: { marginTop: 24, padding: 8 },
   logoutText: { fontSize: 14, textDecorationLine: "underline" },
 });
