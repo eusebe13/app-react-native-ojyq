@@ -510,6 +510,14 @@ const getStyles = (colors: any, tokens: any) =>
       shadowOpacity: 0.3,
       shadowRadius: 6,
     },
+    bubbleImageOnly: {
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      shadowOpacity: 0,
+      elevation: 0,
+    },
     bubbleMeTail: {
       borderBottomRightRadius: 4,
     },
@@ -551,7 +559,7 @@ const getStyles = (colors: any, tokens: any) =>
       color: colors.textSecondary,
     },
 
-    // Image
+    // Image (within a mixed bubble — text + image)
     imageWrapper: {
       marginHorizontal: -14,
       marginVertical: 2,
@@ -564,6 +572,16 @@ const getStyles = (colors: any, tokens: any) =>
       marginHorizontal: 12,
       backgroundColor: "transparent",
       borderRadius: 14,
+    },
+    // Image-only bubble — fills the bubble edge-to-edge
+    imageWrapperOnly: {
+      overflow: "hidden",
+      borderRadius: 20,
+    },
+    messageImageOnly: {
+      width: 240,
+      height: 200,
+      borderRadius: 20,
     },
 
     // Text
@@ -868,6 +886,15 @@ const MessageBubble = React.memo(
 
     const isMe = message.user._id === currentUserId;
 
+    // True when the bubble contains only an image (no text, quote, audio, poll, file)
+    const isImageOnly =
+      !!message.image &&
+      !message.replyTo &&
+      !message.audio &&
+      !message.poll &&
+      !message.file &&
+      !message.text?.trim();
+
     // Consecutive message detection
     const isFirstInGroup =
       previousMessage === null || previousMessage.user._id !== message.user._id;
@@ -1050,16 +1077,16 @@ const MessageBubble = React.memo(
         <TouchableOpacity
           onPress={handleImagePress}
           activeOpacity={0.9}
-          style={styles.imageWrapper}
+          style={isImageOnly ? styles.imageWrapperOnly : styles.imageWrapper}
         >
           <Image
             source={{ uri: message.image }}
-            style={styles.messageImage}
+            style={isImageOnly ? styles.messageImageOnly : styles.messageImage}
             resizeMode="cover"
           />
         </TouchableOpacity>
       );
-    }, [message.image, handleImagePress, styles]);
+    }, [message.image, isImageOnly, handleImagePress, styles]);
 
     const renderAudio = useCallback(() => {
       if (!message.audio) return null;
@@ -1407,11 +1434,7 @@ const MessageBubble = React.memo(
                     isMe ? styles.bubbleMe : styles.bubbleOther,
                     bubbleTailStyle,
                     isSearchFocus && styles.bubbleSearchFocus,
-                    message.image && {
-                      backgroundColor: colors.chatBackground,
-                      borderWidth: 0,
-                      borderColor: "transparent",
-                    },
+                    isImageOnly && styles.bubbleImageOnly,
                   ]}
                 >
                   {renderReplyQuote()}
