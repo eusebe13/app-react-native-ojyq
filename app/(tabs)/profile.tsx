@@ -66,6 +66,7 @@ const STATUS_CONFIG: Record<
 };
 
 const ROLE_BADGE: Record<MemberRole, { bg: string; text: string }> = {
+  Visiteur: { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Membre: { bg: "rgba(255,255,255,0.18)", text: "#FFFFFF" },
   "Vice-Président": { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Président: { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },

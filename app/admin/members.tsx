@@ -105,6 +105,11 @@ const ROLE_COLORS: Record<
     text: "#64748B",
     border: "rgba(100,116,139,0.20)",
   },
+  Visiteur: {
+    bg: "rgba(245,158,11,0.12)",
+    text: "#D97706",
+    border: "rgba(245,158,11,0.28)",
+  },
 };
 
 const STATUS_COLOR: Record<UserStatus, string> = {
@@ -116,6 +121,7 @@ const STATUS_COLOR: Record<UserStatus, string> = {
 
 const ROLE_FILTERS: (MemberRole | "Tous")[] = [
   "Tous",
+  "Visiteur",
   "Membre",
   "Vice-Président",
   "Président",
@@ -148,6 +154,16 @@ export default function MembersScreen() {
       return matchSearch && matchRole;
     });
   }, [members, search, roleFilter]);
+
+  const visitors = useMemo(
+    () => filtered.filter((m) => m.role === "Visiteur"),
+    [filtered]
+  );
+
+  const regulars = useMemo(
+    () => filtered.filter((m) => m.role !== "Visiteur"),
+    [filtered]
+  );
 
   const getInitials = (m: MemberEntry) =>
     [m.firstName?.[0], m.lastName?.[0]]
@@ -232,6 +248,28 @@ export default function MembersScreen() {
     );
   };
 
+  const renderWaitingSection = () => {
+    if (visitors.length === 0) return null;
+    return (
+      <View style={styles.waitingSection}>
+        <View style={styles.waitingHeader}>
+          <Text style={[styles.waitingTitle, { color: colors.textPrimary }]}>
+            En attente d'approbation
+          </Text>
+          <View style={styles.waitingBadge}>
+            <Text style={styles.waitingBadgeText}>{visitors.length}</Text>
+          </View>
+        </View>
+        {visitors.map((item) => (
+          <View key={item.uid}>
+            {renderMember({ item })}
+          </View>
+        ))}
+        <View style={[styles.waitingSeparator, { backgroundColor: colors.border }]} />
+      </View>
+    );
+  };
+
   // ── Layout ───────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -307,9 +345,10 @@ export default function MembersScreen() {
         </View>
       ) : (
         <FlatList
-          data={filtered}
+          data={regulars}
           keyExtractor={(item) => item.uid}
           renderItem={renderMember}
+          ListHeaderComponent={renderWaitingSection}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshControl={
@@ -465,6 +504,41 @@ const getStyles = (colors: any, tokens: any) =>
       fontSize: tokens.font.xs,
       color: colors.textSecondary,
       fontWeight: "500",
+    },
+
+    // ── Waiting section ──────────────────────────────────────────────────
+    waitingSection: {
+      marginBottom: tokens.space.sm,
+    },
+    waitingHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space.sm,
+      paddingHorizontal: tokens.space.lg,
+      paddingVertical: tokens.space.sm,
+    },
+    waitingTitle: {
+      fontSize: tokens.font.xs,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    waitingBadge: {
+      backgroundColor: "rgba(245,158,11,0.20)",
+      borderRadius: 10,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+    },
+    waitingBadgeText: {
+      color: "#D97706",
+      fontSize: tokens.font.xs,
+      fontWeight: "700",
+    },
+    waitingSeparator: {
+      height: 1,
+      marginHorizontal: tokens.space.lg,
+      marginTop: tokens.space.sm,
+      marginBottom: tokens.space.xs,
     },
 
     // ── States ──────────────────────────────────────────────────────────

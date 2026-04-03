@@ -17,6 +17,8 @@ import { ThemeContextProvider, useAppTheme } from "@/contexts/ThemeContext";
 import useAuth from "@/hooks/use-auth";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import AuthScreen from "./auth/auth-screen";
+import { useProfile } from "@/hooks/use-profile";
+import WaitingRoomScreen from "@/components/WaitingRoomScreen";
 
 // Prevent the native splash from auto-hiding — our JS splash takes over.
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -28,67 +30,68 @@ export const unstable_settings = {
 function RootLayoutInner() {
   const { isDark } = useAppTheme();
   const { user, isLoading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   usePushNotifications();
   const [splashDone, setSplashDone] = useState(false);
 
-  // Dismiss the native splash as soon as JS is running.
-  // The AppSplashScreen overlay (same background colour) covers the
-  // transition so there is no visible gap.
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
-  // Once Firebase has resolved the auth state, the overlay will animate out.
-  const isReady = !authLoading;
+  // Wait for both auth and profile to resolve before routing.
+  // This prevents a brief flash of the wrong screen while Firestore loads.
+  const isReady = !authLoading && (user ? !profileLoading : true);
+
+  const renderContent = () => {
+    if (!user) return <AuthScreen />;
+    if (profile.role === "Visiteur") return <WaitingRoomScreen />;
+    return (
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: "modal", title: "Modal" }}
+        />
+        <Stack.Screen
+          name="account/edit"
+          options={{ title: "Informations Personnelles" }}
+        />
+        <Stack.Screen
+          name="account/security"
+          options={{ title: "Sécurité" }}
+        />
+        <Stack.Screen
+          name="account/settings"
+          options={{ title: "Paramètres" }}
+        />
+        <Stack.Screen
+          name="account/payment"
+          options={{ title: "Paiement" }}
+        />
+        <Stack.Screen
+          name="admin/members"
+          options={{ title: "Membres" }}
+        />
+        <Stack.Screen
+          name="admin/member-edit"
+          options={{ title: "Modifier le membre" }}
+        />
+        <Stack.Screen
+          name="channel/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="treasury/member-payment"
+          options={{ title: "Gestion des Paiements" }}
+        />
+      </Stack>
+    );
+  };
 
   return (
     <>
       <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
-        {/* Render app content only after auth is known */}
-        {isReady &&
-          (user ? (
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="modal"
-                options={{ presentation: "modal", title: "Modal" }}
-              />
-              <Stack.Screen
-                name="account/edit"
-                options={{ title: "Informations Personnelles" }}
-              />
-              <Stack.Screen
-                name="account/security"
-                options={{ title: "Sécurité" }}
-              />
-              <Stack.Screen
-                name="account/settings"
-                options={{ title: "Paramètres" }}
-              />
-              <Stack.Screen
-                name="account/payment"
-                options={{ title: "Paiement" }}
-              />
-              <Stack.Screen
-                name="admin/members"
-                options={{ title: "Membres" }}
-              />
-              <Stack.Screen
-                name="admin/member-edit"
-                options={{ title: "Modifier le membre" }}
-              />
-              <Stack.Screen
-                name="channel/[id]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="treasury/member-payment"
-                options={{ title: "Gestion des Paiements" }}
-              />
-            </Stack>
-          ) : (
-            <AuthScreen />
-          ))}
+        {isReady && renderContent()}
         <StatusBar style={isDark ? "light" : "dark"} />
       </ThemeProvider>
 
