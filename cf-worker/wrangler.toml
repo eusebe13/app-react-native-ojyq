@@ -1,0 +1,19 @@
+name = "ojyq-r2-worker"
+main = "r2-worker.js"
+compatibility_date = "2024-09-01"
+
+[[r2_buckets]]
+binding     = "R2_BUCKET"
+bucket_name = "ojyq-chat"
+
+[[kv_namespaces]]
+binding = "STORAGE_KV"
+# Replace with the KV namespace ID created via: wrangler kv namespace create "STORAGE_KV"
+id = "d9fe826837c14c699b4cb00863005a01"
+
+[vars]
+# Replace with your R2 public bucket URL or custom domain
+PUBLIC_URL = "https://pub-51bb96fecd48439da2b5fd6a247838bb.r2.dev"
+
+# Set secrets via CLI — never commit values:
+#   wrangler secret put UPLOAD_SECRET

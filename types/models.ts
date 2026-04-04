@@ -11,19 +11,21 @@ import { Timestamp } from 'firebase/firestore';
 // MEMBRES ET RÔLES
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type MemberRole = 
-  | 'president'
-  | 'vice-president'
-  | 'secretaire'
-  | 'vice-secretaire'
-  | 'tresorier'
-  | 'vice-tresorier'
-  | 'responsable-communication'
-  | 'vice-responsable-communication'
-  | 'responsable-loisir'
-  | 'responsable-discipline'
-  | 'conseiller'
-  | 'membre';
+export type MemberRole =
+  | 'Visiteur'
+  | 'Membre'
+  | 'Vice-Président'
+  | 'Président'
+  | 'Secrétaire'
+  | 'Vice-Secrétaire'
+  | 'Trésorier'
+  | 'Vice-Trésorier'
+  | 'Responsable Communication'
+  | 'Vice-Responsable Communication'
+  | 'Responsable Loisir'
+  | 'Responsable Discipline'
+  | 'Conseiller'
+  | 'Administrateur';
 
 export interface Member {
   id: string;

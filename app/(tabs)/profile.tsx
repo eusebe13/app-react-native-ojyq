@@ -14,7 +14,6 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -26,12 +25,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { auth } from "@/firebaseConfig";
 import { logOut } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
-import { UserRole, UserStatus } from "@/types";
+import { MemberRole, UserStatus } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -65,16 +65,24 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const ROLE_BADGE: Record<UserRole, { bg: string; text: string }> = {
+const ROLE_BADGE: Record<MemberRole, { bg: string; text: string }> = {
+  Visiteur: { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Membre: { bg: "rgba(255,255,255,0.18)", text: "#FFFFFF" },
   "Vice-Président": { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Président: { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Secrétaire: { bg: "rgba(167,139,250,0.25)", text: "#DDD6FE" },
   Trésorier: { bg: "rgba(16,185,129,0.25)", text: "#6EE7B7" },
   Administrateur: { bg: "rgba(239,68,68,0.25)", text: "#FCA5A5" },
+  "Vice-Secrétaire": { bg: "rgba(167,139,250,0.25)", text: "#DDD6FE" },
+  "Vice-Trésorier": { bg: "rgba(16,185,129,0.25)", text: "#6EE7B7" },
+  "Responsable Communication": { bg: "rgba(6,182,212,0.25)", text: "#A5F3FC" },
+  "Vice-Responsable Communication": { bg: "rgba(6,182,212,0.25)", text: "#A5F3FC" },
+  "Responsable Loisir": { bg: "rgba(236,72,153,0.25)", text: "#FBCFE8" },
+  "Responsable Discipline": { bg: "rgba(234,88,12,0.25)", text: "#FED7AA" },
+  Conseiller: { bg: "rgba(255,255,255,0.18)", text: "#FFFFFF" },
 };
 
-const MANAGE_ROLES: UserRole[] = [
+const MANAGE_ROLES: MemberRole[] = [
   "Président",
   "Administrateur",
   "Vice-Président",
@@ -262,10 +270,13 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Déconnexion", "Voulez-vous vraiment vous déconnecter ?", [
-      { text: "Annuler", style: "cancel" },
-      { text: "Déconnecter", style: "destructive", onPress: logOut },
-    ]);
+    showConfirm({
+      title: "Déconnexion",
+      message: "Voulez-vous vraiment vous déconnecter ?",
+      confirmLabel: "Déconnecter",
+      destructive: true,
+      onConfirm: logOut,
+    });
   };
 
   if (loading) {

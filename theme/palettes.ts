@@ -261,6 +261,10 @@ export const PALETTE_DARK_BLUE = {
         // Status
         online: "#10B981",
         facebook: "#1877F2",
+        // chat
+        chatBackground: "#F1F5F9",
+        bubbleMe: "#14389cff",
+        bubbleOther: "#E2E8F0",
     },
 }
 
@@ -298,6 +302,10 @@ export const PALETTE_DARK_BLUE_DARK = {
         // Status
         online: "#10B981",
         facebook: "#1877F2",
+        // chat
+        chatBackground: "#020617", // black-transparent
+        bubbleMe:"#06214b",
+        bubbleOther: "rgba(255,255,255,0.12)", // subtle contrast
     },
 };
 

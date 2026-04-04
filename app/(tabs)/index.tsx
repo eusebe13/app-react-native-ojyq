@@ -23,6 +23,7 @@ import {
 import { useRouter } from "expo-router";
 
 import { useAppTheme } from "@/contexts/ThemeContext";
+import useAuth from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useUpcomingEvents } from "@/hooks/use-upcoming-events";
 import { useChannelsPreview } from "@/hooks/use-channels-preview";
@@ -182,9 +183,10 @@ function SectionHead({
 const HomeScreen = () => {
   const { colors, tokens } = useAppTheme();
   const router = useRouter();
+  const { user }     = useAuth();
   const { profile }  = useProfile();
   const { events }   = useUpcomingEvents(6);
-  const { channels } = useChannelsPreview(4);
+  const { channels } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
 
   const styles      = getStyles(colors, tokens);
   const greeting    = getGreeting();

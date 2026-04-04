@@ -28,16 +28,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
-import { useAppTheme } from "@/contexts/ThemeContext";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { MemberEntry, useMembers } from "@/hooks/use-members";
-import { UserRole, UserStatus } from "@/types";
+import { MemberRole, UserStatus } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 // rgba so badges work on both light (white) and dark (slate-900) cards
 const ROLE_COLORS: Record<
-  UserRole,
+  MemberRole,
   { bg: string; text: string; border: string }
 > = {
   Membre: {
@@ -70,6 +70,46 @@ const ROLE_COLORS: Record<
     text: "#DC2626",
     border: "rgba(185,28,28,0.22)",
   },
+  "Vice-Secrétaire": {
+    bg: "rgba(109,40,217,0.10)",
+    text: "#7C3AED",
+    border: "rgba(109,40,217,0.22)",
+  },
+  "Vice-Trésorier": {
+    bg: "rgba(21,128,61,0.10)",
+    text: "#15803D",
+    border: "rgba(21,128,61,0.22)",
+  },
+  "Responsable Communication": {
+    bg: "rgba(6,182,212,0.10)",
+    text: "#0891B2",
+    border: "rgba(6,182,212,0.22)",
+  },
+  "Vice-Responsable Communication": {
+    bg: "rgba(6,182,212,0.10)",
+    text: "#0891B2",
+    border: "rgba(6,182,212,0.22)",
+  },
+  "Responsable Loisir": {
+    bg: "rgba(236,72,153,0.10)",
+    text: "#DB2777",
+    border: "rgba(236,72,153,0.22)",
+  },
+  "Responsable Discipline": {
+    bg: "rgba(234,88,12,0.10)",
+    text: "#EA580C",
+    border: "rgba(234,88,12,0.22)",
+  },
+  Conseiller: {
+    bg: "rgba(100,116,139,0.10)",
+    text: "#64748B",
+    border: "rgba(100,116,139,0.20)",
+  },
+  Visiteur: {
+    bg: "rgba(245,158,11,0.12)",
+    text: "#D97706",
+    border: "rgba(245,158,11,0.28)",
+  },
 };
 
 const STATUS_COLOR: Record<UserStatus, string> = {
@@ -79,13 +119,21 @@ const STATUS_COLOR: Record<UserStatus, string> = {
   Arrêt: "#EF4444",
 };
 
-const ROLE_FILTERS: Array<UserRole | "Tous"> = [
+const ROLE_FILTERS: (MemberRole | "Tous")[] = [
   "Tous",
+  "Visiteur",
   "Membre",
   "Vice-Président",
   "Président",
   "Secrétaire",
+  "Vice-Secrétaire",
   "Trésorier",
+  "Vice-Trésorier",
+  "Responsable Communication",
+  "Vice-Responsable Communication",
+  "Responsable Loisir",
+  "Responsable Discipline",
+  "Conseiller",
   "Administrateur",
 ];
 
@@ -96,7 +144,7 @@ export default function MembersScreen() {
   const { members, loading, refetch } = useMembers();
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<UserRole | "Tous">("Tous");
+  const [roleFilter, setRoleFilter] = useState<MemberRole | "Tous">("Tous");
 
   const filtered = useMemo(() => {
     return members.filter((m) => {
@@ -106,6 +154,16 @@ export default function MembersScreen() {
       return matchSearch && matchRole;
     });
   }, [members, search, roleFilter]);
+
+  const visitors = useMemo(
+    () => filtered.filter((m) => m.role === "Visiteur"),
+    [filtered]
+  );
+
+  const regulars = useMemo(
+    () => filtered.filter((m) => m.role !== "Visiteur"),
+    [filtered]
+  );
 
   const getInitials = (m: MemberEntry) =>
     [m.firstName?.[0], m.lastName?.[0]]
@@ -120,7 +178,11 @@ export default function MembersScreen() {
 
   // ── Member card ──────────────────────────────────────────────────────────
   const renderMember = ({ item }: { item: MemberEntry }) => {
-    const roleCfg = ROLE_COLORS[item.role];
+    const roleCfg = ROLE_COLORS[item.role] ?? {
+      bg: "rgba(100,116,139,0.10)",
+      text: "#64748B",
+      border: "rgba(100,116,139,0.20)",
+    };
     return (
       <TouchableOpacity
         style={styles.memberCard}
@@ -183,6 +245,28 @@ export default function MembersScreen() {
 
         <Icon name="chevron-right" size={18} color={colors.textTertiary} />
       </TouchableOpacity>
+    );
+  };
+
+  const renderWaitingSection = () => {
+    if (visitors.length === 0) return null;
+    return (
+      <View style={styles.waitingSection}>
+        <View style={styles.waitingHeader}>
+          <Text style={[styles.waitingTitle, { color: colors.textPrimary }]}>
+            En attente d'approbation
+          </Text>
+          <View style={styles.waitingBadge}>
+            <Text style={styles.waitingBadgeText}>{visitors.length}</Text>
+          </View>
+        </View>
+        {visitors.map((item) => (
+          <View key={item.uid}>
+            {renderMember({ item })}
+          </View>
+        ))}
+        <View style={[styles.waitingSeparator, { backgroundColor: colors.border }]} />
+      </View>
     );
   };
 
@@ -261,9 +345,10 @@ export default function MembersScreen() {
         </View>
       ) : (
         <FlatList
-          data={filtered}
+          data={regulars}
           keyExtractor={(item) => item.uid}
           renderItem={renderMember}
+          ListHeaderComponent={renderWaitingSection}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshControl={
@@ -317,17 +402,18 @@ const getStyles = (colors: any, tokens: any) =>
     // ── Filters ──────────────────────────────────────────────────────────
     filterScroll: {
       flexGrow: 0,
-      marginBottom: tokens.space.md,
+      marginBottom: tokens.space.lg,
+      height: 50,
     },
     filterRow: {
       paddingHorizontal: tokens.space.lg,
-      gap: tokens.space.sm,
       flexDirection: "row",
       alignItems: "center",
+      gap: tokens.space.sm,
     },
     filterChip: {
       paddingHorizontal: tokens.space.md,
-      paddingVertical: tokens.space.xs,
+      paddingVertical: tokens.space.md,
       borderRadius: tokens.radius.pill,
       borderWidth: 1.5,
     },
@@ -418,6 +504,41 @@ const getStyles = (colors: any, tokens: any) =>
       fontSize: tokens.font.xs,
       color: colors.textSecondary,
       fontWeight: "500",
+    },
+
+    // ── Waiting section ──────────────────────────────────────────────────
+    waitingSection: {
+      marginBottom: tokens.space.sm,
+    },
+    waitingHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space.sm,
+      paddingHorizontal: tokens.space.lg,
+      paddingVertical: tokens.space.sm,
+    },
+    waitingTitle: {
+      fontSize: tokens.font.xs,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    waitingBadge: {
+      backgroundColor: "rgba(245,158,11,0.20)",
+      borderRadius: 10,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+    },
+    waitingBadgeText: {
+      color: "#D97706",
+      fontSize: tokens.font.xs,
+      fontWeight: "700",
+    },
+    waitingSeparator: {
+      height: 1,
+      marginHorizontal: tokens.space.lg,
+      marginTop: tokens.space.sm,
+      marginBottom: tokens.space.xs,
     },
 
     // ── States ──────────────────────────────────────────────────────────

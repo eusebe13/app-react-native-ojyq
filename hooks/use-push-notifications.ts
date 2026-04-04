@@ -7,15 +7,17 @@ import { doc, updateDoc } from "firebase/firestore";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
-// Show notifications even when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// Show notifications even when the app is in the foreground (native only)
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 function navigateFromNotification(
   router: ReturnType<typeof useRouter>,
@@ -38,7 +40,9 @@ export function usePushNotifications() {
   const responseSub = useRef<Notifications.EventSubscription | null>(null);
 
   // Handle cold start: app was killed and opened via notification tap
-  const lastResponse = Notifications.useLastNotificationResponse();
+  // Platform.OS is a constant so calling hooks conditionally on it is safe
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const lastResponse = Platform.OS !== "web" ? Notifications.useLastNotificationResponse() : undefined;
   useEffect(() => {
     if (!lastResponse) return;
     const data = lastResponse.notification.request.content.data as Record<string, unknown>;
@@ -46,7 +50,7 @@ export function usePushNotifications() {
   }, [lastResponse, router]);
 
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || Platform.OS === "web") return;
 
     registerForPushNotificationsAsync(user.uid).catch((e) =>
       console.warn("[push-notifications] registration failed:", e)
