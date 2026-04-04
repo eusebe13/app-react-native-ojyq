@@ -9,11 +9,11 @@
  */
 
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { sendExpoPush } from "@/hooks/use-push-notifications";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
+import { showToast } from "@/components/Toast";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "@/firebaseConfig";
@@ -31,6 +32,7 @@ import { MemberRole, UserStatus } from "@/types";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ALL_ROLES: MemberRole[] = [
+  "Visiteur",
   "Membre",
   "Vice-Président",
   "Président",
@@ -111,10 +113,39 @@ export default function MemberEditScreen() {
         },
         { merge: true },
       );
-      Alert.alert("Succès", `${displayName} mis à jour avec succès`);
+
+      // Approval side-effects: Visiteur → any other role
+      if (initialRole === "Visiteur" && selectedRole !== "Visiteur") {
+        try {
+          const userSnap = await getDoc(doc(db, "users", uid));
+          const userData = userSnap.data();
+
+          // Mark the approval task as done
+          if (userData?.approvalTaskId) {
+            await updateDoc(doc(db, "tasks", userData.approvalTaskId), {
+              status: "done",
+              completedAt: serverTimestamp(),
+            });
+          }
+
+          // Notify the newly approved user
+          if (userData?.expoPushToken) {
+            await sendExpoPush(
+              userData.expoPushToken as string,
+              "Accès approuvé 🎉",
+              "Ton compte OJYQ est maintenant actif !",
+              { type: "approval" }
+            );
+          }
+        } catch (e) {
+          console.warn("[member-edit] approval side-effects failed:", e);
+        }
+      }
+
+      showToast(`${displayName} mis à jour avec succès`, "success");
       router.back();
     } catch {
-      Alert.alert("Erreur", "Impossible de mettre à jour ce membre");
+      showToast("Impossible de mettre à jour ce membre", "error");
     } finally {
       setSaving(false);
     }

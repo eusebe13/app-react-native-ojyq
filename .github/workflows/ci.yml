@@ -1,0 +1,48 @@
+name: CI — Backend Tests & Coverage
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      # ── Firebase Functions ──────────────────────────────────────────────────
+      - name: Install Firebase Functions deps
+        run: npm ci
+        working-directory: functions
+
+      - name: Test Firebase Functions (coverage ≥ 70%)
+        run: npm run test:coverage
+        working-directory: functions
+
+      # ── Cloudflare R2 Worker ────────────────────────────────────────────────
+      - name: Install CF Worker deps
+        run: npm ci
+        working-directory: cf-worker
+
+      - name: Test CF Worker (coverage ≥ 70%)
+        run: npm run test:coverage
+        working-directory: cf-worker
+
+      # ── Upload artefacts (even on failure, for debugging) ───────────────────
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            functions/coverage/
+            cf-worker/coverage/
+          retention-days: 14

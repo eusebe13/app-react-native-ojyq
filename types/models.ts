@@ -12,6 +12,7 @@ import { Timestamp } from 'firebase/firestore';
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type MemberRole =
+  | 'Visiteur'
   | 'Membre'
   | 'Vice-Président'
   | 'Président'

@@ -1,3 +1,6 @@
+import { showActionSheet } from "@/components/ActionSheet";
+import { showToast } from "@/components/Toast";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 import { Header } from "@/components/Header";
 import { formatAttendanceText } from "@/utils/attendanceUtils";
 import * as Clipboard from "expo-clipboard";
@@ -27,7 +30,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "react-native-qrcode-svg";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Linking,
   Modal,
@@ -579,15 +581,15 @@ export default function FirebaseCalendarScreen() {
   // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
   const handleSaveEvent = async () => {
     if (!title.trim()) {
-      Alert.alert("Erreur", "Le titre est obligatoire");
+      showToast("Le titre est obligatoire", "error");
       return;
     }
     if (!locationLabel.trim()) {
-      Alert.alert("Erreur", "Le label du lieu est obligatoire");
+      showToast("Le label du lieu est obligatoire", "error");
       return;
     }
     if (!editingId && date < new Date()) {
-      Alert.alert("Action impossible", "L'événement est dans le passé.");
+      showToast("L'événement est dans le passé.", "error");
       return;
     }
 
@@ -598,10 +600,7 @@ export default function FirebaseCalendarScreen() {
           l.label.toLowerCase().trim() === locationLabel.toLowerCase().trim(),
       );
       if (exists) {
-        Alert.alert(
-          "Label de lieu existant",
-          "Ce label de lieu existe déjà. Veuillez en choisir un autre ou décocher la case d'enregistrement.",
-        );
+        showToast("Ce label existe déjà. Choisissez-en un autre.", "error");
         return;
       }
     }
@@ -633,7 +632,7 @@ export default function FirebaseCalendarScreen() {
 
       closeModal();
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de sauvegarder.");
+      showToast("Impossible de sauvegarder.", "error");
     }
   };
 
@@ -653,12 +652,12 @@ export default function FirebaseCalendarScreen() {
     if (!user) return;
 
     if (availabilityStartTime >= availabilityEndTime) {
-      Alert.alert("Erreur", "L'heure de fin doit être après l'heure de début");
+      showToast("L'heure de fin doit être après l'heure de début", "error");
       return;
     }
 
     if (!selectedDays.some(Boolean)) {
-      Alert.alert("Erreur", "Sélectionnez au moins un jour");
+      showToast("Sélectionnez au moins un jour", "error");
       return;
     }
 
@@ -689,11 +688,11 @@ export default function FirebaseCalendarScreen() {
         createdAt: Timestamp.now(),
       });
 
-      Alert.alert("Succès", "Disponibilité récurrente enregistrée");
+      showToast("Disponibilité récurrente enregistrée", "success");
       closeAvailabilityModal();
     } catch (error) {
       console.error("Erreur:", error);
-      Alert.alert("Erreur", "Impossible de sauvegarder la disponibilité");
+      showToast("Impossible de sauvegarder la disponibilité", "error");
     }
   };
 
@@ -706,27 +705,21 @@ export default function FirebaseCalendarScreen() {
 
   const handleDeleteAvailability = async (id: string) => {
     if (!user) return;
-
-    Alert.alert(
-      "Confirmer la suppression",
-      "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, "users", user.uid, "availabilities", id));
-              Alert.alert("Succès", "Disponibilité supprimée");
-            } catch (error) {
-              console.error("Erreur:", error);
-              Alert.alert("Erreur", "Impossible de supprimer");
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: "Supprimer la disponibilité",
+      message: "Êtes-vous sûr de vouloir supprimer cette disponibilité ?",
+      confirmLabel: "Supprimer",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, "users", user.uid, "availabilities", id));
+          showToast("Disponibilité supprimée", "success");
+        } catch (error) {
+          console.error("Erreur:", error);
+          showToast("Impossible de supprimer", "error");
+        }
+      },
+    });
   };
 
   // --- EXPORTER UN ÉVÉNEMENT VERS LE CALENDRIER NATIF ---
@@ -734,10 +727,7 @@ export default function FirebaseCalendarScreen() {
     try {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Accès refusé",
-          "L'application n'a pas accès à votre calendrier.",
-        );
+        showToast("L'application n'a pas accès à votre calendrier.", "error");
         return;
       }
 
@@ -749,7 +739,7 @@ export default function FirebaseCalendarScreen() {
         calendars.find((c) => c.allowsModifications);
 
       if (!target) {
-        Alert.alert("Erreur", "Aucun calendrier modifiable trouvé.");
+        showToast("Aucun calendrier modifiable trouvé.", "error");
         return;
       }
 
@@ -765,22 +755,23 @@ export default function FirebaseCalendarScreen() {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
-      Alert.alert("Succès", `"${item.title}" ajouté à votre calendrier.`);
+      showToast(`"${item.title}" ajouté à votre calendrier.`, "success");
     } catch (error) {
       console.error("Export calendrier:", error);
-      Alert.alert("Erreur", "Impossible d'ajouter l'événement au calendrier.");
+      showToast("Impossible d'ajouter l'événement au calendrier.", "error");
     }
   };
 
   // --- 4. GÉRER L'APPUI LONG (MODIF / SUPPR) ---
   const handleLongPress = (item: any) => {
-    Alert.alert(
-      "Options de l'événement",
-      `Que souhaitez-vous faire pour "${item.title}" ?`,
-      [
-        { text: "Annuler", style: "cancel" },
+    showActionSheet({
+      title: "Options de l'événement",
+      message: `"${item.title}"`,
+      actions: [
         {
-          text: "Modifier",
+          label: "Modifier",
+          icon: "create-outline",
+          style: "default",
           onPress: () => {
             setEditingId(item.id);
             setTitle(item.title);
@@ -793,14 +784,24 @@ export default function FirebaseCalendarScreen() {
           },
         },
         {
-          text: "Supprimer",
+          label: "Supprimer",
+          icon: "trash-outline",
           style: "destructive",
-          onPress: async () => {
-            await deleteDoc(doc(db, "events", item.id));
+          onPress: () => {
+            showConfirm({
+              title: "Supprimer l'événement",
+              message: `Supprimer "${item.title}" définitivement ?`,
+              confirmLabel: "Supprimer",
+              destructive: true,
+              onConfirm: async () => {
+                await deleteDoc(doc(db, "events", item.id));
+              },
+            });
           },
         },
+        { label: "Annuler", style: "cancel", onPress: () => {} },
       ],
-    );
+    });
   };
 
   // --- Vue détail & Participation ---
@@ -820,7 +821,7 @@ export default function FirebaseCalendarScreen() {
         { userId: user.uid, userName: displayName, status, updatedAt: Timestamp.now() },
       );
     } catch {
-      Alert.alert("Erreur", "Impossible de mettre à jour ta participation.");
+      showToast("Impossible de mettre à jour ta participation.", "error");
     }
   };
 
@@ -849,10 +850,7 @@ export default function FirebaseCalendarScreen() {
     if (!scanPermission?.granted) {
       const result = await requestScanPermission();
       if (!result.granted) {
-        Alert.alert(
-          "Accès refusé",
-          "L'application a besoin d'accéder à votre caméra.",
-        );
+        showToast("L'application a besoin d'accéder à votre caméra.", "error");
         return;
       }
     }
@@ -870,9 +868,8 @@ export default function FirebaseCalendarScreen() {
       setScannerVisible(false);
       setPendingCheckin({ eventId: payload.eventId, title: payload.title });
     } catch {
-      Alert.alert("QR invalide", "Ce QR n'est pas un QR d'événement OJYQ.", [
-        { text: "OK", onPress: () => (isProcessing.current = false) },
-      ]);
+      showToast("Ce QR n'est pas un QR d'événement OJYQ.", "error");
+      isProcessing.current = false;
     }
   }, []);
 
@@ -883,13 +880,13 @@ export default function FirebaseCalendarScreen() {
     const phase = event ? getEventPhase(event.dateObj) : "past";
 
     if (phase === "future") {
-      Alert.alert("Trop tôt", "L'événement n'a pas encore commencé.");
+      showToast("L'événement n'a pas encore commencé.", "info");
       setPendingCheckin(null);
       isProcessing.current = false;
       return;
     }
     if (phase === "past") {
-      Alert.alert("Terminé", "Cet événement est terminé.");
+      showToast("Cet événement est terminé.", "info");
       setPendingCheckin(null);
       isProcessing.current = false;
       return;
@@ -910,12 +907,9 @@ export default function FirebaseCalendarScreen() {
           updatedAt: Timestamp.now(),
         },
       );
-      Alert.alert(
-        "Présence physique enregistrée !",
-        `Tu es marqué présent en présentiel pour "${pendingCheckin.title}"`,
-      );
+      showToast(`Présence enregistrée pour "${pendingCheckin.title}"`, "success");
     } catch {
-      Alert.alert("Erreur", "Impossible d'enregistrer ta présence.");
+      showToast("Impossible d'enregistrer ta présence.", "error");
     } finally {
       setPendingCheckin(null);
       isProcessing.current = false;

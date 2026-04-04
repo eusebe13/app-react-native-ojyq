@@ -1,3 +1,5 @@
+import { showToast } from "@/components/Toast";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 /**
  * TaskSection — Task management section for the home screen.
  *
@@ -29,7 +31,6 @@ import {
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -253,11 +254,11 @@ export const TaskSection = () => {
 
   const handleSave = useCallback(async () => {
     if (!title.trim()) {
-      Alert.alert("Erreur", "Le titre est obligatoire");
+      showToast("Le titre est obligatoire", "error");
       return;
     }
     if (!assigneeId) {
-      Alert.alert("Erreur", "Veuillez sélectionner un assigné");
+      showToast("Veuillez sélectionner un assigné", "error");
       return;
     }
 
@@ -309,7 +310,7 @@ export const TaskSection = () => {
       }
       closeForm();
     } catch {
-      Alert.alert("Erreur", "Impossible de sauvegarder la tâche");
+      showToast("Impossible de sauvegarder la tâche", "error");
     } finally {
       setSaving(false);
     }
@@ -332,32 +333,28 @@ export const TaskSection = () => {
     await updateDoc(doc(db, "tasks", task.id), {
       status: newStatus,
       completedAt: newStatus === "done" ? Timestamp.now() : null,
-    }).catch(() =>
-      Alert.alert("Erreur", "Impossible de mettre à jour la tâche"),
-    );
+    }).catch(() => showToast("Impossible de mettre à jour la tâche", "error"));
   }, []);
 
   const handleDelete = useCallback(
     (task: Task) => {
       if (!canManage) return;
-      Alert.alert("Supprimer la tâche", `Supprimer "${task.title}" ?`, [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: () => {
-            setDetailTask(null);
-            const expireAt = new Date();
-            expireAt.setDate(expireAt.getDate() + 30);
-            updateDoc(doc(db, "tasks", task.id), {
-              deletedAt: Timestamp.now(),
-              expireAt: Timestamp.fromDate(expireAt),
-            }).catch(() =>
-              Alert.alert("Erreur", "Impossible de supprimer la tâche"),
-            );
-          },
-        },
-      ]);
+      const doDelete = () => {
+        setDetailTask(null);
+        const expireAt = new Date();
+        expireAt.setDate(expireAt.getDate() + 30);
+        updateDoc(doc(db, "tasks", task.id), {
+          deletedAt: Timestamp.now(),
+          expireAt: Timestamp.fromDate(expireAt),
+        }).catch(() => showToast("Impossible de supprimer la tâche", "error"));
+      };
+      showConfirm({
+        title: "Supprimer la tâche",
+        message: `Supprimer "${task.title}" ?`,
+        confirmLabel: "Supprimer",
+        destructive: true,
+        onConfirm: doDelete,
+      });
     },
     [canManage],
   );
@@ -381,80 +378,81 @@ export const TaskSection = () => {
     const isOverdue = task.deadline < new Date() && !isDone;
 
     return (
-      <TouchableOpacity
-        key={task.id}
-        style={[
-          styles.taskCard,
-          isDone && styles.taskCardDone,
-          isOverdue && { borderColor: colors.accent6 + "50" },
-        ]}
-        onPress={() => setDetailTask(task)}
-        onLongPress={() => handleLongPress(task)}
-        activeOpacity={0.85}
-      >
-        {/* Priority / completion stripe */}
-        <View style={[styles.taskStripe, { backgroundColor: stripeColor }]} />
+      <View key={task.id} style={styles.taskCardWrapper}>
+        <TouchableOpacity
+          style={[
+            styles.taskCard,
+            isDone && styles.taskCardDone,
+            isOverdue && { borderColor: colors.accent6 + "50" },
+          ]}
+          onPress={() => setDetailTask(task)}
+          onLongPress={() => handleLongPress(task)}
+          activeOpacity={0.85}
+        >
+          {/* Priority / completion stripe */}
+          <View style={[styles.taskStripe, { backgroundColor: stripeColor }]} />
 
-        <View style={styles.taskBody}>
-          {/* Row 1: title + checkbox */}
-          <View style={styles.taskTitleRow}>
-            <Text
-              style={[styles.taskTitle, isDone && styles.taskTitleDone]}
-              numberOfLines={2}
-            >
-              {task.title}
-            </Text>
-            <TouchableOpacity
-              onPress={() => handleToggle(task)}
-              style={[
-                styles.checkbox,
-                isDone && {
-                  backgroundColor: colors.online,
-                  borderColor: colors.online,
-                },
-              ]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              {isDone && <Icon name="check" size={12} color="#FFFFFF" />}
-            </TouchableOpacity>
-          </View>
-
-          {/* Row 2: description preview */}
-          {!!task.description && (
-            <Text style={styles.taskDesc} numberOfLines={1}>
-              {task.description}
-            </Text>
-          )}
-
-          {/* Row 3: deadline + assignee */}
-          <View style={styles.taskMeta}>
-            <View style={[styles.deadlineBadge, { backgroundColor: dl.bg }]}>
-              <Icon
-                name="calendar-clock-outline"
-                size={11}
-                color={dl.textColor}
-              />
-              <Text style={[styles.badgeText, { color: dl.textColor }]}>
-                {dl.label}
+          <View style={styles.taskBody}>
+            {/* Row 1: title + checkbox */}
+            <View style={styles.taskTitleRow}>
+              <Text
+                style={[styles.taskTitle, isDone && styles.taskTitleDone]}
+                numberOfLines={2}
+              >
+                {task.title}
               </Text>
+              <TouchableOpacity
+                onPress={() => handleToggle(task)}
+                style={[
+                  styles.checkbox,
+                  isDone && {
+                    backgroundColor: colors.online,
+                    borderColor: colors.online,
+                  },
+                ]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {isDone && <Icon name="check" size={12} color="#FFFFFF" />}
+              </TouchableOpacity>
             </View>
-            <View style={styles.assigneeBadge}>
-              <Icon
-                name={
-                  task.assigneeType === "role"
-                    ? "account-group-outline"
-                    : "account-outline"
-                }
-                size={11}
-                color={colors.textTertiary}
-              />
-              <Text style={styles.assigneeText} numberOfLines={1}>
-                {task.assigneeName}
+
+            {/* Row 2: description preview */}
+            {!!task.description && (
+              <Text style={styles.taskDesc} numberOfLines={1}>
+                {task.description}
               </Text>
+            )}
+
+            {/* Row 3: deadline + assignee */}
+            <View style={styles.taskMeta}>
+              <View style={[styles.deadlineBadge, { backgroundColor: dl.bg }]}>
+                <Icon
+                  name="calendar-clock-outline"
+                  size={11}
+                  color={dl.textColor}
+                />
+                <Text style={[styles.badgeText, { color: dl.textColor }]}>
+                  {dl.label}
+                </Text>
+              </View>
+              <View style={styles.assigneeBadge}>
+                <Icon
+                  name={
+                    task.assigneeType === "role"
+                      ? "account-group-outline"
+                      : "account-outline"
+                  }
+                  size={11}
+                  color={colors.textTertiary}
+                />
+                <Text style={styles.assigneeText} numberOfLines={1}>
+                  {task.assigneeName}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -1306,6 +1304,16 @@ const getStyles = (colors: any, tokens: any) =>
       gap: 4,
     },
     badgeText: { fontSize: tokens.font.xs, fontWeight: "600" },
+    taskCardWrapper: {
+      position: "relative",
+    },
+    webMenuBtn: {
+      position: "absolute",
+      right: 8,
+      top: 8,
+      zIndex: 1,
+      padding: 4,
+    },
     assigneeText: {
       fontSize: tokens.font.xs,
       color: colors.textTertiary,

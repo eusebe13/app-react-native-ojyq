@@ -14,7 +14,6 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -26,6 +25,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { auth } from "@/firebaseConfig";
@@ -66,6 +66,7 @@ const STATUS_CONFIG: Record<
 };
 
 const ROLE_BADGE: Record<MemberRole, { bg: string; text: string }> = {
+  Visiteur: { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Membre: { bg: "rgba(255,255,255,0.18)", text: "#FFFFFF" },
   "Vice-Président": { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
   Président: { bg: "rgba(245,158,11,0.25)", text: "#FCD34D" },
@@ -269,10 +270,13 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Déconnexion", "Voulez-vous vraiment vous déconnecter ?", [
-      { text: "Annuler", style: "cancel" },
-      { text: "Déconnecter", style: "destructive", onPress: logOut },
-    ]);
+    showConfirm({
+      title: "Déconnexion",
+      message: "Voulez-vous vraiment vous déconnecter ?",
+      confirmLabel: "Déconnecter",
+      destructive: true,
+      onConfirm: logOut,
+    });
   };
 
   if (loading) {

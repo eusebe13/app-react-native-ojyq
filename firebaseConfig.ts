@@ -40,7 +40,6 @@ if (Platform.OS === 'web') {
 
 const db = getFirestore(app);
 const functions = getFunctions(app, 'us-central1');
-
 // Configuration pour l'émulateur en développement (optionnel)
 // if (process.env.NODE_ENV === 'development') {
 //   connectFunctionsEmulator(functions, 'localhost', 5001);
