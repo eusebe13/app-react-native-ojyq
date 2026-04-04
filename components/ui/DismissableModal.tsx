@@ -1,9 +1,5 @@
 import React from "react";
-import {
-  Modal,
-  TouchableWithoutFeedback,
-  View,
-} from "react-native";
+import { Modal, TouchableWithoutFeedback, View } from "react-native";
 
 interface DismissableModalProps {
   visible: boolean;
@@ -13,9 +9,12 @@ interface DismissableModalProps {
 }
 
 /**
- * Modal transparent avec fermeture automatique au clic sur le backdrop.
- * Le contenu interne (card) est rendu par l'appelant — ce composant ne
- * stylise pas la carte, uniquement l'overlay.
+ * Modal transparent avec fermeture au clic sur le backdrop.
+ *
+ * Architecture : backdrop absolu + contenu frère (pas parent-enfant).
+ * Les touches sur le contenu n'atteignent jamais le backdrop — pas besoin
+ * de stopPropagation. Les ScrollView et TextInput à l'intérieur fonctionnent
+ * normalement car aucun Pressable n'enveloppe le contenu.
  */
 export function DismissableModal({
   visible,
@@ -30,22 +29,33 @@ export function DismissableModal({
       transparent={true}
       onRequestClose={onDismiss}
     >
-      <TouchableWithoutFeedback onPress={onDismiss}>
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "rgba(0,0,0,0.5)",
-          }}
-        >
-          {/* onStartShouldSetResponder bloque la propagation du clic
-              depuis le contenu interne vers le backdrop */}
-          <View onStartShouldSetResponder={() => true}>
-            {children}
-          </View>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        {/* Backdrop : couvre tout l'écran derrière le contenu */}
+        <TouchableWithoutFeedback onPress={onDismiss}>
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+            }}
+          />
+        </TouchableWithoutFeedback>
+
+        {/* Contenu : frère du backdrop, positionné au-dessus en z-order.
+            maxHeight: '100%' pour que les % dans les cartes enfants se résolvent. */}
+        <View style={{ maxHeight: "100%" }}>
+          {children}
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
