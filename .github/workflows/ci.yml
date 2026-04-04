@@ -2,9 +2,9 @@ name: CI — Backend Tests & Coverage
 
 on:
   push:
-    branches: [master, develop]
+    branches: [master, develop, main/web]
   pull_request:
-    branches: [master, develop]
+    branches: [master, develop, main/web]
 
 jobs:
   test-backend:

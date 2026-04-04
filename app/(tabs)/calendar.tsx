@@ -5,11 +5,11 @@ import { Header } from "@/components/Header";
 import { formatAttendanceText } from "@/utils/attendanceUtils";
 import * as Clipboard from "expo-clipboard";
 import { WeeklyCoverageChart } from "@/components/calendar/WeeklyCoverageChart";
+import { AvailabilityModal, AvailabilityData, EventFormModal, EventFormData } from "@/components/calendar";
 import { DismissableModal } from "@/components/ui/DismissableModal";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { useProfile } from "@/hooks/use-profile";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Calendar from "expo-calendar";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { getAuth } from "firebase/auth";
@@ -36,7 +36,6 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -344,32 +343,10 @@ export default function FirebaseCalendarScreen() {
   // États pour le Modal et le Formulaire
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [editingInitialValues, setEditingInitialValues] = useState<Partial<EventFormData> | undefined>();
 
   // États pour les disponibilités
-  const [availabilityModalVisible, setAvailabilityModalVisible] =
-    useState(false);
-  const [availabilityStartTime, setAvailabilityStartTime] = useState(
-    new Date(),
-  );
-  const [availabilityEndTime, setAvailabilityEndTime] = useState(new Date());
-  const [showAvailabilityStartTimePicker, setShowAvailabilityStartTimePicker] =
-    useState(false);
-  const [showAvailabilityEndTimePicker, setShowAvailabilityEndTimePicker] =
-    useState(false);
-  const [selectedDays, setSelectedDays] = useState<boolean[]>([
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-  ]); // lundi à dimanche
+  const [availabilityModalVisible, setAvailabilityModalVisible] = useState(false);
 
   // États QR et scanner
   const [allAvailabilities, setAllAvailabilities] = useState<any[]>([]);
@@ -394,46 +371,7 @@ export default function FirebaseCalendarScreen() {
   const canManageSchedule =
     profile.role === "Administrateur" || profile.role === "Président";
 
-  // États formulaire événement (champs étendus)
-  const [description, setDescription] = useState("");
-  const [locationLabel, setLocationLabel] = useState("");
-  const [locationAddress, setLocationAddress] = useState("");
-  const [saveAddress, setSaveAddress] = useState(false);
   const [savedLocations, setSavedLocations] = useState<any[]>([]);
-
-  const onChangeDate = (event: any, selectedDate: any) => {
-    if (Platform.OS === "android") setShowDatePicker(false);
-
-    if (selectedDate) {
-      const currentDate = new Date(date);
-      currentDate.setFullYear(selectedDate.getFullYear());
-      currentDate.setMonth(selectedDate.getMonth());
-      currentDate.setDate(selectedDate.getDate());
-      setDate(currentDate);
-    }
-  };
-
-  const onChangeTime = (event: any, selectedTime: any) => {
-    if (Platform.OS === "android") setShowTimePicker(false);
-
-    if (selectedTime) {
-      const currentTime = new Date(date);
-      currentTime.setHours(selectedTime.getHours());
-      currentTime.setMinutes(selectedTime.getMinutes());
-      setDate(currentTime);
-    }
-  };
-
-  // --- OPTIMISATION DES PICKERS (iOS focus) ---
-  const openDatePicker = () => {
-    setShowTimePicker(false);
-    setShowDatePicker(true);
-  };
-
-  const openTimePicker = () => {
-    setShowDatePicker(false);
-    setShowTimePicker(true);
-  };
 
   // --- 1. ÉCOUTER LES DONNÉES ---
   useEffect(() => {
@@ -579,40 +517,15 @@ export default function FirebaseCalendarScreen() {
   const isEventPast = (date: Date) => getEventPhase(date) === "past";
 
   // --- 3. SAUVEGARDE (AJOUT OU MODIF) ---
-  const handleSaveEvent = async () => {
-    if (!title.trim()) {
-      showToast("Le titre est obligatoire", "error");
-      return;
-    }
-    if (!locationLabel.trim()) {
-      showToast("Le label du lieu est obligatoire", "error");
-      return;
-    }
-    if (!editingId && date < new Date()) {
-      showToast("L'événement est dans le passé.", "error");
-      return;
-    }
-
-    // Vérification unicité du label AVANT de sauvegarder
-    if (saveAddress) {
-      const exists = savedLocations.some(
-        (l) =>
-          l.label.toLowerCase().trim() === locationLabel.toLowerCase().trim(),
-      );
-      if (exists) {
-        showToast("Ce label existe déjà. Choisissez-en un autre.", "error");
-        return;
-      }
-    }
-
+  const handleSaveEvent = async (data: EventFormData) => {
     const eventData = {
-      title: title.trim(),
-      description: description.trim(),
+      title: data.title.trim(),
+      description: data.description.trim(),
       type: "General",
-      date: Timestamp.fromDate(date),
-      location: locationLabel.trim(),
-      locationLabel: locationLabel.trim(),
-      locationAddress: locationAddress.trim(),
+      date: Timestamp.fromDate(data.date),
+      location: data.locationLabel.trim(),
+      locationLabel: data.locationLabel.trim(),
+      locationAddress: data.locationAddress.trim(),
     };
 
     try {
@@ -622,16 +535,16 @@ export default function FirebaseCalendarScreen() {
         await addDoc(collection(db, "events"), eventData);
       }
 
-      if (saveAddress && locationLabel.trim()) {
+      if (data.saveAddress && data.locationLabel.trim()) {
         await addDoc(collection(db, "savedLocations"), {
-          label: locationLabel.trim(),
-          address: locationAddress.trim(),
+          label: data.locationLabel.trim(),
+          address: data.locationAddress.trim(),
           createdAt: Timestamp.now(),
         });
       }
 
       closeModal();
-    } catch (error) {
+    } catch {
       showToast("Impossible de sauvegarder.", "error");
     }
   };
@@ -639,68 +552,29 @@ export default function FirebaseCalendarScreen() {
   const closeModal = () => {
     setModalVisible(false);
     setEditingId(null);
-    setTitle("");
-    setDescription("");
-    setLocationLabel("");
-    setLocationAddress("");
-    setSaveAddress(false);
-    setDate(new Date());
+    setEditingInitialValues(undefined);
   };
 
   // --- HANDLERS POUR LES DISPONIBILITÉS ---
-  const handleSaveAvailability = async () => {
+  const handleSaveAvailability = async (data: AvailabilityData) => {
     if (!user) return;
 
-    if (availabilityStartTime >= availabilityEndTime) {
-      showToast("L'heure de fin doit être après l'heure de début", "error");
-      return;
-    }
-
-    if (!selectedDays.some(Boolean)) {
-      showToast("Sélectionnez au moins un jour", "error");
-      return;
-    }
-
     try {
-      const days = [
-        "Lundi",
-        "Mardi",
-        "Mercredi",
-        "Jeudi",
-        "Vendredi",
-        "Samedi",
-        "Dimanche",
-      ];
-      const selectedDayNames = days.filter((_, i) => selectedDays[i]);
-
-      const startHours = availabilityStartTime.getHours();
-      const startMinutes = availabilityStartTime.getMinutes();
-      const endHours = availabilityEndTime.getHours();
-      const endMinutes = availabilityEndTime.getMinutes();
-
       await addDoc(collection(db, "users", user.uid, "availabilities"), {
-        days: selectedDayNames,
-        startHours,
-        startMinutes,
-        endHours,
-        endMinutes,
+        days: data.selectedDayNames,
+        startHours: data.startHours,
+        startMinutes: data.startMinutes,
+        endHours: data.endHours,
+        endMinutes: data.endMinutes,
         isRecurring: true,
         createdAt: Timestamp.now(),
       });
 
       showToast("Disponibilité récurrente enregistrée", "success");
-      closeAvailabilityModal();
-    } catch (error) {
-      console.error("Erreur:", error);
+      setAvailabilityModalVisible(false);
+    } catch {
       showToast("Impossible de sauvegarder la disponibilité", "error");
     }
-  };
-
-  const closeAvailabilityModal = () => {
-    setAvailabilityModalVisible(false);
-    setAvailabilityStartTime(new Date());
-    setAvailabilityEndTime(new Date());
-    setSelectedDays([false, false, false, false, false, false, false]);
   };
 
   const handleDeleteAvailability = async (id: string) => {
@@ -774,12 +648,13 @@ export default function FirebaseCalendarScreen() {
           style: "default",
           onPress: () => {
             setEditingId(item.id);
-            setTitle(item.title);
-            setDescription(item.description ?? "");
-            setLocationLabel(item.locationLabel ?? item.location ?? "");
-            setLocationAddress(item.locationAddress ?? "");
-            setSaveAddress(false);
-            setDate(item.dateObj);
+            setEditingInitialValues({
+              title: item.title,
+              description: item.description ?? "",
+              locationLabel: item.locationLabel ?? item.location ?? "",
+              locationAddress: item.locationAddress ?? "",
+              date: item.dateObj,
+            });
             setModalVisible(true);
           },
         },
@@ -836,11 +711,6 @@ export default function FirebaseCalendarScreen() {
     Linking.canOpenURL(url).then((ok) =>
       Linking.openURL(ok ? url : fallback),
     );
-  };
-
-  const handleSelectSavedLocation = (loc: any) => {
-    setLocationLabel(loc.label);
-    setLocationAddress(loc.address);
   };
 
   // --- QR & Scanner ---
@@ -1322,187 +1192,14 @@ export default function FirebaseCalendarScreen() {
         <Ionicons name="add" size={30} color={colors.surface} />
       </TouchableOpacity>
 
-      <DismissableModal
+      <EventFormModal
         visible={modalVisible}
         onDismiss={closeModal}
-        animationType="slide"
-      >
-          <View style={dynamicStyles.modalView}>
-            <Text style={[dynamicStyles.modalTitle]}>
-              {editingId ? "Modifier l'événement" : "Nouvel Événement"}
-            </Text>
-            <ScrollView style={{ width: "100%" }} keyboardShouldPersistTaps="handled">
-              {/* Titre */}
-              <Text style={dynamicStyles.label}>Titre *</Text>
-              <TextInput
-                style={dynamicStyles.input}
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Nom de l'activité"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              {/* Description */}
-              <Text style={dynamicStyles.label}>Description</Text>
-              <TextInput
-                style={[dynamicStyles.input, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Détails de l'événement (optionnel)"
-                placeholderTextColor={colors.textTertiary}
-                multiline
-              />
-
-              {/* Date & Heure */}
-              <View style={dynamicStyles.row}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={dynamicStyles.label}>Date</Text>
-                  <TouchableOpacity style={dynamicStyles.inputPicker} onPress={openDatePicker}>
-                    <Text style={{ color: colors.textPrimary }}>{date.toLocaleDateString("fr-FR")}</Text>
-                    <Ionicons name="calendar-outline" size={18} color="#666" />
-                  </TouchableOpacity>
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "inline" : "default"}
-                      onChange={onChangeDate}
-                      minimumDate={new Date()}
-                    />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={dynamicStyles.label}>Heure</Text>
-                  <TouchableOpacity style={dynamicStyles.inputPicker} onPress={openTimePicker}>
-                    <Text style={{ color: colors.textPrimary }}>
-                      {date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                    </Text>
-                    <Ionicons name="time-outline" size={18} color="#666" />
-                  </TouchableOpacity>
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode="time"
-                      is24Hour={true}
-                      display="spinner"
-                      onChange={onChangeTime}
-                    />
-                  )}
-                </View>
-              </View>
-
-              {/* Suggestions de lieux sauvegardés */}
-              {savedLocations.length > 0 && (
-                <>
-                  <Text style={dynamicStyles.label}>Lieux enregistrés</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={{ marginBottom: 12 }}
-                    contentContainerStyle={{ gap: 8 }}
-                  >
-                    {savedLocations.map((loc) => (
-                      <TouchableOpacity
-                        key={loc.id}
-                        onPress={() => handleSelectSavedLocation(loc)}
-                        style={{
-                          backgroundColor:
-                            locationLabel === loc.label
-                              ? colors.primary
-                              : colors.surface,
-                          borderWidth: 1,
-                          borderColor:
-                            locationLabel === loc.label
-                              ? colors.primary
-                              : colors.border,
-                          borderRadius: 20,
-                          paddingVertical: 6,
-                          paddingHorizontal: 14,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Ionicons
-                          name="location-outline"
-                          size={13}
-                          color={locationLabel === loc.label ? "#fff" : colors.textSecondary}
-                        />
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            fontWeight: "600",
-                            color:
-                              locationLabel === loc.label
-                                ? "#fff"
-                                : colors.textPrimary,
-                          }}
-                        >
-                          {loc.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </>
-              )}
-
-              {/* Label du lieu (obligatoire) */}
-              <Text style={dynamicStyles.label}>Label du lieu *</Text>
-              <TextInput
-                style={dynamicStyles.input}
-                value={locationLabel}
-                onChangeText={setLocationLabel}
-                placeholder="Ex : Gymnase Principal"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              {/* Adresse du lieu */}
-              <Text style={dynamicStyles.label}>Adresse du lieu</Text>
-              <TextInput
-                style={dynamicStyles.input}
-                value={locationAddress}
-                onChangeText={setLocationAddress}
-                placeholder="Ex : 1100 Rue Notre-Dame O, Montréal"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              {/* Case à cocher Enregistrer adresse */}
-              <TouchableOpacity
-                onPress={() => setSaveAddress(!saveAddress)}
-                style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 10 }}
-              >
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 5,
-                    borderWidth: 2,
-                    borderColor: saveAddress ? colors.primary : colors.border,
-                    backgroundColor: saveAddress ? colors.primary : "transparent",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {saveAddress && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-                <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }}>
-                  Enregistrer cette adresse pour une prochaine fois
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-
-            <View style={dynamicStyles.modalButtons}>
-              <TouchableOpacity onPress={closeModal} style={dynamicStyles.buttonCancel}>
-                <Text style={dynamicStyles.textCancel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleSaveEvent} style={dynamicStyles.buttonSave}>
-                <Text style={dynamicStyles.textSave}>
-                  {editingId ? "Mettre à jour" : "Ajouter"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-      </DismissableModal>
+        editingId={editingId}
+        initialValues={editingInitialValues}
+        savedLocations={savedLocations}
+        onSave={handleSaveEvent}
+      />
 
       {/* MODAL HORAIRE DE PERMANENCE */}
       <DismissableModal
@@ -1528,7 +1225,7 @@ export default function FirebaseCalendarScreen() {
                 Basé sur les disponibilités de {Object.keys(allUsersMap).length} membres
               </Text>
 
-              <ScrollView style={{ width: "100%" }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ width: "100%", flexGrow: 0, flexShrink: 1 }} showsVerticalScrollIndicator>
                 {(["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"] as const).map(
                   (day) => {
                     // Membres disponibles ce jour-là
@@ -1645,12 +1342,22 @@ export default function FirebaseCalendarScreen() {
                 <View style={{ height: 16 }} />
               </ScrollView>
 
-              <TouchableOpacity
+              <View
+              style={{
+                flexDirection: "row",
+                borderRadius: 8,
+                padding: 4,
+                marginBottom: 10,
+                width: "50%",
+              }}
+            > 
+            <TouchableOpacity
                 onPress={() => setScheduleModalVisible(false)}
                 style={[dynamicStyles.buttonSave, { width: "100%", marginTop: 12, marginBottom: 16 }]}
               >
                 <Text style={dynamicStyles.textSave}>Fermer</Text>
               </TouchableOpacity>
+              </View>
             </View>
       </DismissableModal>
 
@@ -2467,7 +2174,7 @@ export default function FirebaseCalendarScreen() {
           <View
             style={[
               dynamicStyles.modalView,
-              { paddingVertical: 24, gap: 0, maxHeight: "85%" },
+              { paddingVertical: 24, gap: 0, maxHeight: "100%" },
             ]}
           >
             {/* Titre */}
@@ -2494,7 +2201,6 @@ export default function FirebaseCalendarScreen() {
                   { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
                   qrModalTab === "qr" && { backgroundColor: colors.surfaceDim, elevation: 1 },
                 ]}
-                onPress={() => setQrModalTab("qr")}
               >
                 <Text
                   style={{
@@ -2533,12 +2239,22 @@ export default function FirebaseCalendarScreen() {
               </View>
             )}
 
-            <TouchableOpacity
+            <View
+              style={{
+                flexDirection: "row",
+                borderRadius: 8,
+                padding: 4,
+                marginBottom: 10,
+                width: "100%",
+              }}
+            >
+              <TouchableOpacity
               onPress={() => setQrEvent(null)}
               style={[dynamicStyles.buttonSave, { width: "100%", marginTop: 20 }]}
             >
               <Text style={dynamicStyles.textSave}>Fermer</Text>
             </TouchableOpacity>
+            </View>
           </View>
       </DismissableModal>
 
@@ -2664,118 +2380,11 @@ export default function FirebaseCalendarScreen() {
           </View>
       </DismissableModal>
 
-      {/* MODAL POUR LES DISPONIBILITÉS */}
-      <DismissableModal
+      <AvailabilityModal
         visible={availabilityModalVisible}
-        onDismiss={closeAvailabilityModal}
-        animationType="slide"
-      >
-          <View style={dynamicStyles.modalView}>
-            <Text style={dynamicStyles.modalTitle}>
-              Ajouter une disponibilité
-            </Text>
-            <ScrollView style={{ width: "100%" }}>
-              {/* JOURS DE LA SEMAINE */}
-              <Text style={dynamicStyles.label}>Jours de la semaine</Text>
-              <View style={dynamicStyles.daysContainer}>
-                {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(
-                  (day, index) => (
-                    <TouchableOpacity
-                      key={`day-${day}`}
-                      style={[
-                        dynamicStyles.dayButton,
-                        selectedDays[index] && dynamicStyles.dayButtonActive,
-                      ]}
-                      onPress={() => {
-                        const newDays = [...selectedDays];
-                        newDays[index] = !newDays[index];
-                        setSelectedDays(newDays);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          dynamicStyles.dayText,
-                          selectedDays[index] && dynamicStyles.dayTextActive,
-                        ]}
-                      >
-                        {day}
-                      </Text>
-                    </TouchableOpacity>
-                  ),
-                )}
-              </View>
-
-              {/* HEURE DE DÉBUT */}
-              <Text style={dynamicStyles.label}>Heure de début</Text>
-              <TouchableOpacity
-                style={dynamicStyles.inputPicker}
-                onPress={() => setShowAvailabilityStartTimePicker(true)}
-              >
-                <Text style={dynamicStyles.datePickerText}>
-                  {availabilityStartTime.toLocaleTimeString("fr-FR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-                <Ionicons name="time" size={20} color="#007AFF" />
-              </TouchableOpacity>
-              {showAvailabilityStartTimePicker && (
-                <DateTimePicker
-                  value={availabilityStartTime}
-                  mode="time"
-                  display="spinner"
-                  onChange={(event: any, selectedTime: any) => {
-                    if (selectedTime) setAvailabilityStartTime(selectedTime);
-                    if (Platform.OS === "android")
-                      setShowAvailabilityStartTimePicker(false);
-                  }}
-                />
-              )}
-
-              {/* HEURE DE FIN */}
-              <Text style={dynamicStyles.label}>Heure de fin</Text>
-              <TouchableOpacity
-                style={dynamicStyles.inputPicker}
-                onPress={() => setShowAvailabilityEndTimePicker(true)}
-              >
-                <Text style={dynamicStyles.datePickerText}>
-                  {availabilityEndTime.toLocaleTimeString("fr-FR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-                <Ionicons name="time" size={20} color="#007AFF" />
-              </TouchableOpacity>
-              {showAvailabilityEndTimePicker && (
-                <DateTimePicker
-                  value={availabilityEndTime}
-                  mode="time"
-                  display="spinner"
-                  onChange={(event: any, selectedTime: any) => {
-                    if (selectedTime) setAvailabilityEndTime(selectedTime);
-                    if (Platform.OS === "android")
-                      setShowAvailabilityEndTimePicker(false);
-                  }}
-                />
-              )}
-            </ScrollView>
-
-            <View style={dynamicStyles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => closeAvailabilityModal()}
-                style={dynamicStyles.buttonCancel}
-              >
-                <Text style={dynamicStyles.textCancel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => handleSaveAvailability()}
-                style={dynamicStyles.buttonSave}
-              >
-                <Text style={dynamicStyles.textSave}>Enregistrer</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-      </DismissableModal>
+        onDismiss={() => setAvailabilityModalVisible(false)}
+        onSave={handleSaveAvailability}
+      />
     </SafeAreaView>
   );
 }
