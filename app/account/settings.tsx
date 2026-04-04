@@ -1,5 +1,5 @@
 /**
- * App Settings — Dark Mode & Notifications
+ * App Settings — Dark Mode
  *
  * Design:
  *  • Modern card-based settings sections
@@ -10,9 +10,9 @@
  *  • Enhanced visual hierarchy and spacing
  */
 
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { showToast } from "@/components/Toast";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -25,43 +25,16 @@ import { useAppTheme } from "@/contexts/ThemeContext";
 import { useProfile } from "@/hooks/use-profile";
 
 export default function AppSettings() {
-  const { profile, saving, saveProfile } = useProfile();
+  const { saving, saveProfile } = useProfile();
   const { isDark, setDark, colors, tokens } = useAppTheme();
-
-  const [notifAgenda, setNotifAgenda] = useState(profile.notifAgenda !== false);
-  const [notifMessages, setNotifMessages] = useState(
-    profile.notifMessages !== false,
-  );
-
-  useEffect(() => {
-    setNotifAgenda(profile.notifAgenda !== false);
-    setNotifMessages(profile.notifMessages !== false);
-  }, [profile]);
 
   const handleDarkModeToggle = async (value: boolean) => {
     try {
       await setDark(value);
       await saveProfile({ darkMode: value });
     } catch {
-      Alert.alert("Erreur", "Impossible de mettre à jour le mode sombre");
+      showToast("Impossible de mettre à jour le mode sombre", "error");
       await setDark(!value);
-    }
-  };
-
-  const handleNotificationToggle = async (
-    type: "agenda" | "messages",
-    value: boolean,
-  ) => {
-    try {
-      if (type === "agenda") {
-        setNotifAgenda(value);
-        await saveProfile({ notifAgenda: value });
-      } else {
-        setNotifMessages(value);
-        await saveProfile({ notifMessages: value });
-      }
-    } catch {
-      Alert.alert("Erreur", "Impossible de mettre à jour les notifications");
     }
   };
 
@@ -83,7 +56,7 @@ export default function AppSettings() {
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>Mode sombre</Text>
               <Text style={styles.settingDescription}>
-                Adaptez l'interface à votre préférence
+                Adaptez l&apos;interface à votre préférence
               </Text>
             </View>
             <Switch
@@ -96,55 +69,12 @@ export default function AppSettings() {
           </View>
         </View>
 
-        {/* Section: Notifications
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-
-          <View
-            style={[styles.settingRow, { borderBottomColor: colors.border }]}
-          >
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Notifications d'Agenda</Text>
-              <Text style={styles.settingDescription}>
-                Recevez des rappels pour les événements
-              </Text>
-            </View>
-            <Switch
-              value={notifAgenda}
-              onValueChange={(value) =>
-                handleNotificationToggle("agenda", value)
-              }
-              disabled={saving}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={notifAgenda ? "#FFFFFF" : colors.surfaceDim}
-            />
-          </View>
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Notifications de Messages</Text>
-              <Text style={styles.settingDescription}>
-                Recevez des alertes pour les nouveaux messages
-              </Text>
-            </View>
-            <Switch
-              value={notifMessages}
-              onValueChange={(value) =>
-                handleNotificationToggle("messages", value)
-              }
-              disabled={saving}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={notifMessages ? "#FFFFFF" : colors.surfaceDim}
-            />
-          </View>
-        </View> */}
-
         {/* Section: Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>À Propos</Text>
 
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Version de l'Application</Text>
+            <Text style={styles.infoLabel}>Version de l&apos;Application</Text>
             <Text style={styles.infoValue}>1.0.0</Text>
           </View>
 

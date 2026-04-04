@@ -6,6 +6,7 @@
  */
 
 // Re-export tous les types du module models
+import type { MemberRole } from './models';
 export * from './models';
 
 // Types legacy pour compatibilité avec le code existant
@@ -45,14 +46,6 @@ export interface DayOption {
 
 // ─── User Profile ──────────────────────────────────────────────────────────
 
-export type UserRole =
-    | 'Membre'
-    | 'Vice-Président'
-    | 'Président'
-    | 'Secrétaire'
-    | 'Trésorier'
-    | 'Administrateur';
-
 export type UserStatus = 'Actif' | 'Pause' | 'Visite' | 'Arrêt';
 
 export type Gender = 'H' | 'F' | 'Autre';
@@ -62,7 +55,7 @@ export type Language = 'Français' | 'Anglais' | 'Kiswahili' | 'Kinande';
 export interface UserProfile {
     firstName: string;
     lastName: string;
-    role: UserRole;
+    role: MemberRole;
     status: UserStatus;
     birthDate: Date | null;
     postalCode: string;
@@ -74,4 +67,7 @@ export interface UserProfile {
     notifMessages: boolean;
     avatarUrl?: string;
     avatarPreset?: number | null;
+    email: string;
+    approvalTaskId?: string;
+    expoPushToken?: string;
 }

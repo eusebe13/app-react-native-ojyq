@@ -1,28 +1,56 @@
 import { db } from "@/firebaseConfig";
 import useAuth from "@/hooks/use-auth";
 import Constants from "expo-constants";
+import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import { doc, updateDoc } from "firebase/firestore";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
-// Show notifications even when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// Show notifications even when the app is in the foreground (native only)
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
+
+function navigateFromNotification(
+  router: ReturnType<typeof useRouter>,
+  data: Record<string, unknown>
+) {
+  if (data?.type === "message" && data?.channelId) {
+    router.push({
+      pathname: "/channel/[id]",
+      params: { id: data.channelId as string, name: (data.channelName as string) ?? "Canal" },
+    });
+  } else if (data?.type === "task") {
+    router.push("/(tabs)");
+  }
+}
 
 export function usePushNotifications() {
   const { user } = useAuth();
+  const router = useRouter();
   const receivedSub = useRef<Notifications.EventSubscription | null>(null);
   const responseSub = useRef<Notifications.EventSubscription | null>(null);
 
+  // Handle cold start: app was killed and opened via notification tap
+  // Platform.OS is a constant so calling hooks conditionally on it is safe
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const lastResponse = Platform.OS !== "web" ? Notifications.useLastNotificationResponse() : undefined;
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!lastResponse) return;
+    const data = lastResponse.notification.request.content.data as Record<string, unknown>;
+    navigateFromNotification(router, data);
+  }, [lastResponse, router]);
+
+  useEffect(() => {
+    if (!user?.uid || Platform.OS === "web") return;
 
     registerForPushNotificationsAsync(user.uid).catch((e) =>
       console.warn("[push-notifications] registration failed:", e)
@@ -35,10 +63,11 @@ export function usePushNotifications() {
       }
     );
 
-    // User tapped on a notification
+    // User tapped on a notification (app in foreground or background)
     responseSub.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
-        console.log("[push] tapped:", response.notification.request.content.data);
+        const data = response.notification.request.content.data as Record<string, unknown>;
+        navigateFromNotification(router, data);
       }
     );
 
@@ -46,7 +75,7 @@ export function usePushNotifications() {
       receivedSub.current?.remove();
       responseSub.current?.remove();
     };
-  }, [user?.uid]);
+  }, [user?.uid, router]);
 }
 
 async function registerForPushNotificationsAsync(uid: string): Promise<void> {

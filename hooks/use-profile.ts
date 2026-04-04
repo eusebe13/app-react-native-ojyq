@@ -24,6 +24,7 @@ const DEFAULT_PROFILE: UserProfile = {
     notifMessages: true,
     avatarUrl: undefined,
     avatarPreset: undefined,
+    email: "",
 };
 
 export function useProfile() {
@@ -33,7 +34,10 @@ export function useProfile() {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setLoading(false);
+            return;
+        }
 
         const docRef = doc(db, "users", user.uid);
 
@@ -58,22 +62,32 @@ export function useProfile() {
                         notifMessages: data.notifMessages !== false,
                         avatarUrl: data.avatarUrl ?? undefined,
                         avatarPreset: data.avatarPreset ?? undefined,
+                        email: data.email ?? "",
                     });
                 } else {
                     // Document doesn't exist yet — seed with email prefix
                     const emailPrefix = user.email?.split("@")[0] ?? "";
                     setProfile((prev) => ({ ...prev, firstName: emailPrefix }));
                 }
+                clearTimeout(offlineTimeout);
                 setLoading(false);
             },
             (error) => {
                 console.error("useProfile – listener error:", error);
+                clearTimeout(offlineTimeout);
                 setLoading(false);
             }
         );
 
+        // Safety valve: if Firestore doesn't respond within 5 s (offline, no cache),
+        // unblock routing with whatever profile we have (DEFAULT_PROFILE).
+        const offlineTimeout = setTimeout(() => setLoading(false), 5000);
+
         // Cleanup: detach listener when user changes or component unmounts
-        return unsub;
+        return () => {
+            unsub();
+            clearTimeout(offlineTimeout);
+        };
     }, [user]);
 
     /**
