@@ -1,6 +1,8 @@
 import React from "react";
 import {
   Modal,
+  Platform,
+  StyleSheet,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
@@ -30,22 +32,32 @@ export function DismissableModal({
       transparent={true}
       onRequestClose={onDismiss}
     >
-      <TouchableWithoutFeedback onPress={onDismiss}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0,0,0,0.5)",
+        }}
+      >
+        {/* Backdrop absoluteFill — ferme le modal au tap sur le fond.
+            Séparé du contenu pour ne pas bloquer les ScrollViews. */}
+        <TouchableWithoutFeedback onPress={onDismiss}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        {/* Contenu — pas de onStartShouldSetResponder, les ScrollViews
+            reçoivent les gestes de scroll normalement.
+            On web, onClick stopPropagation empêche les éléments HTML
+            (<input>, etc.) de déclencher le onDismiss du backdrop. */}
         <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "rgba(0,0,0,0.5)",
-          }}
+          {...(Platform.OS === "web"
+            ? { onClick: (e: any) => e.stopPropagation() }
+            : {})}
         >
-          {/* onStartShouldSetResponder bloque la propagation du clic
-              depuis le contenu interne vers le backdrop */}
-          <View onStartShouldSetResponder={() => true}>
-            {children}
-          </View>
+          {children}
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }

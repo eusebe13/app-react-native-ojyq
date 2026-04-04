@@ -134,6 +134,9 @@ function formatDeadlineDisplay(date: Date): string {
   });
 }
 
+const toDateInputValue = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 // ─── Notification helper ──────────────────────────────────────────────────────
 
 async function notifyAssignee(
@@ -886,31 +889,60 @@ export const TaskSection = () => {
 
               {/* ── Deadline ── */}
               <Text style={styles.label}>ÉCHÉANCE *</Text>
-              <TouchableOpacity
-                style={[styles.input, { justifyContent: "center" }]}
-                onPress={() => setShowDatePicker(true)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={{
-                    color: colors.textPrimary,
-                    fontSize: tokens.font.md,
+              {Platform.OS === "web" ? (
+                // @ts-ignore – web-only: direct click opens browser picker
+                <input
+                  type="date"
+                  value={toDateInputValue(deadlineDate)}
+                  min={toDateInputValue(new Date())}
+                  onChange={(e: any) => {
+                    if (!e.target.value) return;
+                    const [y, m, d] = e.target.value.split("-").map(Number);
+                    setDeadlineDate(new Date(y, m - 1, d));
                   }}
-                >
-                  {formatDeadlineDisplay(deadlineDate)}
-                </Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={deadlineDate}
-                  mode="date"
-                  display="default"
-                  minimumDate={new Date()}
-                  onChange={(_, selected) => {
-                    setShowDatePicker(false);
-                    if (selected) setDeadlineDate(selected);
+                  style={{
+                    width: "100%", height: "45px",
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: "8px",
+                    padding: "0 10px",
+                    marginBottom: "15px",
+                    backgroundColor: colors.surface,
+                    color: colors.textPrimary,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.input, { justifyContent: "center" }]}
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={{
+                        color: colors.textPrimary,
+                        fontSize: tokens.font.md,
+                      }}
+                    >
+                      {formatDeadlineDisplay(deadlineDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={deadlineDate}
+                      mode="date"
+                      display="default"
+                      minimumDate={new Date()}
+                      onChange={(_, selected) => {
+                        setShowDatePicker(false);
+                        if (selected) setDeadlineDate(selected);
+                      }}
+                    />
+                  )}
+                </>
               )}
 
               {/* ── Assignee type ── */}
@@ -1090,6 +1122,7 @@ export const TaskSection = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
     </View>
   );
 };
