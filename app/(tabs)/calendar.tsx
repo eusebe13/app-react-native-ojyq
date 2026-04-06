@@ -1,17 +1,22 @@
 import { showActionSheet } from "@/components/ActionSheet";
+import {
+  AvailabilityData,
+  AvailabilityModal,
+  EventFormData,
+  EventFormModal,
+} from "@/components/calendar";
+import { WeeklyCoverageChart } from "@/components/calendar/WeeklyCoverageChart";
+import { Header } from "@/components/Header";
 import { showToast } from "@/components/Toast";
 import { showConfirm } from "@/components/ui/ConfirmModal";
-import { Header } from "@/components/Header";
-import { formatAttendanceText } from "@/utils/attendanceUtils";
-import * as Clipboard from "expo-clipboard";
-import { WeeklyCoverageChart } from "@/components/calendar/WeeklyCoverageChart";
-import { AvailabilityModal, AvailabilityData, EventFormModal, EventFormData } from "@/components/calendar";
 import { DismissableModal } from "@/components/ui/DismissableModal";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { useProfile } from "@/hooks/use-profile";
+import { formatAttendanceText } from "@/utils/attendanceUtils";
 import { Ionicons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Clipboard from "expo-clipboard";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -27,7 +32,6 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import QRCode from "react-native-qrcode-svg";
 import {
   ActivityIndicator,
   FlatList,
@@ -39,6 +43,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../../firebaseConfig";
 
@@ -48,7 +53,10 @@ export default function FirebaseCalendarScreen() {
   const { colors, isDark } = useAppTheme();
   const { profile } = useProfile();
   const canGenerateQR =
-    profile.role === "Président" || profile.role === "Administrateur" || profile.role === "Vice-Président" || profile.role === "Secrétaire";
+    profile.role === "Président" ||
+    profile.role === "Administrateur" ||
+    profile.role === "Vice-Président" ||
+    profile.role === "Secrétaire";
 
   // Fusionner tous les styles (dynamiques + statiques) basés sur le thème
   const getAllStyles = (): any => ({
@@ -343,10 +351,13 @@ export default function FirebaseCalendarScreen() {
   // États pour le Modal et le Formulaire
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingInitialValues, setEditingInitialValues] = useState<Partial<EventFormData> | undefined>();
+  const [editingInitialValues, setEditingInitialValues] = useState<
+    Partial<EventFormData> | undefined
+  >();
 
   // États pour les disponibilités
-  const [availabilityModalVisible, setAvailabilityModalVisible] = useState(false);
+  const [availabilityModalVisible, setAvailabilityModalVisible] =
+    useState(false);
 
   // États QR et scanner
   const [allAvailabilities, setAllAvailabilities] = useState<any[]>([]);
@@ -472,9 +483,7 @@ export default function FirebaseCalendarScreen() {
   // Charger les lieux sauvegardés (temps réel)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "savedLocations"), (snap) => {
-      setSavedLocations(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-      );
+      setSavedLocations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsub;
   }, []);
@@ -489,9 +498,7 @@ export default function FirebaseCalendarScreen() {
     const unsub = onSnapshot(
       collection(db, "events", qrEvent.id, "attendees"),
       (snap) => {
-        setEventAttendees(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-        );
+        setEventAttendees(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
     );
     return unsub;
@@ -504,9 +511,7 @@ export default function FirebaseCalendarScreen() {
    * - "ongoing" : entre l'heure de début et 23h59 du même jour
    * - "past"    : après 23h59 du jour de l'événement
    */
-  const getEventPhase = (
-    dateObj: Date,
-  ): "future" | "ongoing" | "past" => {
+  const getEventPhase = (dateObj: Date): "future" | "ongoing" | "past" => {
     const now = new Date();
     if (now < dateObj) return "future";
     const endOfDay = new Date(dateObj);
@@ -693,7 +698,12 @@ export default function FirebaseCalendarScreen() {
     try {
       await setDoc(
         doc(db, "events", selectedEvent.id, "participants", user.uid),
-        { userId: user.uid, userName: displayName, status, updatedAt: Timestamp.now() },
+        {
+          userId: user.uid,
+          userName: displayName,
+          status,
+          updatedAt: Timestamp.now(),
+        },
       );
     } catch {
       showToast("Impossible de mettre à jour ta participation.", "error");
@@ -708,9 +718,12 @@ export default function FirebaseCalendarScreen() {
     const fallback = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
 
     const url = Platform.OS === "ios" ? urlIOS : urlAndroid;
-    Linking.canOpenURL(url).then((ok) =>
-      Linking.openURL(ok ? url : fallback),
-    );
+    Linking.canOpenURL(url).then((ok) => Linking.openURL(ok ? url : fallback));
+  };
+
+  const handleSelectSavedLocation = (loc: any) => {
+    setLocationLabel(loc.label);
+    setLocationAddress(loc.address);
   };
 
   // --- QR & Scanner ---
@@ -777,7 +790,10 @@ export default function FirebaseCalendarScreen() {
           updatedAt: Timestamp.now(),
         },
       );
-      showToast(`Présence enregistrée pour "${pendingCheckin.title}"`, "success");
+      showToast(
+        `Présence enregistrée pour "${pendingCheckin.title}"`,
+        "success",
+      );
     } catch {
       showToast("Impossible d'enregistrer ta présence.", "error");
     } finally {
@@ -914,8 +930,8 @@ export default function FirebaseCalendarScreen() {
             const borderColor = ongoing
               ? "#10B981"
               : past
-              ? undefined
-              : "#007AFF";
+                ? undefined
+                : "#007AFF";
 
             return (
               <TouchableOpacity
@@ -930,7 +946,12 @@ export default function FirebaseCalendarScreen() {
                 ]}
               >
                 <View style={dynamicStyles.dateContainer}>
-                  <Text style={[dynamicStyles.dateText, past && dynamicStyles.pastText]}>
+                  <Text
+                    style={[
+                      dynamicStyles.dateText,
+                      past && dynamicStyles.pastText,
+                    ]}
+                  >
                     {formatDate(item.dateObj)}
                   </Text>
                   <Text style={dynamicStyles.timeText}>
@@ -939,7 +960,12 @@ export default function FirebaseCalendarScreen() {
                 </View>
 
                 <View style={dynamicStyles.contentContainer}>
-                  <Text style={[dynamicStyles.eventTitle, past && dynamicStyles.pastText]}>
+                  <Text
+                    style={[
+                      dynamicStyles.eventTitle,
+                      past && dynamicStyles.pastText,
+                    ]}
+                  >
                     {item.title}
                   </Text>
                   <View style={dynamicStyles.detailsRow}>
@@ -963,13 +989,19 @@ export default function FirebaseCalendarScreen() {
                         />
                       )}
                       <Text
-                        style={[dynamicStyles.eventType, { color: phaseConfig.color }]}
+                        style={[
+                          dynamicStyles.eventType,
+                          { color: phaseConfig.color },
+                        ]}
                       >
                         {phaseConfig.label}
                       </Text>
                     </View>
                     {item.location && (
-                      <Text style={dynamicStyles.locationText} numberOfLines={1}>
+                      <Text
+                        style={dynamicStyles.locationText}
+                        numberOfLines={1}
+                      >
                         📍 {item.location}
                       </Text>
                     )}
@@ -1009,7 +1041,8 @@ export default function FirebaseCalendarScreen() {
             );
           }}
         />
-      ) : (() => {
+      ) : (
+        (() => {
           // ── Données pour la vue Disponibilités ──────────────────────────────
           // Regrouper allAvailabilities par membre (pour admin/président)
           const memberGroupsMap: Record<
@@ -1031,7 +1064,13 @@ export default function FirebaseCalendarScreen() {
             a.userName.localeCompare(b.userName),
           );
 
-          const AvailabilitySlot = ({ item, canDelete }: { item: any; canDelete: boolean }) => (
+          const AvailabilitySlot = ({
+            item,
+            canDelete,
+          }: {
+            item: any;
+            canDelete: boolean;
+          }) => (
             <TouchableOpacity
               onLongPress={() => canDelete && handleDeleteAvailability(item.id)}
               delayLongPress={500}
@@ -1039,7 +1078,9 @@ export default function FirebaseCalendarScreen() {
             >
               <View style={dynamicStyles.dateContainer}>
                 <Text style={dynamicStyles.dateText} numberOfLines={2}>
-                  {Array.isArray(item.days) ? item.days.join(", ") : "Jours multiples"}
+                  {Array.isArray(item.days)
+                    ? item.days.join(", ")
+                    : "Jours multiples"}
                 </Text>
               </View>
               <View style={dynamicStyles.contentContainer}>
@@ -1050,7 +1091,9 @@ export default function FirebaseCalendarScreen() {
                   {String(item.endMinutes).padStart(2, "0")}
                 </Text>
                 <Text style={dynamicStyles.locationText}>
-                  {canDelete ? "Appuyez longuement pour supprimer" : "Disponible"}
+                  {canDelete
+                    ? "Appuyez longuement pour supprimer"
+                    : "Disponible"}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1064,9 +1107,7 @@ export default function FirebaseCalendarScreen() {
               contentContainerStyle={dynamicStyles.listContent}
               ListHeaderComponent={
                 <>
-                  <WeeklyCoverageChart
-                    availabilities={allAvailabilities}
-                  />
+                  <WeeklyCoverageChart availabilities={allAvailabilities} />
 
                   {/* Bouton Générer horaire (admin/président) */}
                   {canManageSchedule && (
@@ -1084,8 +1125,18 @@ export default function FirebaseCalendarScreen() {
                         borderRadius: 10,
                       }}
                     >
-                      <Ionicons name="calendar-number-outline" size={18} color="#fff" />
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>
+                      <Ionicons
+                        name="calendar-number-outline"
+                        size={18}
+                        color="#fff"
+                      />
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "700",
+                          color: "#fff",
+                        }}
+                      >
                         Générer l'horaire de permanence
                       </Text>
                     </TouchableOpacity>
@@ -1095,7 +1146,11 @@ export default function FirebaseCalendarScreen() {
               ListEmptyComponent={
                 canManageSchedule ? (
                   <View style={dynamicStyles.emptyContainer}>
-                    <Ionicons name="checkmark-circle-outline" size={48} color="#999" />
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={48}
+                      color="#999"
+                    />
                     <Text style={dynamicStyles.emptyText}>
                       Aucune disponibilité enregistrée
                     </Text>
@@ -1104,7 +1159,8 @@ export default function FirebaseCalendarScreen() {
                   <View style={dynamicStyles.emptyContainer}>
                     <Ionicons name="time-outline" size={48} color="#999" />
                     <Text style={dynamicStyles.emptyText}>
-                      Aucun créneau enregistré.{"\n"}Appuyez sur + pour en ajouter un.
+                      Aucun créneau enregistré.{"\n"}Appuyez sur + pour en
+                      ajouter un.
                     </Text>
                   </View>
                 )
@@ -1112,7 +1168,11 @@ export default function FirebaseCalendarScreen() {
               renderItem={({ item }) => {
                 if (canManageSchedule) {
                   // Vue admin : carte par membre avec ses créneaux
-                  const group = item as { userId: string; userName: string; slots: any[] };
+                  const group = item as {
+                    userId: string;
+                    userName: string;
+                    slots: any[];
+                  };
                   const isMe = group.userId === user?.uid;
                   return (
                     <View
@@ -1132,7 +1192,9 @@ export default function FirebaseCalendarScreen() {
                           alignItems: "center",
                           paddingHorizontal: 14,
                           paddingVertical: 10,
-                          backgroundColor: isMe ? colors.primary + "18" : "transparent",
+                          backgroundColor: isMe
+                            ? colors.primary + "18"
+                            : "transparent",
                           gap: 10,
                           borderBottomWidth: 1,
                           borderBottomColor: colors.border,
@@ -1148,18 +1210,42 @@ export default function FirebaseCalendarScreen() {
                             justifyContent: "center",
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "700",
+                              color: colors.primary,
+                            }}
+                          >
                             {(group.userName?.[0] ?? "?").toUpperCase()}
                           </Text>
                         </View>
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textPrimary, flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "700",
+                            color: colors.textPrimary,
+                            flex: 1,
+                          }}
+                        >
                           {group.userName}
                           {isMe && (
-                            <Text style={{ fontWeight: "400", color: colors.textSecondary }}> (moi)</Text>
+                            <Text
+                              style={{
+                                fontWeight: "400",
+                                color: colors.textSecondary,
+                              }}
+                            >
+                              {" "}
+                              (moi)
+                            </Text>
                           )}
                         </Text>
-                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                          {group.slots.length} créneau{group.slots.length > 1 ? "x" : ""}
+                        <Text
+                          style={{ fontSize: 12, color: colors.textSecondary }}
+                        >
+                          {group.slots.length} créneau
+                          {group.slots.length > 1 ? "x" : ""}
                         </Text>
                       </View>
                       {/* Créneaux */}
@@ -1179,7 +1265,7 @@ export default function FirebaseCalendarScreen() {
             />
           );
         })()
-      }
+      )}
 
       <TouchableOpacity
         style={[dynamicStyles.fab]}
@@ -1207,158 +1293,223 @@ export default function FirebaseCalendarScreen() {
         onDismiss={() => setScheduleModalVisible(false)}
         animationType="slide"
       >
-            <View
-              style={[dynamicStyles.modalView, { maxHeight: "90%", paddingBottom: 0 }]}
-            >
-              <Text style={[dynamicStyles.modalTitle, { alignSelf: "flex-start" }]}>
-                Horaire de permanence
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.textSecondary,
-                  alignSelf: "flex-start",
-                  marginBottom: 16,
-                  marginTop: -12,
-                }}
-              >
-                Basé sur les disponibilités de {Object.keys(allUsersMap).length} membres
-              </Text>
+        <View
+          style={[
+            dynamicStyles.modalView,
+            {
+              height: "90%",
+              paddingBottom: 0,
+              ...(Platform.OS === "web" && {
+                top: "20%",
+                maxHeight: "60%",
+              }),
+            },
+          ]}
+        >
+          <Text style={[dynamicStyles.modalTitle, { alignSelf: "flex-start" }]}>
+            Horaire de permanence
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.textSecondary,
+              alignSelf: "flex-start",
+              marginBottom: 16,
+              marginTop: -12,
+            }}
+          >
+            Basé sur les disponibilités de {Object.keys(allUsersMap).length}{" "}
+            membres
+          </Text>
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 8, flexGrow: 1 }}
+            nestedScrollEnabled
+          >
+            {(
+              [
+                "Lundi",
+                "Mardi",
+                "Mercredi",
+                "Jeudi",
+                "Vendredi",
+                "Samedi",
+                "Dimanche",
+              ] as const
+            ).map((day) => {
+              // Membres disponibles ce jour-là
+              const available = allAvailabilities.filter(
+                (a) => Array.isArray(a.days) && a.days.includes(day),
+              );
+              // Calcul de la couverture unique (merge intervals)
+              const totalMinutes = available.reduce((sum, a) => {
+                const dur =
+                  a.endHours * 60 +
+                  a.endMinutes -
+                  (a.startHours * 60 + a.startMinutes);
+                return sum + Math.max(0, dur);
+              }, 0);
+              const coveredHours = Math.round((totalMinutes / 60) * 10) / 10;
+              const meetsTarget = coveredHours >= 8;
 
-              <ScrollView style={{ width: "100%", flexGrow: 0, flexShrink: 1 }} showsVerticalScrollIndicator>
-                {(["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"] as const).map(
-                  (day) => {
-                    // Membres disponibles ce jour-là
-                    const available = allAvailabilities.filter(
-                      (a) => Array.isArray(a.days) && a.days.includes(day),
-                    );
-                    // Calcul de la couverture unique (merge intervals)
-                    const totalMinutes = available.reduce((sum, a) => {
-                      const dur = a.endHours * 60 + a.endMinutes - (a.startHours * 60 + a.startMinutes);
-                      return sum + Math.max(0, dur);
-                    }, 0);
-                    const coveredHours = Math.round(totalMinutes / 60 * 10) / 10;
-                    const meetsTarget = coveredHours >= 8;
-
-                    return (
-                      <View
-                        key={day}
+              return (
+                <View
+                  key={day}
+                  style={{
+                    marginBottom: 14,
+                    backgroundColor: colors.surface,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: meetsTarget ? "#10B98140" : colors.border,
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* En-tête jour */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      backgroundColor: meetsTarget
+                        ? "#10B98114"
+                        : colors.surfaceDim,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {day}
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Text
                         style={{
-                          marginBottom: 14,
-                          backgroundColor: colors.surface,
-                          borderRadius: 10,
-                          borderWidth: 1,
-                          borderColor: meetsTarget ? "#10B98140" : colors.border,
-                          overflow: "hidden",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: meetsTarget ? "#10B981" : colors.textSecondary,
                         }}
                       >
-                        {/* En-tête jour */}
+                        {coveredHours}h / 8h
+                      </Text>
+                      {meetsTarget && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={14}
+                          color="#10B981"
+                        />
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Liste des membres */}
+                  {available.length === 0 ? (
+                    <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: colors.textTertiary,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        Aucun membre disponible
+                      </Text>
+                    </View>
+                  ) : (
+                    available.map((a, i) => {
+                      const name = allUsersMap[a._userId] ?? "Membre";
+                      return (
                         <View
+                          key={a.id}
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            justifyContent: "space-between",
                             paddingHorizontal: 12,
-                            paddingVertical: 8,
-                            backgroundColor: meetsTarget ? "#10B98114" : colors.surfaceDim,
+                            paddingVertical: 7,
+                            borderTopWidth: i > 0 ? 1 : 0,
+                            borderTopColor: colors.border,
+                            gap: 10,
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textPrimary }}>
-                            {day}
-                          </Text>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <View
+                            style={{
+                              width: 26,
+                              height: 26,
+                              borderRadius: 13,
+                              backgroundColor: colors.primary + "22",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
                             <Text
                               style={{
-                                fontSize: 12,
-                                fontWeight: "600",
-                                color: meetsTarget ? "#10B981" : colors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: "700",
+                                color: colors.primary,
                               }}
                             >
-                              {coveredHours}h / 8h
+                              {(name[0] ?? "?").toUpperCase()}
                             </Text>
-                            {meetsTarget && (
-                              <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                            )}
                           </View>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              color: colors.textPrimary,
+                              flex: 1,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {name}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                            }}
+                          >
+                            {String(a.startHours).padStart(2, "0")}:
+                            {String(a.startMinutes).padStart(2, "0")} –{" "}
+                            {String(a.endHours).padStart(2, "0")}:
+                            {String(a.endMinutes).padStart(2, "0")}
+                          </Text>
                         </View>
+                      );
+                    })
+                  )}
+                </View>
+              );
+            })}
+            <View style={{ height: 16 }} />
+          </ScrollView>
 
-                        {/* Liste des membres */}
-                        {available.length === 0 ? (
-                          <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                            <Text style={{ fontSize: 12, color: colors.textTertiary, fontStyle: "italic" }}>
-                              Aucun membre disponible
-                            </Text>
-                          </View>
-                        ) : (
-                          available.map((a, i) => {
-                            const name = allUsersMap[a._userId] ?? "Membre";
-                            return (
-                              <View
-                                key={a.id}
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  paddingHorizontal: 12,
-                                  paddingVertical: 7,
-                                  borderTopWidth: i > 0 ? 1 : 0,
-                                  borderTopColor: colors.border,
-                                  gap: 10,
-                                }}
-                              >
-                                <View
-                                  style={{
-                                    width: 26,
-                                    height: 26,
-                                    borderRadius: 13,
-                                    backgroundColor: colors.primary + "22",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.primary }}>
-                                    {(name[0] ?? "?").toUpperCase()}
-                                  </Text>
-                                </View>
-                                <Text
-                                  style={{ fontSize: 13, color: colors.textPrimary, flex: 1 }}
-                                  numberOfLines={1}
-                                >
-                                  {name}
-                                </Text>
-                                <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                                  {String(a.startHours).padStart(2, "0")}:
-                                  {String(a.startMinutes).padStart(2, "0")} –{" "}
-                                  {String(a.endHours).padStart(2, "0")}:
-                                  {String(a.endMinutes).padStart(2, "0")}
-                                </Text>
-                              </View>
-                            );
-                          })
-                        )}
-                      </View>
-                    );
-                  },
-                )}
-                <View style={{ height: 16 }} />
-              </ScrollView>
-
-              <View
-              style={{
-                flexDirection: "row",
-                borderRadius: 8,
-                padding: 4,
-                marginBottom: 10,
-                width: "50%",
-              }}
-            > 
-            <TouchableOpacity
-                onPress={() => setScheduleModalVisible(false)}
-                style={[dynamicStyles.buttonSave, { width: "100%", marginTop: 12, marginBottom: 16 }]}
-              >
-                <Text style={dynamicStyles.textSave}>Fermer</Text>
-              </TouchableOpacity>
-              </View>
-            </View>
+          <TouchableOpacity
+            onPress={() => setScheduleModalVisible(false)}
+            style={[
+              dynamicStyles.buttonSave,
+              {
+                ...(Platform.OS === "web" ? { flex: -1 } : { flex: 0 }),
+                height: 45,
+                alignSelf: "stretch",
+                marginTop: 12,
+                marginBottom: 16,
+                paddingVertical: 14,
+              },
+            ]}
+          >
+            <Text style={dynamicStyles.textSave}>Fermer</Text>
+          </TouchableOpacity>
+        </View>
       </DismissableModal>
 
       {/* MODAL CONFIRMATION DOWNGRADE (présence physique → en ligne) */}
@@ -1367,35 +1518,53 @@ export default function FirebaseCalendarScreen() {
         onDismiss={() => setShowDowngradeConfirm(false)}
         animationType="fade"
       >
-            <View style={dynamicStyles.modalView}>
-            <Ionicons name="warning-outline" size={40} color="#F59E0B" style={{ marginBottom: 12 }} />
-            <Text style={[dynamicStyles.modalTitle, { fontSize: 16 }]}>
-              Modifier le statut ?
+        <View style={dynamicStyles.modalView}>
+          <Ionicons
+            name="warning-outline"
+            size={40}
+            color="#F59E0B"
+            style={{ marginBottom: 12 }}
+          />
+          <Text style={[dynamicStyles.modalTitle, { fontSize: 16 }]}>
+            Modifier le statut ?
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: colors.textSecondary,
+              textAlign: "center",
+              marginBottom: 24,
+              lineHeight: 20,
+            }}
+          >
+            Tu es actuellement marqué{" "}
+            <Text style={{ fontWeight: "700", color: colors.textPrimary }}>
+              présent en présentiel
             </Text>
-            <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 20 }}>
-              Tu es actuellement marqué{" "}
-              <Text style={{ fontWeight: "700", color: colors.textPrimary }}>présent en présentiel</Text>.
-              {"\n"}Veux-tu vraiment passer en{" "}
-              <Text style={{ fontWeight: "700", color: "#06B6D4" }}>En ligne</Text> ?
-            </Text>
-            <View style={[dynamicStyles.modalButtons, { gap: 12 }]}>
-              <TouchableOpacity
-                onPress={() => setShowDowngradeConfirm(false)}
-                style={dynamicStyles.buttonCancel}
-              >
-                <Text style={dynamicStyles.textCancel}>Non, annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowDowngradeConfirm(false);
-                  handleParticipationChange("online");
-                }}
-                style={[dynamicStyles.buttonSave, { backgroundColor: "#06B6D4" }]}
-              >
-                <Text style={dynamicStyles.textSave}>Oui, En ligne</Text>
-              </TouchableOpacity>
-            </View>
+            .{"\n"}Veux-tu vraiment passer en{" "}
+            <Text style={{ fontWeight: "700", color: "#06B6D4" }}>
+              En ligne
+            </Text>{" "}
+            ?
+          </Text>
+          <View style={[dynamicStyles.modalButtons, { gap: 12 }]}>
+            <TouchableOpacity
+              onPress={() => setShowDowngradeConfirm(false)}
+              style={dynamicStyles.buttonCancel}
+            >
+              <Text style={dynamicStyles.textCancel}>Non, annuler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                setShowDowngradeConfirm(false);
+                handleParticipationChange("online");
+              }}
+              style={[dynamicStyles.buttonSave, { backgroundColor: "#06B6D4" }]}
+            >
+              <Text style={dynamicStyles.textSave}>Oui, En ligne</Text>
+            </TouchableOpacity>
           </View>
+        </View>
       </DismissableModal>
 
       {/* MODAL VUE DÉTAIL ÉVÉNEMENT */}
@@ -1405,764 +1574,1129 @@ export default function FirebaseCalendarScreen() {
         transparent={false}
         onRequestClose={() => setSelectedEvent(null)}
       >
-        {selectedEvent && (() => {
-          const ev = selectedEvent;
-          const phase = getEventPhase(ev.dateObj);
-          const myParticipant = participants.find((p) => p.userId === user?.uid);
-          const myStatus = myParticipant?.status as
-            | "going" | "not_going"
-            | "online" | "absent" | "present_physical"
-            | undefined;
-          const address = ev.locationAddress || ev.location || "";
-          const label = ev.locationLabel || ev.location || "";
+        {selectedEvent &&
+          (() => {
+            const ev = selectedEvent;
+            const phase = getEventPhase(ev.dateObj);
+            const myParticipant = participants.find(
+              (p) => p.userId === user?.uid,
+            );
+            const myStatus = myParticipant?.status as
+              | "going"
+              | "not_going"
+              | "online"
+              | "absent"
+              | "present_physical"
+              | undefined;
+            const address = ev.locationAddress || ev.location || "";
+            const label = ev.locationLabel || ev.location || "";
 
-          // Participants selon la phase
-          const presenceStatuses = ["online", "absent", "present_physical"];
-          const presenceList = participants.filter((p) =>
-            presenceStatuses.includes(p.status),
-          );
-          const participationList = participants.filter((p) =>
-            ["going", "not_going"].includes(p.status),
-          );
+            // Participants selon la phase
+            const presenceStatuses = ["online", "absent", "present_physical"];
+            const presenceList = participants.filter((p) =>
+              presenceStatuses.includes(p.status),
+            );
+            const participationList = participants.filter((p) =>
+              ["going", "not_going"].includes(p.status),
+            );
 
-          const phaseHeaderConfig = {
-            future: { label: "À venir", color: "#007AFF", bg: "#007AFF22" },
-            ongoing: { label: "En cours", color: "#10B981", bg: "#10B98122" },
-            past: { label: "Terminé", color: "#888", bg: "#88888822" },
-          }[phase];
+            const phaseHeaderConfig = {
+              future: { label: "À venir", color: "#007AFF", bg: "#007AFF22" },
+              ongoing: { label: "En cours", color: "#10B981", bg: "#10B98122" },
+              past: { label: "Terminé", color: "#888", bg: "#88888822" },
+            }[phase];
 
-          return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
-              {/* ── Header ── */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
-                  gap: 12,
-                }}
+            return (
+              <SafeAreaView
+                style={{ flex: 1, backgroundColor: colors.surface }}
+                edges={["top"]}
               >
-                <TouchableOpacity
-                  onPress={() => setSelectedEvent(null)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-                </TouchableOpacity>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{ fontSize: 18, fontWeight: "700", color: colors.textPrimary }}
-                    numberOfLines={1}
-                  >
-                    {ev.title}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                    {formatDate(ev.dateObj)} • {formatTime(ev.dateObj)}
-                  </Text>
-                </View>
-                {/* Badge phase */}
+                {/* ── Header ── */}
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 5,
-                    backgroundColor: phaseHeaderConfig.bg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    gap: 12,
                   }}
                 >
-                  {phase === "ongoing" && (
-                    <View
-                      style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#10B981" }}
-                    />
-                  )}
-                  <Text
-                    style={{ fontSize: 11, fontWeight: "700", color: phaseHeaderConfig.color }}
+                  <TouchableOpacity
+                    onPress={() => setSelectedEvent(null)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    {phaseHeaderConfig.label.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-                {/* ── Description ── */}
-                {!!ev.description && (
+                    <Ionicons
+                      name="arrow-back"
+                      size={24}
+                      color={colors.textPrimary}
+                    />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "700",
+                        color: colors.textPrimary,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {ev.title}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                        marginTop: 2,
+                      }}
+                    >
+                      {formatDate(ev.dateObj)} • {formatTime(ev.dateObj)}
+                    </Text>
+                  </View>
+                  {/* Badge phase */}
                   <View
                     style={{
-                      backgroundColor: colors.surfaceDim,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 5,
+                      backgroundColor: phaseHeaderConfig.bg,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
                       borderRadius: 12,
-                      padding: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
                     }}
                   >
+                    {phase === "ongoing" && (
+                      <View
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: 4,
+                          backgroundColor: "#10B981",
+                        }}
+                      />
+                    )}
                     <Text
                       style={{
                         fontSize: 11,
                         fontWeight: "700",
-                        color: colors.textSecondary,
-                        marginBottom: 6,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.8,
+                        color: phaseHeaderConfig.color,
                       }}
                     >
-                      Description
-                    </Text>
-                    <Text style={{ fontSize: 14, color: colors.textPrimary, lineHeight: 20 }}>
-                      {ev.description}
+                      {phaseHeaderConfig.label.toUpperCase()}
                     </Text>
                   </View>
-                )}
+                </View>
 
-                {/* ── Carte lieu ── */}
-                {!!address && (
-                  <TouchableOpacity
-                    onPress={() => handleOpenMaps(address)}
-                    activeOpacity={0.85}
-                    style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}
-                  >
+                <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+                  {/* ── Description ── */}
+                  {!!ev.description && (
                     <View
                       style={{
-                        height: 110,
-                        backgroundColor: isDark ? "#1a2a1a" : "#e8f5e9",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
+                        backgroundColor: colors.surfaceDim,
+                        borderRadius: 12,
+                        padding: 14,
+                        borderWidth: 1,
+                        borderColor: colors.border,
                       }}
                     >
-                      <Ionicons name="map" size={36} color={isDark ? "#4CAF50" : "#2E7D32"} />
-                      <Text style={{ fontSize: 11, color: isDark ? "#81C784" : "#388E3C", fontWeight: "600" }}>
-                        Appuyer pour ouvrir dans Maps
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "700",
+                          color: colors.textSecondary,
+                          marginBottom: 6,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.8,
+                        }}
+                      >
+                        Description
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: colors.textPrimary,
+                          lineHeight: 20,
+                        }}
+                      >
+                        {ev.description}
                       </Text>
                     </View>
-                    <View
+                  )}
+
+                  {/* ── Carte lieu ── */}
+                  {!!address && (
+                    <TouchableOpacity
+                      onPress={() => handleOpenMaps(address)}
+                      activeOpacity={0.85}
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        padding: 12,
-                        backgroundColor: colors.surfaceDim,
-                        gap: 10,
+                        borderRadius: 14,
+                        overflow: "hidden",
+                        borderWidth: 1,
+                        borderColor: colors.border,
                       }}
                     >
-                      <Ionicons name="location" size={18} color={colors.primary} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textPrimary }}>
-                          {label}
+                      <View
+                        style={{
+                          height: 110,
+                          backgroundColor: isDark ? "#1a2a1a" : "#e8f5e9",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <Ionicons
+                          name="map"
+                          size={36}
+                          color={isDark ? "#4CAF50" : "#2E7D32"}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDark ? "#81C784" : "#388E3C",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Appuyer pour ouvrir dans Maps
                         </Text>
-                        {!!ev.locationAddress && (
-                          <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                            {ev.locationAddress}
-                          </Text>
-                        )}
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-                {/* ══════════════════════════════════════════════════
-                    PHASE 1 — FUTURE : vue Participation
-                ══════════════════════════════════════════════════ */}
-                {phase === "future" && (
-                  <>
-                    <View
-                      style={{
-                        backgroundColor: colors.surfaceDim,
-                        borderRadius: 14,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: colors.textSecondary,
-                          marginBottom: 12,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.8,
-                        }}
-                      >
-                        Ma participation
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: 10 }}>
-                        {/* Je participe */}
-                        <TouchableOpacity
-                          onPress={() => handleParticipationChange("going")}
-                          style={{
-                            flex: 1,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                            paddingVertical: 13,
-                            borderRadius: 10,
-                            backgroundColor: myStatus === "going" ? "#007AFF" : colors.surface,
-                            borderWidth: 1,
-                            borderColor: myStatus === "going" ? "#007AFF" : colors.border,
-                          }}
-                        >
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={18}
-                            color={myStatus === "going" ? "#fff" : colors.textSecondary}
-                          />
-                          <Text
-                            style={{
-                              fontSize: 13,
-                              fontWeight: "700",
-                              color: myStatus === "going" ? "#fff" : colors.textSecondary,
-                            }}
-                          >
-                            Je participe
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Pas disponible */}
-                        <TouchableOpacity
-                          onPress={() => handleParticipationChange("not_going")}
-                          style={{
-                            flex: 1,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                            paddingVertical: 13,
-                            borderRadius: 10,
-                            backgroundColor: myStatus === "not_going" ? "#EF4444" : colors.surface,
-                            borderWidth: 1,
-                            borderColor: myStatus === "not_going" ? "#EF4444" : colors.border,
-                          }}
-                        >
-                          <Ionicons
-                            name="close-circle"
-                            size={18}
-                            color={myStatus === "not_going" ? "#fff" : colors.textSecondary}
-                          />
-                          <Text
-                            style={{
-                              fontSize: 13,
-                              fontWeight: "700",
-                              color: myStatus === "not_going" ? "#fff" : colors.textSecondary,
-                            }}
-                          >
-                            Pas dispo
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {/* Liste des intentions */}
-                    <View
-                      style={{
-                        backgroundColor: colors.surfaceDim,
-                        borderRadius: 14,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: colors.textSecondary,
-                          marginBottom: 12,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.8,
-                        }}
-                      >
-                        Réponses ({participationList.length})
-                      </Text>
-                      {participationList.length === 0 ? (
-                        <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                          <Ionicons name="people-outline" size={32} color={colors.textTertiary} />
-                          <Text style={{ fontSize: 13, color: colors.textTertiary, marginTop: 8 }}>
-                            Aucune réponse pour l'instant.
-                          </Text>
-                        </View>
-                      ) : (
-                        participationList.map((p, idx) => {
-                          const isGoing = p.status === "going";
-                          const at = p.updatedAt?.toDate?.();
-                          return (
-                            <View
-                              key={p.id}
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingVertical: 10,
-                                borderTopWidth: idx > 0 ? 1 : 0,
-                                borderTopColor: colors.border,
-                                gap: 12,
-                              }}
-                            >
-                              <View
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  borderRadius: 18,
-                                  backgroundColor: isGoing ? "#007AFF22" : "#EF444422",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    fontSize: 14,
-                                    fontWeight: "700",
-                                    color: isGoing ? "#007AFF" : "#EF4444",
-                                  }}
-                                >
-                                  {(p.userName?.[0] ?? "?").toUpperCase()}
-                                </Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textPrimary }}>
-                                  {p.userName}
-                                </Text>
-                                {at && (
-                                  <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
-                                    {at.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}{" "}
-                                    à {at.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                                  </Text>
-                                )}
-                              </View>
-                              <Ionicons
-                                name={isGoing ? "checkmark-circle" : "close-circle"}
-                                size={20}
-                                color={isGoing ? "#007AFF" : "#EF4444"}
-                              />
-                            </View>
-                          );
-                        })
-                      )}
-                    </View>
-                  </>
-                )}
-
-                {/* ══════════════════════════════════════════════════
-                    PHASE 2 — ONGOING : vue Présence
-                ══════════════════════════════════════════════════ */}
-                {phase === "ongoing" && (
-                  <>
-                    {/* Mon statut de présence */}
-                    <View
-                      style={{
-                        backgroundColor: colors.surfaceDim,
-                        borderRadius: 14,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: colors.textSecondary,
-                          marginBottom: 12,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.8,
-                        }}
-                      >
-                        Ma présence
-                      </Text>
-
-                      {/* Si déjà présent en présentiel : lecture seule avec downgrade warning */}
-                      {myStatus === "present_physical" ? (
-                        <>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 8,
-                              paddingVertical: 13,
-                              borderRadius: 10,
-                              backgroundColor: "#007AFF",
-                            }}
-                          >
-                            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-                            <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>
-                              Présent en présentiel ✓
-                            </Text>
-                          </View>
-                          {/* Bouton downgrade */}
-                          <TouchableOpacity
-                            onPress={() => setShowDowngradeConfirm(true)}
-                            style={{ marginTop: 10, alignItems: "center" }}
-                          >
-                            <Text style={{ fontSize: 12, color: "#06B6D4", fontWeight: "600" }}>
-                              Passer en ligne à la place →
-                            </Text>
-                          </TouchableOpacity>
-                        </>
-                      ) : (
-                        <View style={{ gap: 10 }}>
-                          {/* Bouton En ligne */}
-                          <TouchableOpacity
-                            onPress={() => handleParticipationChange("online")}
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 8,
-                              paddingVertical: 13,
-                              borderRadius: 10,
-                              backgroundColor: myStatus === "online" ? "#06B6D4" : colors.surface,
-                              borderWidth: 1,
-                              borderColor: myStatus === "online" ? "#06B6D4" : colors.border,
-                            }}
-                          >
-                            <Ionicons
-                              name="wifi"
-                              size={18}
-                              color={myStatus === "online" ? "#fff" : colors.textSecondary}
-                            />
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "700",
-                                color: myStatus === "online" ? "#fff" : colors.textSecondary,
-                              }}
-                            >
-                              {myStatus === "online" ? "En ligne ✓" : "Je suis en ligne"}
-                            </Text>
-                          </TouchableOpacity>
-
-                          {/* Bouton Absent */}
-                          <TouchableOpacity
-                            onPress={() => handleParticipationChange("absent")}
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 8,
-                              paddingVertical: 13,
-                              borderRadius: 10,
-                              backgroundColor: myStatus === "absent" ? "#F59E0B" : colors.surface,
-                              borderWidth: 1,
-                              borderColor: myStatus === "absent" ? "#F59E0B" : colors.border,
-                            }}
-                          >
-                            <Ionicons
-                              name="moon"
-                              size={18}
-                              color={myStatus === "absent" ? "#fff" : colors.textSecondary}
-                            />
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "700",
-                                color: myStatus === "absent" ? "#fff" : colors.textSecondary,
-                              }}
-                            >
-                              {myStatus === "absent" ? "Absent ✓" : "Je suis absent"}
-                            </Text>
-                          </TouchableOpacity>
-
-                          <Text
-                            style={{ fontSize: 11, color: colors.textTertiary, textAlign: "center" }}
-                          >
-                            Le scan QR sur place marque automatiquement ta présence physique.
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Liste des présences */}
-                    <View
-                      style={{
-                        backgroundColor: colors.surfaceDim,
-                        borderRadius: 14,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: colors.textSecondary,
-                          marginBottom: 12,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.8,
-                        }}
-                      >
-                        Présences ({presenceList.length})
-                      </Text>
-
-                      {presenceList.length === 0 ? (
-                        <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                          <Ionicons name="people-outline" size={32} color={colors.textTertiary} />
-                          <Text style={{ fontSize: 13, color: colors.textTertiary, marginTop: 8 }}>
-                            Aucun pointage pour l'instant.
-                          </Text>
-                        </View>
-                      ) : (
-                        presenceList.map((p, idx) => {
-                          const isOnline = p.status === "online";
-                          const isPhysical = p.status === "present_physical";
-                          const isAbsent = p.status === "absent";
-                          const at = p.updatedAt?.toDate?.();
-
-                          const statusConfig = isPhysical
-                            ? { color: "#007AFF", bg: "#007AFF22", icon: "checkmark-circle" as const, label: "Présentiel" }
-                            : isOnline
-                            ? { color: "#06B6D4", bg: "#06B6D422", icon: "wifi" as const, label: "En ligne" }
-                            : { color: "#F59E0B", bg: "#F59E0B22", icon: "moon" as const, label: "Absent" };
-
-                          return (
-                            <View
-                              key={p.id}
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingVertical: 10,
-                                borderTopWidth: idx > 0 ? 1 : 0,
-                                borderTopColor: colors.border,
-                                gap: 12,
-                              }}
-                            >
-                              <View
-                                style={{
-                                  width: 38,
-                                  height: 38,
-                                  borderRadius: 19,
-                                  backgroundColor: statusConfig.bg,
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: statusConfig.color }}>
-                                  {(p.userName?.[0] ?? "?").toUpperCase()}
-                                </Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textPrimary }}>
-                                    {p.userName}
-                                  </Text>
-                                  {/* Badge statut public */}
-                                  <View
-                                    style={{
-                                      backgroundColor: statusConfig.bg,
-                                      borderRadius: 8,
-                                      paddingHorizontal: 6,
-                                      paddingVertical: 2,
-                                      flexDirection: "row",
-                                      alignItems: "center",
-                                      gap: 3,
-                                    }}
-                                  >
-                                    <Ionicons name={statusConfig.icon} size={9} color={statusConfig.color} />
-                                    <Text style={{ fontSize: 10, fontWeight: "700", color: statusConfig.color }}>
-                                      {statusConfig.label}
-                                    </Text>
-                                  </View>
-                                </View>
-                                {at && (
-                                  <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
-                                    Pointé le {at.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}{" "}
-                                    à {at.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                                  </Text>
-                                )}
-                              </View>
-                              <Ionicons name={statusConfig.icon} size={20} color={statusConfig.color} />
-                            </View>
-                          );
-                        })
-                      )}
-                    </View>
-                  </>
-                )}
-
-                {/* ══════════════════════════════════════════════════
-                    PHASE 3 — PAST : liste de présence (lecture seule)
-                ══════════════════════════════════════════════════ */}
-                {phase === "past" && (() => {
-                  const attendanceList = participants
-                    .filter((p) => p.status === "online" || p.status === "present_physical")
-                    .sort((a, b) => {
-                      if (a.status === b.status)
-                        return (a.userName ?? "").localeCompare(b.userName ?? "");
-                      return a.status === "present_physical" ? -1 : 1;
-                    });
-
-                  const physicalNames = attendanceList
-                    .filter((p) => p.status === "present_physical")
-                    .map((p) => p.userName ?? "?");
-                  const onlineNames = attendanceList
-                    .filter((p) => p.status === "online")
-                    .map((p) => p.userName ?? "?");
-
-                  const handleCopy = async () => {
-                    const text = formatAttendanceText(ev.title, ev.dateObj, onlineNames, physicalNames);
-                    await Clipboard.setStringAsync(text);
-                    setCopiedAttendance(true);
-                    setTimeout(() => setCopiedAttendance(false), 2000);
-                  };
-
-                  return (
-                    <View
-                      style={{
-                        backgroundColor: colors.surfaceDim,
-                        borderRadius: 14,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      {/* Header */}
                       <View
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: 12,
+                          padding: 12,
+                          backgroundColor: colors.surfaceDim,
+                          gap: 10,
                         }}
                       >
-                        <View>
+                        <Ionicons
+                          name="location"
+                          size={18}
+                          color={colors.primary}
+                        />
+                        <View style={{ flex: 1 }}>
                           <Text
                             style={{
-                              fontSize: 11,
+                              fontSize: 14,
                               fontWeight: "700",
-                              color: colors.textSecondary,
-                              textTransform: "uppercase",
-                              letterSpacing: 0.8,
+                              color: colors.textPrimary,
                             }}
                           >
-                            Liste de présence
+                            {label}
                           </Text>
-                          {attendanceList.length > 0 && (
-                            <Text style={{ fontSize: 12, color: colors.textTertiary, marginTop: 2 }}>
-                              {physicalNames.length > 0 && `${physicalNames.length} présentiel`}
-                              {physicalNames.length > 0 && onlineNames.length > 0 && " · "}
-                              {onlineNames.length > 0 && `${onlineNames.length} en ligne`}
-                            </Text>
-                          )}
-                        </View>
-                        {attendanceList.length > 0 && (
-                          <TouchableOpacity
-                            onPress={handleCopy}
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 5,
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                              borderRadius: 8,
-                              backgroundColor: copiedAttendance ? "#10B98120" : colors.surface,
-                              borderWidth: 1,
-                              borderColor: copiedAttendance ? "#10B981" : colors.border,
-                            }}
-                          >
-                            <Ionicons
-                              name={copiedAttendance ? "checkmark" : "copy-outline"}
-                              size={14}
-                              color={copiedAttendance ? "#10B981" : colors.textSecondary}
-                            />
+                          {!!ev.locationAddress && (
                             <Text
                               style={{
                                 fontSize: 12,
-                                fontWeight: "600",
-                                color: copiedAttendance ? "#10B981" : colors.textSecondary,
+                                color: colors.textSecondary,
+                                marginTop: 2,
                               }}
                             >
-                              {copiedAttendance ? "Copié !" : "Copier"}
+                              {ev.locationAddress}
+                            </Text>
+                          )}
+                        </View>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color={colors.textTertiary}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* ══════════════════════════════════════════════════
+                    PHASE 1 — FUTURE : vue Participation
+                ══════════════════════════════════════════════════ */}
+                  {phase === "future" && (
+                    <>
+                      <View
+                        style={{
+                          backgroundColor: colors.surfaceDim,
+                          borderRadius: 14,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: colors.textSecondary,
+                            marginBottom: 12,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.8,
+                          }}
+                        >
+                          Ma participation
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          {/* Je participe */}
+                          <TouchableOpacity
+                            onPress={() => handleParticipationChange("going")}
+                            style={{
+                              flex: 1,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 6,
+                              paddingVertical: 13,
+                              borderRadius: 10,
+                              backgroundColor:
+                                myStatus === "going"
+                                  ? "#007AFF"
+                                  : colors.surface,
+                              borderWidth: 1,
+                              borderColor:
+                                myStatus === "going"
+                                  ? "#007AFF"
+                                  : colors.border,
+                            }}
+                          >
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={18}
+                              color={
+                                myStatus === "going"
+                                  ? "#fff"
+                                  : colors.textSecondary
+                              }
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "700",
+                                color:
+                                  myStatus === "going"
+                                    ? "#fff"
+                                    : colors.textSecondary,
+                              }}
+                            >
+                              Je participe
                             </Text>
                           </TouchableOpacity>
-                        )}
-                      </View>
 
-                      {/* List */}
-                      {attendanceList.length === 0 ? (
-                        <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                          <Ionicons name="people-outline" size={32} color={colors.textTertiary} />
-                          <Text style={{ fontSize: 13, color: colors.textTertiary, marginTop: 8 }}>
-                            Aucune présence enregistrée.
-                          </Text>
-                        </View>
-                      ) : (
-                        attendanceList.map((p, idx) => {
-                          const isPhysical = p.status === "present_physical";
-                          const statusColor = isPhysical ? "#007AFF" : "#06B6D4";
-                          const statusLabel = isPhysical ? "Présentiel" : "En ligne";
-                          const statusIcon = isPhysical ? "checkmark-circle" : "wifi";
-                          const at = p.updatedAt?.toDate?.();
-
-                          return (
-                            <View
-                              key={p.id}
+                          {/* Pas disponible */}
+                          <TouchableOpacity
+                            onPress={() =>
+                              handleParticipationChange("not_going")
+                            }
+                            style={{
+                              flex: 1,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 6,
+                              paddingVertical: 13,
+                              borderRadius: 10,
+                              backgroundColor:
+                                myStatus === "not_going"
+                                  ? "#EF4444"
+                                  : colors.surface,
+                              borderWidth: 1,
+                              borderColor:
+                                myStatus === "not_going"
+                                  ? "#EF4444"
+                                  : colors.border,
+                            }}
+                          >
+                            <Ionicons
+                              name="close-circle"
+                              size={18}
+                              color={
+                                myStatus === "not_going"
+                                  ? "#fff"
+                                  : colors.textSecondary
+                              }
+                            />
+                            <Text
                               style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingVertical: 10,
-                                borderTopWidth: idx > 0 ? 1 : 0,
-                                borderTopColor: colors.border,
-                                gap: 12,
+                                fontSize: 13,
+                                fontWeight: "700",
+                                color:
+                                  myStatus === "not_going"
+                                    ? "#fff"
+                                    : colors.textSecondary,
                               }}
                             >
+                              Pas dispo
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Liste des intentions */}
+                      <View
+                        style={{
+                          backgroundColor: colors.surfaceDim,
+                          borderRadius: 14,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: colors.textSecondary,
+                            marginBottom: 12,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.8,
+                          }}
+                        >
+                          Réponses ({participationList.length})
+                        </Text>
+                        {participationList.length === 0 ? (
+                          <View
+                            style={{
+                              alignItems: "center",
+                              paddingVertical: 16,
+                            }}
+                          >
+                            <Ionicons
+                              name="people-outline"
+                              size={32}
+                              color={colors.textTertiary}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                color: colors.textTertiary,
+                                marginTop: 8,
+                              }}
+                            >
+                              Aucune réponse pour l'instant.
+                            </Text>
+                          </View>
+                        ) : (
+                          participationList.map((p, idx) => {
+                            const isGoing = p.status === "going";
+                            const at = p.updatedAt?.toDate?.();
+                            return (
                               <View
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  borderRadius: 18,
-                                  backgroundColor: statusColor + "22",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                <Text style={{ fontSize: 14, fontWeight: "700", color: statusColor }}>
-                                  {(p.userName?.[0] ?? "?").toUpperCase()}
-                                </Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textPrimary }}>
-                                  {p.userName}
-                                </Text>
-                                {at && (
-                                  <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
-                                    {at.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}{" "}
-                                    à {at.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                                  </Text>
-                                )}
-                              </View>
-                              <View
+                                key={p.id}
                                 style={{
                                   flexDirection: "row",
                                   alignItems: "center",
-                                  gap: 4,
-                                  backgroundColor: statusColor + "22",
-                                  borderRadius: 8,
-                                  paddingHorizontal: 8,
-                                  paddingVertical: 3,
+                                  paddingVertical: 10,
+                                  borderTopWidth: idx > 0 ? 1 : 0,
+                                  borderTopColor: colors.border,
+                                  gap: 12,
                                 }}
                               >
-                                <Ionicons name={statusIcon as any} size={12} color={statusColor} />
-                                <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
-                                  {statusLabel}
-                                </Text>
+                                <View
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 18,
+                                    backgroundColor: isGoing
+                                      ? "#007AFF22"
+                                      : "#EF444422",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: "700",
+                                      color: isGoing ? "#007AFF" : "#EF4444",
+                                    }}
+                                  >
+                                    {(p.userName?.[0] ?? "?").toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: "600",
+                                      color: colors.textPrimary,
+                                    }}
+                                  >
+                                    {p.userName}
+                                  </Text>
+                                  {at && (
+                                    <Text
+                                      style={{
+                                        fontSize: 11,
+                                        color: colors.textTertiary,
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      {at.toLocaleDateString("fr-FR", {
+                                        day: "numeric",
+                                        month: "short",
+                                      })}{" "}
+                                      à{" "}
+                                      {at.toLocaleTimeString("fr-FR", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </Text>
+                                  )}
+                                </View>
+                                <Ionicons
+                                  name={
+                                    isGoing
+                                      ? "checkmark-circle"
+                                      : "close-circle"
+                                  }
+                                  size={20}
+                                  color={isGoing ? "#007AFF" : "#EF4444"}
+                                />
                               </View>
-                            </View>
-                          );
-                        })
-                      )}
-                    </View>
-                  );
-                })()}
+                            );
+                          })
+                        )}
+                      </View>
+                    </>
+                  )}
 
-                <View style={{ height: 32 }} />
-              </ScrollView>
-            </SafeAreaView>
-          );
-        })()}
+                  {/* ══════════════════════════════════════════════════
+                    PHASE 2 — ONGOING : vue Présence
+                ══════════════════════════════════════════════════ */}
+                  {phase === "ongoing" && (
+                    <>
+                      {/* Mon statut de présence */}
+                      <View
+                        style={{
+                          backgroundColor: colors.surfaceDim,
+                          borderRadius: 14,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: colors.textSecondary,
+                            marginBottom: 12,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.8,
+                          }}
+                        >
+                          Ma présence
+                        </Text>
+
+                        {/* Si déjà présent en présentiel : lecture seule avec downgrade warning */}
+                        {myStatus === "present_physical" ? (
+                          <>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 8,
+                                paddingVertical: 13,
+                                borderRadius: 10,
+                                backgroundColor: "#007AFF",
+                              }}
+                            >
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={18}
+                                color="#fff"
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: "700",
+                                  color: "#fff",
+                                }}
+                              >
+                                Présent en présentiel ✓
+                              </Text>
+                            </View>
+                            {/* Bouton downgrade */}
+                            <TouchableOpacity
+                              onPress={() => setShowDowngradeConfirm(true)}
+                              style={{ marginTop: 10, alignItems: "center" }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: "#06B6D4",
+                                  fontWeight: "600",
+                                }}
+                              >
+                                Passer en ligne à la place →
+                              </Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <View style={{ gap: 10 }}>
+                            {/* Bouton En ligne */}
+                            <TouchableOpacity
+                              onPress={() =>
+                                handleParticipationChange("online")
+                              }
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 8,
+                                paddingVertical: 13,
+                                borderRadius: 10,
+                                backgroundColor:
+                                  myStatus === "online"
+                                    ? "#06B6D4"
+                                    : colors.surface,
+                                borderWidth: 1,
+                                borderColor:
+                                  myStatus === "online"
+                                    ? "#06B6D4"
+                                    : colors.border,
+                              }}
+                            >
+                              <Ionicons
+                                name="wifi"
+                                size={18}
+                                color={
+                                  myStatus === "online"
+                                    ? "#fff"
+                                    : colors.textSecondary
+                                }
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: "700",
+                                  color:
+                                    myStatus === "online"
+                                      ? "#fff"
+                                      : colors.textSecondary,
+                                }}
+                              >
+                                {myStatus === "online"
+                                  ? "En ligne ✓"
+                                  : "Je suis en ligne"}
+                              </Text>
+                            </TouchableOpacity>
+
+                            {/* Bouton Absent */}
+                            <TouchableOpacity
+                              onPress={() =>
+                                handleParticipationChange("absent")
+                              }
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 8,
+                                paddingVertical: 13,
+                                borderRadius: 10,
+                                backgroundColor:
+                                  myStatus === "absent"
+                                    ? "#F59E0B"
+                                    : colors.surface,
+                                borderWidth: 1,
+                                borderColor:
+                                  myStatus === "absent"
+                                    ? "#F59E0B"
+                                    : colors.border,
+                              }}
+                            >
+                              <Ionicons
+                                name="moon"
+                                size={18}
+                                color={
+                                  myStatus === "absent"
+                                    ? "#fff"
+                                    : colors.textSecondary
+                                }
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: "700",
+                                  color:
+                                    myStatus === "absent"
+                                      ? "#fff"
+                                      : colors.textSecondary,
+                                }}
+                              >
+                                {myStatus === "absent"
+                                  ? "Absent ✓"
+                                  : "Je suis absent"}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: colors.textTertiary,
+                                textAlign: "center",
+                              }}
+                            >
+                              Le scan QR sur place marque automatiquement ta
+                              présence physique.
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Liste des présences */}
+                      <View
+                        style={{
+                          backgroundColor: colors.surfaceDim,
+                          borderRadius: 14,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: colors.textSecondary,
+                            marginBottom: 12,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.8,
+                          }}
+                        >
+                          Présences ({presenceList.length})
+                        </Text>
+
+                        {presenceList.length === 0 ? (
+                          <View
+                            style={{
+                              alignItems: "center",
+                              paddingVertical: 16,
+                            }}
+                          >
+                            <Ionicons
+                              name="people-outline"
+                              size={32}
+                              color={colors.textTertiary}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                color: colors.textTertiary,
+                                marginTop: 8,
+                              }}
+                            >
+                              Aucun pointage pour l'instant.
+                            </Text>
+                          </View>
+                        ) : (
+                          presenceList.map((p, idx) => {
+                            const isOnline = p.status === "online";
+                            const isPhysical = p.status === "present_physical";
+                            const isAbsent = p.status === "absent";
+                            const at = p.updatedAt?.toDate?.();
+
+                            const statusConfig = isPhysical
+                              ? {
+                                  color: "#007AFF",
+                                  bg: "#007AFF22",
+                                  icon: "checkmark-circle" as const,
+                                  label: "Présentiel",
+                                }
+                              : isOnline
+                                ? {
+                                    color: "#06B6D4",
+                                    bg: "#06B6D422",
+                                    icon: "wifi" as const,
+                                    label: "En ligne",
+                                  }
+                                : {
+                                    color: "#F59E0B",
+                                    bg: "#F59E0B22",
+                                    icon: "moon" as const,
+                                    label: "Absent",
+                                  };
+
+                            return (
+                              <View
+                                key={p.id}
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  paddingVertical: 10,
+                                  borderTopWidth: idx > 0 ? 1 : 0,
+                                  borderTopColor: colors.border,
+                                  gap: 12,
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: 38,
+                                    height: 38,
+                                    borderRadius: 19,
+                                    backgroundColor: statusConfig.bg,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: "700",
+                                      color: statusConfig.color,
+                                    }}
+                                  >
+                                    {(p.userName?.[0] ?? "?").toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 6,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: "600",
+                                        color: colors.textPrimary,
+                                      }}
+                                    >
+                                      {p.userName}
+                                    </Text>
+                                    {/* Badge statut public */}
+                                    <View
+                                      style={{
+                                        backgroundColor: statusConfig.bg,
+                                        borderRadius: 8,
+                                        paddingHorizontal: 6,
+                                        paddingVertical: 2,
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        gap: 3,
+                                      }}
+                                    >
+                                      <Ionicons
+                                        name={statusConfig.icon}
+                                        size={9}
+                                        color={statusConfig.color}
+                                      />
+                                      <Text
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: "700",
+                                          color: statusConfig.color,
+                                        }}
+                                      >
+                                        {statusConfig.label}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  {at && (
+                                    <Text
+                                      style={{
+                                        fontSize: 11,
+                                        color: colors.textTertiary,
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      Pointé le{" "}
+                                      {at.toLocaleDateString("fr-FR", {
+                                        day: "numeric",
+                                        month: "short",
+                                      })}{" "}
+                                      à{" "}
+                                      {at.toLocaleTimeString("fr-FR", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </Text>
+                                  )}
+                                </View>
+                                <Ionicons
+                                  name={statusConfig.icon}
+                                  size={20}
+                                  color={statusConfig.color}
+                                />
+                              </View>
+                            );
+                          })
+                        )}
+                      </View>
+                    </>
+                  )}
+
+                  {/* ══════════════════════════════════════════════════
+                    PHASE 3 — PAST : liste de présence (lecture seule)
+                ══════════════════════════════════════════════════ */}
+                  {phase === "past" &&
+                    (() => {
+                      const attendanceList = participants
+                        .filter(
+                          (p) =>
+                            p.status === "online" ||
+                            p.status === "present_physical",
+                        )
+                        .sort((a, b) => {
+                          if (a.status === b.status)
+                            return (a.userName ?? "").localeCompare(
+                              b.userName ?? "",
+                            );
+                          return a.status === "present_physical" ? -1 : 1;
+                        });
+
+                      const physicalNames = attendanceList
+                        .filter((p) => p.status === "present_physical")
+                        .map((p) => p.userName ?? "?");
+                      const onlineNames = attendanceList
+                        .filter((p) => p.status === "online")
+                        .map((p) => p.userName ?? "?");
+
+                      const handleCopy = async () => {
+                        const text = formatAttendanceText(
+                          ev.title,
+                          ev.dateObj,
+                          onlineNames,
+                          physicalNames,
+                        );
+                        await Clipboard.setStringAsync(text);
+                        setCopiedAttendance(true);
+                        setTimeout(() => setCopiedAttendance(false), 2000);
+                      };
+
+                      return (
+                        <View
+                          style={{
+                            backgroundColor: colors.surfaceDim,
+                            borderRadius: 14,
+                            padding: 14,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          {/* Header */}
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              marginBottom: 12,
+                            }}
+                          >
+                            <View>
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                  color: colors.textSecondary,
+                                  textTransform: "uppercase",
+                                  letterSpacing: 0.8,
+                                }}
+                              >
+                                Liste de présence
+                              </Text>
+                              {attendanceList.length > 0 && (
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: colors.textTertiary,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {physicalNames.length > 0 &&
+                                    `${physicalNames.length} présentiel`}
+                                  {physicalNames.length > 0 &&
+                                    onlineNames.length > 0 &&
+                                    " · "}
+                                  {onlineNames.length > 0 &&
+                                    `${onlineNames.length} en ligne`}
+                                </Text>
+                              )}
+                            </View>
+                            {attendanceList.length > 0 && (
+                              <TouchableOpacity
+                                onPress={handleCopy}
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 5,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 6,
+                                  borderRadius: 8,
+                                  backgroundColor: copiedAttendance
+                                    ? "#10B98120"
+                                    : colors.surface,
+                                  borderWidth: 1,
+                                  borderColor: copiedAttendance
+                                    ? "#10B981"
+                                    : colors.border,
+                                }}
+                              >
+                                <Ionicons
+                                  name={
+                                    copiedAttendance
+                                      ? "checkmark"
+                                      : "copy-outline"
+                                  }
+                                  size={14}
+                                  color={
+                                    copiedAttendance
+                                      ? "#10B981"
+                                      : colors.textSecondary
+                                  }
+                                />
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: "600",
+                                    color: copiedAttendance
+                                      ? "#10B981"
+                                      : colors.textSecondary,
+                                  }}
+                                >
+                                  {copiedAttendance ? "Copié !" : "Copier"}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+
+                          {/* List */}
+                          {attendanceList.length === 0 ? (
+                            <View
+                              style={{
+                                alignItems: "center",
+                                paddingVertical: 16,
+                              }}
+                            >
+                              <Ionicons
+                                name="people-outline"
+                                size={32}
+                                color={colors.textTertiary}
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 13,
+                                  color: colors.textTertiary,
+                                  marginTop: 8,
+                                }}
+                              >
+                                Aucune présence enregistrée.
+                              </Text>
+                            </View>
+                          ) : (
+                            attendanceList.map((p, idx) => {
+                              const isPhysical =
+                                p.status === "present_physical";
+                              const statusColor = isPhysical
+                                ? "#007AFF"
+                                : "#06B6D4";
+                              const statusLabel = isPhysical
+                                ? "Présentiel"
+                                : "En ligne";
+                              const statusIcon = isPhysical
+                                ? "checkmark-circle"
+                                : "wifi";
+                              const at = p.updatedAt?.toDate?.();
+
+                              return (
+                                <View
+                                  key={p.id}
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    paddingVertical: 10,
+                                    borderTopWidth: idx > 0 ? 1 : 0,
+                                    borderTopColor: colors.border,
+                                    gap: 12,
+                                  }}
+                                >
+                                  <View
+                                    style={{
+                                      width: 36,
+                                      height: 36,
+                                      borderRadius: 18,
+                                      backgroundColor: statusColor + "22",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: "700",
+                                        color: statusColor,
+                                      }}
+                                    >
+                                      {(p.userName?.[0] ?? "?").toUpperCase()}
+                                    </Text>
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: "600",
+                                        color: colors.textPrimary,
+                                      }}
+                                    >
+                                      {p.userName}
+                                    </Text>
+                                    {at && (
+                                      <Text
+                                        style={{
+                                          fontSize: 11,
+                                          color: colors.textTertiary,
+                                          marginTop: 2,
+                                        }}
+                                      >
+                                        {at.toLocaleDateString("fr-FR", {
+                                          day: "numeric",
+                                          month: "short",
+                                        })}{" "}
+                                        à{" "}
+                                        {at.toLocaleTimeString("fr-FR", {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </Text>
+                                    )}
+                                  </View>
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      backgroundColor: statusColor + "22",
+                                      borderRadius: 8,
+                                      paddingHorizontal: 8,
+                                      paddingVertical: 3,
+                                    }}
+                                  >
+                                    <Ionicons
+                                      name={statusIcon as any}
+                                      size={12}
+                                      color={statusColor}
+                                    />
+                                    <Text
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: "700",
+                                        color: statusColor,
+                                      }}
+                                    >
+                                      {statusLabel}
+                                    </Text>
+                                  </View>
+                                </View>
+                              );
+                            })
+                          )}
+                        </View>
+                      );
+                    })()}
+
+                  <View style={{ height: 32 }} />
+                </ScrollView>
+              </SafeAreaView>
+            );
+          })()}
       </Modal>
 
       {/* MODAL QR ÉVÉNEMENT (admin/président) */}
@@ -2171,91 +2705,106 @@ export default function FirebaseCalendarScreen() {
         onDismiss={() => setQrEvent(null)}
         animationType="fade"
       >
-          <View
-            style={[
-              dynamicStyles.modalView,
-              { paddingVertical: 24, gap: 0, maxHeight: "100%" },
-            ]}
+        <View
+          style={[
+            dynamicStyles.modalView,
+            { paddingVertical: 24, gap: 0, maxHeight: "85%" },
+          ]}
+        >
+          {/* Titre */}
+          <Text
+            style={[dynamicStyles.modalTitle, { marginBottom: 16 }]}
+            numberOfLines={1}
           >
-            {/* Titre */}
-            <Text
-              style={[dynamicStyles.modalTitle, { marginBottom: 16 }]}
-              numberOfLines={1}
-            >
-              {qrEvent?.title}
-            </Text>
+            {qrEvent?.title}
+          </Text>
 
-            {/* Onglets QR / Présents */}
-            <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: colors.surface,
-                borderRadius: 8,
-                padding: 4,
-                marginBottom: 20,
-                width: "100%",
-              }}
+          {/* Onglets QR / Présents */}
+          <View
+            style={{
+              flexDirection: "row",
+              backgroundColor: colors.surface,
+              borderRadius: 8,
+              padding: 4,
+              marginBottom: 20,
+              width: "100%",
+            }}
+          >
+            <TouchableOpacity
+              style={[
+                {
+                  flex: 1,
+                  paddingVertical: 8,
+                  alignItems: "center",
+                  borderRadius: 6,
+                },
+                qrModalTab === "qr" && {
+                  backgroundColor: colors.surfaceDim,
+                  elevation: 1,
+                },
+              ]}
+              onPress={() => setQrModalTab("qr")}
             >
-              <TouchableOpacity
-                style={[
-                  { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
-                  qrModalTab === "qr" && { backgroundColor: colors.surfaceDim, elevation: 1 },
-                ]}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: qrModalTab === "qr" ? "700" : "500",
+                  color:
+                    qrModalTab === "qr"
+                      ? colors.textPrimary
+                      : colors.textSecondary,
+                }}
               >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: qrModalTab === "qr" ? "700" : "500",
-                    color: qrModalTab === "qr" ? colors.textPrimary : colors.textSecondary,
-                  }}
-                >
-                  QR Code
-                </Text>
-              </TouchableOpacity>
+                QR Code
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Contenu onglet QR */}
+          {qrModalTab === "qr" && qrEvent && (
+            <View style={{ alignItems: "center", gap: 12 }}>
+              <QRCode
+                value={JSON.stringify({
+                  type: "ojyq-event-checkin",
+                  eventId: qrEvent.id,
+                  title: qrEvent.title,
+                })}
+                size={200}
+                backgroundColor={colors.surfaceDim}
+                color={colors.textPrimary}
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  textAlign: "center",
+                }}
+              >
+                Les membres scannent ce QR pour s'inscrire à cet événement.
+              </Text>
             </View>
+          )}
 
-            {/* Contenu onglet QR */}
-            {qrModalTab === "qr" && qrEvent && (
-              <View style={{ alignItems: "center", gap: 12 }}>
-                <QRCode
-                  value={JSON.stringify({
-                    type: "ojyq-event-checkin",
-                    eventId: qrEvent.id,
-                    title: qrEvent.title,
-                  })}
-                  size={200}
-                  backgroundColor={colors.surfaceDim}
-                  color={colors.textPrimary}
-                />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                    textAlign: "center",
-                  }}
-                >
-                  Les membres scannent ce QR pour s'inscrire à cet événement.
-                </Text>
-              </View>
-            )}
-
-            <View
-              style={{
-                flexDirection: "row",
-                borderRadius: 8,
-                padding: 4,
-                marginBottom: 10,
-                width: "100%",
-              }}
-            >
-              <TouchableOpacity
+          <View
+            style={{
+              flexDirection: "row",
+              borderRadius: 8,
+              padding: 4,
+              marginBottom: 10,
+              width: "100%",
+            }}
+          >
+            <TouchableOpacity
               onPress={() => setQrEvent(null)}
-              style={[dynamicStyles.buttonSave, { width: "100%", marginTop: 20 }]}
+              style={[
+                dynamicStyles.buttonSave,
+                { width: "100%", marginTop: 20 },
+              ]}
             >
               <Text style={dynamicStyles.textSave}>Fermer</Text>
             </TouchableOpacity>
-            </View>
           </View>
+        </View>
       </DismissableModal>
 
       {/* MODAL SCANNER QR ÉVÉNEMENT */}
@@ -2336,48 +2885,46 @@ export default function FirebaseCalendarScreen() {
         }}
         animationType="fade"
       >
-          <View style={dynamicStyles.modalView}>
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={48}
-              color={colors.primary}
-              style={{ marginBottom: 12 }}
-            />
-            <Text style={dynamicStyles.modalTitle}>Confirmer la présence</Text>
-            <Text
-              style={{
-                fontSize: 14,
-                color: colors.textSecondary,
-                textAlign: "center",
-                marginBottom: 20,
+        <View style={dynamicStyles.modalView}>
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={48}
+            color={colors.primary}
+            style={{ marginBottom: 12 }}
+          />
+          <Text style={dynamicStyles.modalTitle}>Confirmer la présence</Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: colors.textSecondary,
+              textAlign: "center",
+              marginBottom: 20,
+            }}
+          >
+            Marquer ta présence pour{"\n"}
+            <Text style={{ fontWeight: "700", color: colors.textPrimary }}>
+              {pendingCheckin?.title}
+            </Text>{" "}
+            ?
+          </Text>
+          <View style={[dynamicStyles.modalButtons, { gap: 12 }]}>
+            <TouchableOpacity
+              onPress={() => {
+                setPendingCheckin(null);
+                isProcessing.current = false;
               }}
+              style={dynamicStyles.buttonCancel}
             >
-              Marquer ta présence pour{"\n"}
-              <Text
-                style={{ fontWeight: "700", color: colors.textPrimary }}
-              >
-                {pendingCheckin?.title}
-              </Text>{" "}
-              ?
-            </Text>
-            <View style={[dynamicStyles.modalButtons, { gap: 12 }]}>
-              <TouchableOpacity
-                onPress={() => {
-                  setPendingCheckin(null);
-                  isProcessing.current = false;
-                }}
-                style={dynamicStyles.buttonCancel}
-              >
-                <Text style={dynamicStyles.textCancel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleConfirmCheckin}
-                style={dynamicStyles.buttonSave}
-              >
-                <Text style={dynamicStyles.textSave}>Confirmer</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={dynamicStyles.textCancel}>Annuler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleConfirmCheckin}
+              style={dynamicStyles.buttonSave}
+            >
+              <Text style={dynamicStyles.textSave}>Confirmer</Text>
+            </TouchableOpacity>
           </View>
+        </View>
       </DismissableModal>
 
       <AvailabilityModal

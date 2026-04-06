@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -160,6 +161,9 @@ export default function EditProfile() {
     }
     return null;
   };
+
+  const toDateInputValue = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   const handleDateChange = (event: any, selectedDate: Date | undefined) => {
     if (selectedDate) {
@@ -311,38 +315,80 @@ export default function EditProfile() {
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Date de Naissance</Text>
-            <TouchableOpacity
-              style={[
-                styles.inputContainer,
-                {
-                  borderColor:
-                    touched.birthDate && errors.birthDate
-                      ? colors.accent6
-                      : colors.border,
+            {Platform.OS === "web" ? (
+              // @ts-ignore – web-only: direct click opens browser picker
+              <input
+                type="date"
+                value={toDateInputValue(formData.birthDate instanceof Date ? formData.birthDate : new Date())}
+                max={toDateInputValue(new Date())}
+                min="1920-01-01"
+                onChange={(e: any) => {
+                  if (!e.target.value) return;
+                  const [y, m, d] = e.target.value.split("-").map(Number);
+                  handleDateChange(null, new Date(y, m - 1, d));
+                }}
+                style={{
+                  width: "100%", height: "45px",
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: "8px",
+                  padding: "0 10px",
+                  marginBottom: "15px",
                   backgroundColor: colors.surface,
-                },
-              ]}
-              onPress={() => setShowDatePicker(true)}
-              disabled={saving}
-            >
-              <View style={styles.datePickerButton}>
-                <Text
+                  color: colors.textPrimary,
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            ) : (
+              <>
+                <TouchableOpacity
                   style={[
-                    styles.input,
-                    { color: colors.textPrimary },
-                    !formData.birthDate && { color: colors.textSecondary },
+                    styles.inputContainer,
+                    {
+                      borderColor:
+                        touched.birthDate && errors.birthDate
+                          ? colors.accent6
+                          : colors.border,
+                      backgroundColor: colors.surface,
+                    },
                   ]}
+                  onPress={() => setShowDatePicker(true)}
+                  disabled={saving}
                 >
-                  {formData.birthDate
-                    ? typeof formData.birthDate === "string"
-                      ? formData.birthDate
-                      : formData.birthDate instanceof Date
-                        ? `${String(formData.birthDate.getDate()).padStart(2, "0")}/${String(formData.birthDate.getMonth() + 1).padStart(2, "0")}/${formData.birthDate.getFullYear()}`
-                        : "JJ/MM/AAAA"
-                    : "JJ/MM/AAAA"}
-                </Text>
-              </View>
-            </TouchableOpacity>
+                  <View style={styles.datePickerButton}>
+                    <Text
+                      style={[
+                        styles.input,
+                        { color: colors.textPrimary },
+                        !formData.birthDate && { color: colors.textSecondary },
+                      ]}
+                    >
+                      {formData.birthDate
+                        ? typeof formData.birthDate === "string"
+                          ? formData.birthDate
+                          : formData.birthDate instanceof Date
+                            ? `${String(formData.birthDate.getDate()).padStart(2, "0")}/${String(formData.birthDate.getMonth() + 1).padStart(2, "0")}/${formData.birthDate.getFullYear()}`
+                            : "JJ/MM/AAAA"
+                        : "JJ/MM/AAAA"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={
+                      formData.birthDate instanceof Date ? formData.birthDate : new Date()
+                    }
+                    mode="date"
+                    display="spinner"
+                    onChange={handleDateChange}
+                    maximumDate={new Date()}
+                    minimumDate={new Date(1920, 0, 1)}
+                  />
+                )}
+              </>
+            )}
             {renderErrorMessage("birthDate")}
           </View>
         </View>
@@ -460,18 +506,6 @@ export default function EditProfile() {
         </View>
       </ScrollView>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={
-            formData.birthDate instanceof Date ? formData.birthDate : new Date()
-          }
-          mode="date"
-          display="spinner"
-          onChange={handleDateChange}
-          maximumDate={new Date()}
-          minimumDate={new Date(1920, 0, 1)}
-        />
-      )}
     </SafeAreaView>
   );
 }
