@@ -10,6 +10,7 @@
  *  • Enhanced visual hierarchy and spacing
  */
 
+import Constants from "expo-constants";
 import React from "react";
 import { showToast } from "@/components/Toast";
 import {
@@ -75,13 +76,15 @@ export default function AppSettings() {
 
           <View style={styles.infoBox}>
             <Text style={styles.infoLabel}>Version de l&apos;Application</Text>
-            <Text style={styles.infoValue}>1.0.0</Text>
+            <Text style={styles.infoValue}>
+              {Constants.expoConfig?.version ?? "1.0.0"}
+            </Text>
           </View>
 
           <View style={styles.infoBox}>
             <Text style={styles.infoLabel}>Dernière Mise à Jour</Text>
             <Text style={styles.infoValue}>
-              {new Date().toLocaleDateString("fr-FR")}
+              {(Constants.expoConfig?.extra as any)?.lastUpdate ?? "—"}
             </Text>
           </View>
         </View>
