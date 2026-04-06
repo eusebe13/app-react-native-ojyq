@@ -15,9 +15,12 @@ interface DismissableModalProps {
 }
 
 /**
- * Modal transparent avec fermeture automatique au clic sur le backdrop.
- * Le contenu interne (card) est rendu par l'appelant — ce composant ne
- * stylise pas la carte, uniquement l'overlay.
+ * Modal transparent avec fermeture au clic sur le backdrop.
+ *
+ * Architecture : backdrop absolu + contenu frère (pas parent-enfant).
+ * Les touches sur le contenu n'atteignent jamais le backdrop — pas besoin
+ * de stopPropagation. Les ScrollView et TextInput à l'intérieur fonctionnent
+ * normalement car aucun Pressable n'enveloppe le contenu.
  */
 export function DismissableModal({
   visible,
