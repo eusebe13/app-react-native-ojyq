@@ -1,6 +1,6 @@
 # OJYQ — Application Mobile
 
-Application mobile de gestion associative pour **OJYQ**, construite avec React Native + Expo. Disponible sur iOS, Android et Web.
+Application mobile de gestion associative pour **OJYQ**, construite avec React Native + Expo. Disponible sur iOS, Android.
 
 ---
 
