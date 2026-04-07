@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -221,7 +222,11 @@ export default function EditProfile() {
       style={[styles.container, { backgroundColor: colors.surfaceDim }]}
       edges={["left", "right", "bottom"]}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Section: Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations Personnelles</Text>
@@ -505,7 +510,7 @@ export default function EditProfile() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

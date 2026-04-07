@@ -1043,6 +1043,17 @@ export default function ChannelScreen() {
                 animated: true,
               });
             }}
+            ListEmptyComponent={
+              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 64 }}>
+                <Ionicons name="chatbubbles-outline" size={52} color={colors.textTertiary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: "600", marginTop: 14 }}>
+                  Commencez la conversation
+                </Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 13, marginTop: 4 }}>
+                  Envoyez le premier message !
+                </Text>
+              </View>
+            }
             ListFooterComponent={
               loadingMore ? (
                 <ActivityIndicator color={colors.primary} style={{ padding: 16 }} />

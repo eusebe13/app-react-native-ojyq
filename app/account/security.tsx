@@ -18,6 +18,8 @@ import {
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +30,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { showToast } from "@/components/Toast";
+import { getFirebaseErrorMessage } from "@/lib/firebase-errors";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { auth } from "@/firebaseConfig";
 
@@ -150,7 +153,7 @@ export default function SecuritySettings() {
       } else if (error.code === "auth/weak-password") {
         showToast("Le nouveau mot de passe est trop faible", "error");
       } else {
-        showToast(error.message || "Impossible de changer le mot de passe", "error");
+        showToast(getFirebaseErrorMessage(error, "Impossible de changer le mot de passe"), "error");
       }
     } finally {
       setLoading(false);
@@ -169,7 +172,11 @@ export default function SecuritySettings() {
       style={[styles.container, { backgroundColor: colors.surfaceDim }]}
       edges={["left", "right", "bottom"]}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Section: Current Password */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Vérification d'Identité</Text>
@@ -347,6 +354,7 @@ export default function SecuritySettings() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
