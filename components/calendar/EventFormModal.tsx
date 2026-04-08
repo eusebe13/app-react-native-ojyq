@@ -147,6 +147,7 @@ export function EventFormModal({
       <View
         style={{
           width: "90%" as const,
+          maxWidth: "100%",
           backgroundColor: colors.surfaceDim,
           borderRadius: 20,
           padding: 25,
@@ -183,7 +184,7 @@ export function EventFormModal({
           {/* Description */}
           <Text style={labelStyle}>Description</Text>
           <TextInput
-            style={[inputStyle, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
+            style={[inputStyle, { height: undefined, minHeight: 80, maxHeight: 160, textAlignVertical: "top", paddingTop: 10, maxWidth: "100%" }]}
             value={description}
             onChangeText={setDescription}
             placeholder="Détails de l'événement (optionnel)"
