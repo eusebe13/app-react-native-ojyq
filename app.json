@@ -22,7 +22,7 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "buildNumber": "8"
+      "buildNumber": "9"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -66,12 +66,10 @@
       [
         "expo-build-properties",
         {
-          "ios": {
-            "useFrameworks": "static"
-          }
+          "ios": {}
         }
       ],
-      "./plugins/withNonModularHeaders",
+      "./plugins/withModularHeaders",
       "expo-router",
       "expo-document-picker",
       [
