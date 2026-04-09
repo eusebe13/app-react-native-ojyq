@@ -22,7 +22,7 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
