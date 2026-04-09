@@ -18,6 +18,9 @@
         "NSPhotoLibraryAddUsageDescription": "OJYQ enregistre des images dans votre galerie.",
         "NSCameraUsageDescription": "OJYQ utilise la caméra pour prendre des photos.",
         "NSMicrophoneUsageDescription": "OJYQ utilise le microphone pour les messages vocaux."
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
       }
     },
     "android": {
@@ -35,8 +38,24 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "output": "static",
@@ -99,6 +118,9 @@
       },
       "lastUpdate": "03/04/2026"
     },
-    "owner": "ojyq"
+    "owner": "ojyq",
+    "updates": {
+      "url": "https://u.expo.dev/b855df14-5396-4fbe-ab32-e111ad5d0835"
+    }
   }
 }
