@@ -9,7 +9,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export --platform web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "postinstall": "node ./scripts/fix-image-utils-cache.js"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
