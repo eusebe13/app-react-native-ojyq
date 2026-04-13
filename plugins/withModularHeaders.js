@@ -6,21 +6,37 @@ const path = require('path');
  * Adds `use_modular_headers!` to the Podfile.
  * Required for Firebase Swift pods (FirebaseAuth, FirebaseCoreInternal, FirebaseFirestore)
  * which depend on pods that don't define modules (GoogleUtilities, RecaptchaInterop, etc.).
- * Less invasive than `use_frameworks! :linkage => :static`.
  *
- * Also injects a post_install fix for the gRPC-Core.modulemap not found error
- * that occurs with gRPC-C++ when use_modular_headers! is enabled globally.
+ * Also injects a post_install fix for gRPC module map errors with newer Xcode versions.
+ * When use_modular_headers! is active, CocoaPods adds -fmodule-map-file flags to gRPC-related
+ * pods' xcconfig files (gRPC-Core.modulemap, abseil.modulemap, BoringSSL-GRPC.modulemap, etc.)
+ * but these files are either missing or the flags get misinterpreted by Xcode 26+.
+ * The fix removes ALL -fmodule-map-file flags from gRPC/abseil/BoringSSL xcconfig files.
  */
 
 const GRPC_POST_INSTALL_FIX = `
-  # Fix: gRPC-Core.modulemap not found in gRPC-C++ target
-  # Caused by use_modular_headers! generating module maps that gRPC doesn't expect
-  grpc_targets = ['gRPC-Core', 'gRPC-C++', 'gRPC-RxLibrary', 'gRPC', 'gRPCCertificates-Cpp']
+  # Fix: Remove all -fmodule-map-file flags from gRPC/abseil/BoringSSL xcconfigs
+  # With use_modular_headers!, CocoaPods adds -fmodule-map-file flags for gRPC dependencies,
+  # but these module map files are missing or cause Xcode 26+ parse errors.
+  require 'set'
+  grpc_pod_names = %w[gRPC-Core gRPC-C++ gRPC-RxLibrary gRPC abseil BoringSSL-GRPC openssl_grpc]
+  patched_xcconfigs = Set.new
+
   installer.pods_project.targets.each do |target|
-    if grpc_targets.include?(target.name)
-      target.build_configurations.each do |config|
-        config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(inherited)'
-        config.build_settings['HEADER_SEARCH_PATHS'] = '$(inherited) $(PODS_ROOT)/Headers/Private/grpc $(PODS_ROOT)/Headers/Public/grpc'
+    next unless grpc_pod_names.any? { |pod| target.name == pod || target.name.start_with?(pod + '-') }
+    target.build_configurations.each do |config|
+      xcconfig_ref = config.base_configuration_reference
+      next unless xcconfig_ref
+      xcconfig_path = xcconfig_ref.real_path.to_s
+      next if patched_xcconfigs.include?(xcconfig_path)
+      next unless File.exist?(xcconfig_path)
+      content = File.read(xcconfig_path)
+      # Remove every -fmodule-map-file=<path> flag (preceded by a space)
+      patched = content.gsub(/ -fmodule-map-file=[^[:space:]]+/, '')
+      if patched != content
+        File.write(xcconfig_path, patched)
+        patched_xcconfigs.add(xcconfig_path)
+        puts "gRPC xcconfig patched: #{File.basename(xcconfig_path)}"
       end
     end
   end`;
@@ -41,7 +57,7 @@ function withModularHeaders(config) {
       }
 
       // Add gRPC post_install fix if not already present
-      if (!podfile.includes('gRPC-Core.modulemap not found')) {
+      if (!podfile.includes('gRPC xcconfig patched')) {
         if (podfile.includes('post_install do |installer|')) {
           // Inject inside the existing post_install block
           podfile = podfile.replace(
