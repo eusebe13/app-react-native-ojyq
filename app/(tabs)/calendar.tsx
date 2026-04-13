@@ -4,6 +4,8 @@ import {
   AvailabilityModal,
   EventFormData,
   EventFormModal,
+  ProjectFormData,
+  ProjectFormModal,
 } from "@/components/calendar";
 import { WeeklyCoverageChart } from "@/components/calendar/WeeklyCoverageChart";
 import { Header } from "@/components/Header";
@@ -17,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
+import { router } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -345,8 +348,19 @@ export default function FirebaseCalendarScreen() {
 
   const [events, setEvents] = useState<any[]>([]);
   const [availabilities, setAvailabilities] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"events" | "availability">("events");
+  const [viewMode, setViewMode] = useState<"events" | "projects" | "availability">("events");
+
+  // États pour le formulaire projet
+  const [projectModalVisible, setProjectModalVisible] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectValues, setEditingProjectValues] = useState<Partial<ProjectFormData> | undefined>();
+
+  const canDeleteProject =
+    profile.role === "Administrateur" ||
+    profile.role === "Président" ||
+    profile.role === "Vice-Président";
 
   // États pour le Modal et le Formulaire
   const [modalVisible, setModalVisible] = useState(false);
@@ -487,6 +501,149 @@ export default function FirebaseCalendarScreen() {
     });
     return unsub;
   }, []);
+
+  // Charger les projets (temps réel)
+  useEffect(() => {
+    const q = query(collection(db, "projects"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setProjects(snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          dateObj: data.date?.toDate?.() ?? null,
+        };
+      }));
+    });
+    return unsub;
+  }, []);
+
+  // Créer un projet + canal automatique
+  const handleSaveProject = async (data: ProjectFormData) => {
+    if (!user) return;
+    try {
+      const projectData: any = {
+        name: data.name.trim(),
+        description: data.description.trim() || null,
+        date: data.date ? Timestamp.fromDate(data.date) : null,
+        location: data.locationLabel.trim() || null,
+        locationLabel: data.locationLabel.trim() || null,
+        locationAddress: data.locationAddress.trim() || null,
+        createdBy: user.uid,
+        updatedAt: Timestamp.now(),
+      };
+
+      if (editingProjectId) {
+        await updateDoc(doc(db, "projects", editingProjectId), projectData);
+      } else {
+        // 1. Créer le projet
+        projectData.createdAt = Timestamp.now();
+        const projectRef = await addDoc(collection(db, "projects"), projectData);
+
+        // 2. Créer le canal associé
+        const channelRef = await addDoc(collection(db, "channels"), {
+          name: data.name.trim(),
+          description: `Canal du projet : ${data.name.trim()}`,
+          type: "public",
+          audienceType: "public",
+          allowedRoles: [],
+          members: [],
+          projectId: projectRef.id,
+          createdBy: user.uid,
+          createdAt: Timestamp.now(),
+          lastMessage: "Canal créé",
+          lastMessageAt: Timestamp.now(),
+        });
+
+        // 3. Lier le canal au projet
+        await updateDoc(doc(db, "projects", projectRef.id), {
+          channelId: channelRef.id,
+        });
+
+        // 4. Message épinglé avec lien vers le projet
+        await addDoc(collection(db, "channels", channelRef.id, "messages"), {
+          text: `Canal créé pour le projet "${data.name.trim()}"`,
+          createdAt: Timestamp.now(),
+          user: { _id: "system", name: "OJYQ" },
+          projectLink: { projectId: projectRef.id, projectName: data.name.trim() },
+          image: null,
+          poll: null,
+          file: null,
+          audio: null,
+          replyTo: null,
+        });
+
+        if (data.saveAddress && data.locationLabel.trim()) {
+          await addDoc(collection(db, "savedLocations"), {
+            label: data.locationLabel.trim(),
+            address: data.locationAddress.trim(),
+            createdAt: Timestamp.now(),
+          });
+        }
+      }
+
+      setProjectModalVisible(false);
+      setEditingProjectId(null);
+      setEditingProjectValues(undefined);
+      showToast(editingProjectId ? "Projet mis à jour" : "Projet créé !", "success");
+    } catch {
+      showToast("Impossible de sauvegarder le projet.", "error");
+    }
+  };
+
+  const handleLongPressProject = (item: any) => {
+    const actions: any[] = [];
+
+    if (canDeleteProject) {
+      actions.push({
+        label: "Modifier",
+        icon: "create-outline",
+        style: "default",
+        onPress: () => {
+          setEditingProjectId(item.id);
+          setEditingProjectValues({
+            name: item.name,
+            description: item.description ?? "",
+            locationLabel: item.locationLabel ?? item.location ?? "",
+            locationAddress: item.locationAddress ?? "",
+            date: item.dateObj ?? null,
+          });
+          setProjectModalVisible(true);
+        },
+      });
+      actions.push({
+        label: "Supprimer",
+        icon: "trash-outline",
+        style: "destructive",
+        onPress: () => {
+          showConfirm({
+            title: "Supprimer le projet",
+            message: `Supprimer "${item.name}" définitivement ?`,
+            confirmLabel: "Supprimer",
+            destructive: true,
+            onConfirm: async () => {
+              try {
+                await deleteDoc(doc(db, "projects", item.id));
+                showToast("Projet supprimé", "success");
+              } catch {
+                showToast("Impossible de supprimer", "error");
+              }
+            },
+          });
+        },
+      });
+    }
+
+    actions.push({ label: "Annuler", style: "cancel", onPress: () => {} });
+
+    if (actions.length > 1) {
+      showActionSheet({
+        title: "Options du projet",
+        message: `"${item.name}"`,
+        actions,
+      });
+    }
+  };
 
   // Écouter les présents d'un événement quand le modal QR est ouvert
   useEffect(() => {
@@ -721,11 +878,6 @@ export default function FirebaseCalendarScreen() {
     Linking.canOpenURL(url).then((ok) => Linking.openURL(ok ? url : fallback));
   };
 
-  const handleSelectSavedLocation = (loc: any) => {
-    setLocationLabel(loc.label);
-    setLocationAddress(loc.address);
-  };
-
   // --- QR & Scanner ---
   const handleShowEventQR = (event: any) => setQrEvent(event);
 
@@ -837,9 +989,7 @@ export default function FirebaseCalendarScreen() {
           <Ionicons
             name="calendar"
             size={20}
-            color={
-              viewMode === "events" ? colors.surface : colors.textSecondary
-            }
+            color={viewMode === "events" ? colors.surface : colors.textSecondary}
           />
           <Text
             style={[
@@ -854,6 +1004,28 @@ export default function FirebaseCalendarScreen() {
         <TouchableOpacity
           style={[
             dynamicStyles.tab,
+            viewMode === "projects" && dynamicStyles.tabActive,
+          ]}
+          onPress={() => setViewMode("projects")}
+        >
+          <Ionicons
+            name="folder-open"
+            size={20}
+            color={viewMode === "projects" ? colors.surface : colors.textSecondary}
+          />
+          <Text
+            style={[
+              dynamicStyles.tabText,
+              viewMode === "projects" && dynamicStyles.tabTextActive,
+            ]}
+          >
+            Projets
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            dynamicStyles.tab,
             viewMode === "availability" && dynamicStyles.tabActive,
           ]}
           onPress={() => setViewMode("availability")}
@@ -861,11 +1033,7 @@ export default function FirebaseCalendarScreen() {
           <Ionicons
             name="checkmark-circle"
             size={20}
-            color={
-              viewMode === "availability"
-                ? colors.surface
-                : colors.textSecondary
-            }
+            color={viewMode === "availability" ? colors.surface : colors.textSecondary}
           />
           <Text
             style={[
@@ -913,6 +1081,70 @@ export default function FirebaseCalendarScreen() {
         <View style={dynamicStyles.centerContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
         </View>
+      ) : viewMode === "projects" ? (
+        <FlatList
+          data={projects}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={dynamicStyles.listContent}
+          ListEmptyComponent={
+            <View style={dynamicStyles.emptyContainer}>
+              <Ionicons name="folder-open-outline" size={48} color="#999" />
+              <Text style={dynamicStyles.emptyText}>
+                Aucun projet.{"\n"}Appuyez sur + pour en créer un.
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => router.push(`/project/${item.id}` as any)}
+              onLongPress={() => handleLongPressProject(item)}
+              delayLongPress={500}
+              style={[
+                dynamicStyles.eventCard,
+                { borderLeftColor: colors.accent2 },
+              ]}
+            >
+              <View style={dynamicStyles.dateContainer}>
+                {item.dateObj ? (
+                  <>
+                    <Text style={dynamicStyles.dateText}>
+                      {item.dateObj.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    </Text>
+                    <Text style={dynamicStyles.timeText}>
+                      {item.dateObj.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </>
+                ) : (
+                  <Ionicons name="folder-open-outline" size={26} color={colors.accent2} />
+                )}
+              </View>
+              <View style={dynamicStyles.contentContainer}>
+                <Text style={dynamicStyles.eventTitle} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <View style={dynamicStyles.detailsRow}>
+                  <Text style={[dynamicStyles.eventType, { color: colors.accent2 }]}>
+                    PROJET
+                  </Text>
+                  {item.location && (
+                    <Text style={dynamicStyles.locationText} numberOfLines={1}>
+                      📍 {item.location}
+                    </Text>
+                  )}
+                </View>
+                {item.description ? (
+                  <Text
+                    style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}
+                    numberOfLines={1}
+                  >
+                    {item.description}
+                  </Text>
+                ) : null}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+        />
       ) : viewMode === "events" ? (
         <FlatList
           data={events}
@@ -1269,11 +1501,11 @@ export default function FirebaseCalendarScreen() {
 
       <TouchableOpacity
         style={[dynamicStyles.fab]}
-        onPress={() =>
-          viewMode === "events"
-            ? setModalVisible(true)
-            : setAvailabilityModalVisible(true)
-        }
+        onPress={() => {
+          if (viewMode === "events") setModalVisible(true);
+          else if (viewMode === "projects") setProjectModalVisible(true);
+          else setAvailabilityModalVisible(true);
+        }}
       >
         <Ionicons name="add" size={30} color={colors.surface} />
       </TouchableOpacity>
@@ -1285,6 +1517,19 @@ export default function FirebaseCalendarScreen() {
         initialValues={editingInitialValues}
         savedLocations={savedLocations}
         onSave={handleSaveEvent}
+      />
+
+      <ProjectFormModal
+        visible={projectModalVisible}
+        onDismiss={() => {
+          setProjectModalVisible(false);
+          setEditingProjectId(null);
+          setEditingProjectValues(undefined);
+        }}
+        editingId={editingProjectId}
+        initialValues={editingProjectValues}
+        savedLocations={savedLocations}
+        onSave={handleSaveProject}
       />
 
       {/* MODAL HORAIRE DE PERMANENCE */}

@@ -25,6 +25,11 @@ export interface ChatUser {
   role?: string;
 }
 
+export interface ProjectLinkData {
+  projectId: string;
+  projectName: string;
+}
+
 export interface ChatMessage {
   _id: string;
   text: string;
@@ -38,4 +43,5 @@ export interface ChatMessage {
   reactions?: Record<string, string[]>;
   edited?: boolean;
   forwarded?: boolean;
+  projectLink?: ProjectLinkData | null;
 }
