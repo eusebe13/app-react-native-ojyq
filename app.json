@@ -18,12 +18,13 @@
         "NSPhotoLibraryAddUsageDescription": "OJYQ enregistre des images dans votre galerie.",
         "NSCameraUsageDescription": "OJYQ utilise la caméra pour prendre des photos.",
         "NSMicrophoneUsageDescription": "OJYQ utilise le microphone pour les messages vocaux."
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
-      "versionCode": 11,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
         "backgroundColor": "#081129"
@@ -36,7 +37,7 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
     },
     "web": {
       "output": "static",
