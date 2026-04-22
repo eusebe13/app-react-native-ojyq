@@ -6,6 +6,7 @@
  */
 
 import { showToast } from "@/components/Toast";
+import ChannelInfoPanel from "@/components/chat/ChannelInfoPanel";
 import ChatInputBar from "@/components/chat/ChatInputBar";
 import EmojiPickerSheet from "@/components/chat/EmojiPickerSheet";
 import ForwardModal from "@/components/chat/ForwardModal";
@@ -28,6 +29,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   startAfter,
   Timestamp,
   updateDoc,
@@ -265,6 +267,7 @@ export default function ChannelScreen() {
           reactions: data.reactions ?? {},
           edited: data.edited ?? false,
           forwarded: data.forwarded ?? false,
+          projectLink: data.projectLink ?? null,
         } as ChatMessage;
       });
       setMessages((prev) => [...prev, ...older]);
@@ -275,12 +278,27 @@ export default function ChannelScreen() {
     }
   }, [id, loadingMore, hasMore]);
 
+  // ── Channel metadata (image, projectId, members) ─────────────────────────
+  const [channelImage, setChannelImage] = useState<string | null>(null);
+  const [channelProjectId, setChannelProjectId] = useState<string | null>(null);
+  const [channelMembers, setChannelMembers] = useState<string[]>([]);
+  const [channelAudienceType, setChannelAudienceType] = useState<string>("public");
+  const [infoPanelVisible, setInfoPanelVisible] = useState(false);
+
   // ── Typing: listen to channel doc ─────────────────────────────────────────
   useEffect(() => {
     if (!id || !user) return;
     return onSnapshot(doc(db, "channels", id), (snap) => {
       if (!snap.exists()) return;
-      const typingUsers = snap.data().typingUsers as Record<string, any> | undefined;
+      const data = snap.data();
+
+      // Capture image, projectId, members, audienceType from channel doc
+      setChannelImage(data.image ?? null);
+      setChannelProjectId(data.projectId ?? null);
+      setChannelMembers(data.members ?? []);
+      setChannelAudienceType(data.audienceType ?? "public");
+
+      const typingUsers = data.typingUsers as Record<string, any> | undefined;
       if (!typingUsers) {
         setTypingNames([]);
         return;
@@ -292,11 +310,10 @@ export default function ChannelScreen() {
         if (uid === user.uid) continue;
         const tsMs = ts?.toMillis?.() ?? 0;
         if (now - tsMs < staleThresholdMs) {
-          activeNames.push(uid); // We'll resolve names below
+          activeNames.push(uid);
         }
       }
-      // We just track UIDs for now and show count, actual names fetched from userProfile if available
-      setTypingNames(activeNames.slice(0, 3)); // limit to 3
+      setTypingNames(activeNames.slice(0, 3));
     });
   }, [id, user]);
 
@@ -926,6 +943,48 @@ export default function ChannelScreen() {
 
   const keyExtractor = useCallback((item: ChatMessage) => item._id, []);
 
+  // ── ChannelInfoPanel callbacks ────────────────────────────────────────────
+
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const index = messages.findIndex((m) => m._id === messageId);
+    if (index === -1) return;
+    try {
+      flatListRef.current?.scrollToIndex({ index, animated: true });
+    } catch {
+      flatListRef.current?.scrollToOffset({ offset: index * 80, animated: true });
+    }
+  }, [messages]);
+
+  const handleStartDm = useCallback(async (member: { id: string; name: string }) => {
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, "channels"),
+        where("audienceType", "==", "private"),
+        where("type", "==", "direct"),
+        where("members", "array-contains", user.uid),
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => (d.data().members as string[]).includes(member.id));
+      if (existing) {
+        router.push(`/channel/${existing.id}?name=${encodeURIComponent(member.name)}`);
+      } else {
+        const ref = await addDoc(collection(db, "channels"), {
+          name: member.name,
+          audienceType: "private",
+          type: "direct",
+          members: [user.uid, member.id],
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          lastMessage: "",
+        });
+        router.push(`/channel/${ref.id}?name=${encodeURIComponent(member.name)}`);
+      }
+    } catch {
+      showToast("Impossible d'ouvrir la conversation", "error");
+    }
+  }, [user]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -942,22 +1001,34 @@ export default function ChannelScreen() {
           <Ionicons name="chevron-back" size={26} color={colors.primary} />
         </TouchableOpacity>
 
-        {/* Center: avatar + name + subtitle */}
-        <View style={styles.headerCenter}>
-          <View style={[styles.headerAvatar, { backgroundColor: channelColor + "22" }]}>
-            <Text style={[styles.headerAvatarText, { color: channelColor }]}>
-              {channelInitials}
-            </Text>
-          </View>
+        {/* Center: avatar + name + subtitle — cliquable pour ouvrir le panneau */}
+        <TouchableOpacity
+          style={styles.headerCenter}
+          onPress={() => setInfoPanelVisible(true)}
+          activeOpacity={0.7}
+        >
+          {channelImage ? (
+            <Image
+              source={{ uri: channelImage }}
+              style={[styles.headerAvatar, { borderRadius: 20 }]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.headerAvatar, { backgroundColor: channelColor + "22" }]}>
+              <Text style={[styles.headerAvatarText, { color: channelColor }]}>
+                {channelInitials}
+              </Text>
+            </View>
+          )}
           <View style={styles.headerTitleGroup}>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
               {name ?? "Canal"}
             </Text>
             <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
-              Canal de discussion
+              {channelProjectId ? "Canal du projet · Appuyer pour infos" : "Canal de discussion · Appuyer pour infos"}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setSearchActive((v) => !v)}
@@ -1220,6 +1291,19 @@ export default function ChannelScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Panneau d'informations du canal */}
+      <ChannelInfoPanel
+        visible={infoPanelVisible}
+        onDismiss={() => setInfoPanelVisible(false)}
+        channelId={id ?? ""}
+        channelName={name ?? "Canal"}
+        messages={messages}
+        channelMembers={channelMembers}
+        audienceType={channelAudienceType}
+        onScrollToMessage={handleScrollToMessage}
+        onStartDm={handleStartDm}
+      />
     </SafeAreaView>
   );
 }

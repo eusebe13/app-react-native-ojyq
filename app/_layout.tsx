@@ -81,6 +81,10 @@ function RootLayoutInner() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="project/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="treasury/member-payment"
           options={{ title: "Gestion des Paiements" }}
         />

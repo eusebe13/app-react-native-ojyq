@@ -11,6 +11,7 @@ import { useAppTheme } from "@/contexts/ThemeContext";
 import { normalizeUrl, splitLinkParts } from "@/utils/urlParsing";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import { router } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -1293,6 +1294,60 @@ const MessageBubble = React.memo(
       );
     }, [message.file, handleFileDownload, isMe, colors, styles]);
 
+    const renderProjectLink = useCallback(() => {
+      if (!message.projectLink) return null;
+      const { projectId, projectName } = message.projectLink;
+      return (
+        <TouchableOpacity
+          onPress={() => router.push(`/project/${projectId}` as any)}
+          activeOpacity={0.75}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: isMe ? "rgba(255,255,255,0.15)" : colors.primary + "12",
+            borderRadius: 10,
+            padding: 10,
+            borderWidth: 1,
+            borderColor: isMe ? "rgba(255,255,255,0.3)" : colors.primary + "40",
+            marginTop: message.text ? 6 : 0,
+          }}
+        >
+          <Ionicons
+            name="folder-open-outline"
+            size={22}
+            color={isMe ? "#FFFFFF" : colors.primary}
+          />
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
+                marginBottom: 1,
+              }}
+            >
+              Projet lié
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: isMe ? "#FFFFFF" : colors.primary,
+              }}
+              numberOfLines={1}
+            >
+              {projectName}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={isMe ? "rgba(255,255,255,0.7)" : colors.primary}
+          />
+        </TouchableOpacity>
+      );
+    }, [message.projectLink, message.text, isMe, colors]);
+
     const renderText = useCallback(() => {
       if (!message.text || message.poll) return null;
       const textStyle = [
@@ -1443,6 +1498,7 @@ const MessageBubble = React.memo(
                   {renderPoll()}
                   {renderFile()}
                   {renderText()}
+                  {renderProjectLink()}
                   {renderMeta()}
                 </View>
               </TouchableOpacity>
