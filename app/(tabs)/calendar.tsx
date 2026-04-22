@@ -165,7 +165,6 @@ export default function FirebaseCalendarScreen() {
       flexDirection: "row",
       paddingHorizontal: 16,
       paddingVertical: 10,
-      backgroundColor: colors.surfaceDim,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
@@ -184,7 +183,7 @@ export default function FirebaseCalendarScreen() {
       backgroundColor: colors.primary,
     },
     tabText: {
-      fontSize: 14,
+      fontSize: 12,
       color: colors.textSecondary,
       marginLeft: 6,
       fontWeight: "500",
