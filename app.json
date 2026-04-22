@@ -24,7 +24,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
-      "versionCode": 14,
+      "versionCode": 16,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
         "backgroundColor": "#081129"
@@ -37,6 +37,9 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.RECORD_AUDIO"
+      ],
+      "blockedPermissions": [
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
       ]
     },
     "web": {
@@ -44,6 +47,7 @@
       "favicon": "./assets/images/IMG_Logo-Principale.png"
     },
     "plugins": [
+      "./plugins/removeAgoraScreenShare",
       "expo-router",
       "expo-document-picker",
       [
