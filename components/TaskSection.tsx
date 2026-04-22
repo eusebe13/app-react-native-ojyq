@@ -54,12 +54,6 @@ import { Icon } from "./ui/Icon";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MANAGE_ROLES: MemberRole[] = [
-  "Président",
-  "Administrateur",
-  "Vice-Président",
-];
-
 const ALL_ROLES: MemberRole[] = [
   "Membre",
   "Vice-Président",
@@ -75,6 +69,14 @@ const ALL_ROLES: MemberRole[] = [
   "Conseiller",
   "Administrateur",
 ];
+
+// Can create / edit / delete tasks
+const MANAGE_ROLES: MemberRole[] = ALL_ROLES.filter((r) => r !== "Membre");
+
+// Can view all tasks (not just their own)
+const VIEW_ALL_ROLES: MemberRole[] = ALL_ROLES.filter(
+  (r) => r === "Administrateur",
+);
 
 const PRIORITIES = [
   { key: "low" as const, label: "Faible" },
@@ -193,7 +195,8 @@ export const TaskSection = () => {
   const styles = getStyles(colors, tokens);
 
   const canManage = MANAGE_ROLES.includes(profile.role as MemberRole);
-  const displayTasks = canManage ? allTasks : myTasks;
+  const canViewAll = VIEW_ALL_ROLES.includes(profile.role as MemberRole);
+  const displayTasks = canViewAll ? allTasks : myTasks;
   const pending = displayTasks.filter((t) => t.status === "todo");
   const completed = displayTasks.filter((t) => t.status === "done");
 
@@ -901,7 +904,8 @@ export const TaskSection = () => {
                     setDeadlineDate(new Date(y, m - 1, d));
                   }}
                   style={{
-                    width: "100%", height: "45px",
+                    width: "100%",
+                    height: "45px",
                     border: `1px solid ${colors.border}`,
                     borderRadius: "8px",
                     padding: "0 10px",
@@ -1122,7 +1126,6 @@ export const TaskSection = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
     </View>
   );
 };

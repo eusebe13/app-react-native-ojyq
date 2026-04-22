@@ -13,12 +13,12 @@ import {
   View,
 } from "react-native";
 
-export interface EventFormData {
-  title: string;
+export interface ProjectFormData {
+  name: string;
   description: string;
   locationLabel: string;
   locationAddress: string;
-  date: Date;
+  date: Date | null;
   saveAddress: boolean;
 }
 
@@ -26,12 +26,12 @@ interface Props {
   visible: boolean;
   onDismiss: () => void;
   editingId: string | null;
-  initialValues?: Partial<EventFormData>;
+  initialValues?: Partial<ProjectFormData>;
   savedLocations: Array<{ id: string; label: string; address: string }>;
-  onSave: (data: EventFormData) => Promise<void>;
+  onSave: (data: ProjectFormData) => Promise<void>;
 }
 
-export function EventFormModal({
+export function ProjectFormModal({
   visible,
   onDismiss,
   editingId,
@@ -41,33 +41,34 @@ export function EventFormModal({
 }: Props) {
   const { colors } = useAppTheme();
 
-  const [title, setTitle] = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState<Date | null>(null);
   const [saveAddress, setSaveAddress] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Réinitialise le formulaire à chaque ouverture
   useEffect(() => {
     if (visible) {
-      setTitle(initialValues?.title ?? "");
+      setName(initialValues?.name ?? "");
       setDescription(initialValues?.description ?? "");
       setLocationLabel(initialValues?.locationLabel ?? "");
       setLocationAddress(initialValues?.locationAddress ?? "");
-      setDate(initialValues?.date ?? new Date());
+      setDate(initialValues?.date ?? null);
       setSaveAddress(false);
       setShowDatePicker(false);
       setShowTimePicker(false);
     }
   }, [visible]);
 
+  const dateForPicker = date ?? new Date();
+
   const onChangeDate = (_: any, selectedDate?: Date) => {
     if (Platform.OS === "android") setShowDatePicker(false);
     if (selectedDate) {
-      const next = new Date(date);
+      const next = new Date(dateForPicker);
       next.setFullYear(selectedDate.getFullYear());
       next.setMonth(selectedDate.getMonth());
       next.setDate(selectedDate.getDate());
@@ -78,48 +79,28 @@ export function EventFormModal({
   const onChangeTime = (_: any, selectedTime?: Date) => {
     if (Platform.OS === "android") setShowTimePicker(false);
     if (selectedTime) {
-      const next = new Date(date);
+      const next = new Date(dateForPicker);
       next.setHours(selectedTime.getHours());
       next.setMinutes(selectedTime.getMinutes());
       setDate(next);
     }
   };
 
-  const openDatePicker = () => {
-    setShowTimePicker(false);
-    setShowDatePicker(true);
-  };
-
-  const openTimePicker = () => {
-    setShowDatePicker(false);
-    setShowTimePicker(true);
-  };
-
   const handleSave = async () => {
-    if (!title.trim()) {
-      showToast("Le titre est obligatoire", "error");
+    if (!name.trim()) {
+      showToast("Le nom du projet est obligatoire", "error");
       return;
     }
-    if (!locationLabel.trim()) {
-      showToast("Le label du lieu est obligatoire", "error");
-      return;
-    }
-    if (!editingId && date < new Date()) {
-      showToast("L'événement est dans le passé.", "error");
-      return;
-    }
-    if (saveAddress) {
+    if (saveAddress && locationLabel.trim()) {
       const exists = savedLocations.some(
-        (l) =>
-          l.label.toLowerCase().trim() === locationLabel.toLowerCase().trim(),
+        (l) => l.label.toLowerCase().trim() === locationLabel.toLowerCase().trim(),
       );
       if (exists) {
         showToast("Ce label existe déjà. Choisissez-en un autre.", "error");
         return;
       }
     }
-
-    await onSave({ title, description, locationLabel, locationAddress, date, saveAddress });
+    await onSave({ name, description, locationLabel, locationAddress, date, saveAddress });
   };
 
   const inputStyle = {
@@ -159,11 +140,14 @@ export function EventFormModal({
           style={{
             fontSize: 20,
             fontWeight: "bold",
-            marginBottom: 20,
+            marginBottom: 4,
             color: colors.textPrimary,
           }}
         >
-          {editingId ? "Modifier l'événement" : "Nouvel Événement"}
+          {editingId ? "Modifier le projet" : "Nouveau Projet"}
+        </Text>
+        <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 20 }}>
+          Seul le nom est obligatoire
         </Text>
 
         <ScrollView
@@ -171,31 +155,31 @@ export function EventFormModal({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator
         >
-          {/* Titre */}
-          <Text style={labelStyle}>Titre *</Text>
+          {/* Nom */}
+          <Text style={labelStyle}>Nom du projet *</Text>
           <TextInput
             style={inputStyle}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Nom de l'activité"
+            value={name}
+            onChangeText={setName}
+            placeholder="Nom du projet"
             placeholderTextColor={colors.textTertiary}
           />
 
           {/* Description */}
           <Text style={labelStyle}>Description</Text>
           <TextInput
-            style={[inputStyle, { height: undefined, minHeight: 80, maxHeight: 160, textAlignVertical: "top", paddingTop: 10, maxWidth: "100%" }]}
+            style={[inputStyle, { height: undefined, minHeight: 80, maxHeight: 160, textAlignVertical: "top", paddingTop: 10 }]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Détails de l'événement (optionnel)"
+            placeholder="Description du projet (optionnel)"
             placeholderTextColor={colors.textTertiary}
             multiline
           />
 
-          {/* Date & Heure */}
+          {/* Date optionnelle */}
+          <Text style={labelStyle}>Date (optionnel)</Text>
           <View style={{ flexDirection: "row", width: "100%", justifyContent: "space-between" }}>
             <View style={{ flex: 1, marginRight: 10 }}>
-              <Text style={labelStyle}>Date</Text>
               <TouchableOpacity
                 style={{
                   width: "100%",
@@ -210,26 +194,28 @@ export function EventFormModal({
                   alignItems: "center",
                   justifyContent: "space-between",
                 }}
-                onPress={openDatePicker}
+                onPress={() => {
+                  setShowTimePicker(false);
+                  setShowDatePicker(true);
+                  if (!date) setDate(new Date());
+                }}
               >
-                <Text style={{ color: colors.textPrimary }}>
-                  {date.toLocaleDateString("fr-FR")}
+                <Text style={{ color: date ? colors.textPrimary : colors.textTertiary }}>
+                  {date ? date.toLocaleDateString("fr-FR") : "Choisir une date"}
                 </Text>
                 <Ionicons name="calendar-outline" size={18} color="#666" />
               </TouchableOpacity>
               {showDatePicker && (
                 <DateTimePicker
-                  value={date}
+                  value={dateForPicker}
                   mode="date"
                   display={Platform.OS === "ios" ? "inline" : "default"}
                   onChange={onChangeDate}
-                  minimumDate={new Date()}
                 />
               )}
             </View>
 
             <View style={{ flex: 1 }}>
-              <Text style={labelStyle}>Heure</Text>
               <TouchableOpacity
                 style={{
                   width: "100%",
@@ -244,16 +230,22 @@ export function EventFormModal({
                   alignItems: "center",
                   justifyContent: "space-between",
                 }}
-                onPress={openTimePicker}
+                onPress={() => {
+                  setShowDatePicker(false);
+                  setShowTimePicker(true);
+                  if (!date) setDate(new Date());
+                }}
               >
-                <Text style={{ color: colors.textPrimary }}>
-                  {date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                <Text style={{ color: date ? colors.textPrimary : colors.textTertiary }}>
+                  {date
+                    ? date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+                    : "Heure"}
                 </Text>
                 <Ionicons name="time-outline" size={18} color="#666" />
               </TouchableOpacity>
               {showTimePicker && (
                 <DateTimePicker
-                  value={date}
+                  value={dateForPicker}
                   mode="time"
                   is24Hour={true}
                   display="spinner"
@@ -263,7 +255,16 @@ export function EventFormModal({
             </View>
           </View>
 
-          {/* Suggestions de lieux sauvegardés */}
+          {date && (
+            <TouchableOpacity
+              onPress={() => setDate(null)}
+              style={{ marginBottom: 10, marginTop: -8 }}
+            >
+              <Text style={{ fontSize: 12, color: colors.accent6 }}>Effacer la date</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Lieux sauvegardés */}
           {savedLocations.length > 0 && (
             <>
               <Text style={labelStyle}>Lieux enregistrés</Text>
@@ -281,11 +282,9 @@ export function EventFormModal({
                       setLocationAddress(loc.address);
                     }}
                     style={{
-                      backgroundColor:
-                        locationLabel === loc.label ? colors.primary : colors.surface,
+                      backgroundColor: locationLabel === loc.label ? colors.primary : colors.surface,
                       borderWidth: 1,
-                      borderColor:
-                        locationLabel === loc.label ? colors.primary : colors.border,
+                      borderColor: locationLabel === loc.label ? colors.primary : colors.border,
                       borderRadius: 20,
                       paddingVertical: 6,
                       paddingHorizontal: 14,
@@ -314,8 +313,8 @@ export function EventFormModal({
             </>
           )}
 
-          {/* Label du lieu */}
-          <Text style={labelStyle}>Label du lieu *</Text>
+          {/* Lieu */}
+          <Text style={labelStyle}>Lieu (optionnel)</Text>
           <TextInput
             style={inputStyle}
             value={locationLabel}
@@ -324,8 +323,7 @@ export function EventFormModal({
             placeholderTextColor={colors.textTertiary}
           />
 
-          {/* Adresse du lieu */}
-          <Text style={labelStyle}>Adresse du lieu</Text>
+          <Text style={labelStyle}>Adresse (optionnel)</Text>
           <TextInput
             style={inputStyle}
             value={locationAddress}
@@ -334,32 +332,32 @@ export function EventFormModal({
             placeholderTextColor={colors.textTertiary}
           />
 
-          {/* Case à cocher Enregistrer adresse */}
-          <TouchableOpacity
-            onPress={() => setSaveAddress(!saveAddress)}
-            style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 10 }}
-          >
-            <View
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 5,
-                borderWidth: 2,
-                borderColor: saveAddress ? colors.primary : colors.border,
-                backgroundColor: saveAddress ? colors.primary : "transparent",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+          {locationLabel.trim() !== "" && (
+            <TouchableOpacity
+              onPress={() => setSaveAddress(!saveAddress)}
+              style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 10 }}
             >
-              {saveAddress && <Ionicons name="checkmark" size={14} color="#fff" />}
-            </View>
-            <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }}>
-              Enregistrer cette adresse pour une prochaine fois
-            </Text>
-          </TouchableOpacity>
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 5,
+                  borderWidth: 2,
+                  borderColor: saveAddress ? colors.primary : colors.border,
+                  backgroundColor: saveAddress ? colors.primary : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {saveAddress && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }}>
+                Enregistrer cette adresse pour une prochaine fois
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
-        {/* Boutons */}
         <View
           style={{
             flexDirection: "row",
@@ -385,7 +383,7 @@ export function EventFormModal({
             }}
           >
             <Text style={{ color: colors.surface, fontWeight: "bold" }}>
-              {editingId ? "Mettre à jour" : "Ajouter"}
+              {editingId ? "Mettre à jour" : "Créer le projet"}
             </Text>
           </TouchableOpacity>
         </View>
