@@ -29,6 +29,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   startAfter,
   Timestamp,
   updateDoc,
@@ -277,9 +278,11 @@ export default function ChannelScreen() {
     }
   }, [id, loadingMore, hasMore]);
 
-  // ── Channel metadata (image, projectId) ──────────────────────────────────
+  // ── Channel metadata (image, projectId, members) ─────────────────────────
   const [channelImage, setChannelImage] = useState<string | null>(null);
   const [channelProjectId, setChannelProjectId] = useState<string | null>(null);
+  const [channelMembers, setChannelMembers] = useState<string[]>([]);
+  const [channelAudienceType, setChannelAudienceType] = useState<string>("public");
   const [infoPanelVisible, setInfoPanelVisible] = useState(false);
 
   // ── Typing: listen to channel doc ─────────────────────────────────────────
@@ -289,9 +292,11 @@ export default function ChannelScreen() {
       if (!snap.exists()) return;
       const data = snap.data();
 
-      // Capture image and projectId from channel doc
+      // Capture image, projectId, members, audienceType from channel doc
       setChannelImage(data.image ?? null);
       setChannelProjectId(data.projectId ?? null);
+      setChannelMembers(data.members ?? []);
+      setChannelAudienceType(data.audienceType ?? "public");
 
       const typingUsers = data.typingUsers as Record<string, any> | undefined;
       if (!typingUsers) {
@@ -938,6 +943,48 @@ export default function ChannelScreen() {
 
   const keyExtractor = useCallback((item: ChatMessage) => item._id, []);
 
+  // ── ChannelInfoPanel callbacks ────────────────────────────────────────────
+
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const index = messages.findIndex((m) => m._id === messageId);
+    if (index === -1) return;
+    try {
+      flatListRef.current?.scrollToIndex({ index, animated: true });
+    } catch {
+      flatListRef.current?.scrollToOffset({ offset: index * 80, animated: true });
+    }
+  }, [messages]);
+
+  const handleStartDm = useCallback(async (member: { id: string; name: string }) => {
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, "channels"),
+        where("audienceType", "==", "private"),
+        where("type", "==", "direct"),
+        where("members", "array-contains", user.uid),
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => (d.data().members as string[]).includes(member.id));
+      if (existing) {
+        router.push(`/channel/${existing.id}?name=${encodeURIComponent(member.name)}`);
+      } else {
+        const ref = await addDoc(collection(db, "channels"), {
+          name: member.name,
+          audienceType: "private",
+          type: "direct",
+          members: [user.uid, member.id],
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          lastMessage: "",
+        });
+        router.push(`/channel/${ref.id}?name=${encodeURIComponent(member.name)}`);
+      }
+    } catch {
+      showToast("Impossible d'ouvrir la conversation", "error");
+    }
+  }, [user]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -1252,6 +1299,10 @@ export default function ChannelScreen() {
         channelId={id ?? ""}
         channelName={name ?? "Canal"}
         messages={messages}
+        channelMembers={channelMembers}
+        audienceType={channelAudienceType}
+        onScrollToMessage={handleScrollToMessage}
+        onStartDm={handleStartDm}
       />
     </SafeAreaView>
   );

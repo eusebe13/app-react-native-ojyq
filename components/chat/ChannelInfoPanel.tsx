@@ -5,6 +5,7 @@
  */
 
 import { DismissableModal } from "@/components/ui/DismissableModal";
+import { showConfirm } from "@/components/ui/ConfirmModal";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Image, Linking } from "react-native";
@@ -15,6 +16,7 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import {
@@ -33,6 +35,10 @@ interface Props {
   channelId: string;
   channelName: string;
   messages: ChatMessage[];
+  channelMembers?: string[];
+  audienceType?: string;
+  onScrollToMessage?: (messageId: string) => void;
+  onStartDm?: (member: { id: string; name: string }) => void;
 }
 
 type Tab = "members" | "polls" | "media";
@@ -43,30 +49,40 @@ export default function ChannelInfoPanel({
   channelId,
   channelName,
   messages,
+  channelMembers = [],
+  audienceType = "public",
+  onScrollToMessage,
+  onStartDm,
 }: Props) {
   const { colors } = useAppTheme();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isDesktop = screenWidth >= 1024;
+  const modalWidth = isDesktop ? screenWidth * 0.6 : screenWidth * 0.85;
+  const modalHeight = screenHeight * 0.7;
   const [activeTab, setActiveTab] = useState<Tab>("members");
   const [members, setMembers] = useState<any[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
-  // Charger tous les membres actifs
+  // Charger les membres : pour les canaux privés, seulement les UIDs dans channelMembers
   useEffect(() => {
     if (!visible) return;
     setLoadingMembers(true);
     getDocs(collection(db, "users"))
       .then((snap) => {
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const filtered =
+          audienceType === "private" && channelMembers.length > 0
+            ? all.filter((u: any) => channelMembers.includes(u.id))
+            : all.filter((u: any) => u.status !== "Arrêt");
         setMembers(
-          snap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((u: any) => u.status !== "Arrêt")
-            .sort((a: any, b: any) =>
-              (a.firstName ?? "").localeCompare(b.firstName ?? ""),
-            ),
+          filtered.sort((a: any, b: any) =>
+            (a.firstName ?? "").localeCompare(b.firstName ?? ""),
+          ),
         );
       })
       .catch(() => {})
       .finally(() => setLoadingMembers(false));
-  }, [visible]);
+  }, [visible, audienceType, channelMembers]);
 
   // Extraire les sondages depuis les messages
   const polls = useMemo(
@@ -93,12 +109,11 @@ export default function ChannelInfoPanel({
     <DismissableModal visible={visible} onDismiss={onDismiss} animationType="slide">
       <View
         style={{
-          width: "92%",
-          maxWidth: 480,
+          width: modalWidth,
+          height: modalHeight,
           backgroundColor: colors.surfaceDim,
           borderRadius: 20,
-          overflow: "hidden",
-          maxHeight: "85%",
+          overflow: "scroll",
         }}
       >
         {/* Header */}
@@ -171,6 +186,7 @@ export default function ChannelInfoPanel({
         </View>
 
         {/* Content */}
+        <View style={{ flex: 1 }}>
         {activeTab === "members" && (
           loadingMembers ? (
             <View style={{ padding: 32, alignItems: "center" }}>
@@ -180,7 +196,7 @@ export default function ChannelInfoPanel({
             <FlatList
               data={members}
               keyExtractor={(item) => item.id}
-              style={{ maxHeight: 400 }}
+              style={{ flex: 1 }}
               contentContainerStyle={{ padding: 12 }}
               ListEmptyComponent={
                 <Text style={{ color: colors.textTertiary, textAlign: "center", padding: 24 }}>
@@ -190,7 +206,20 @@ export default function ChannelInfoPanel({
               renderItem={({ item }) => {
                 const name = [item.firstName, item.lastName].filter(Boolean).join(" ") || item.email || item.id;
                 return (
-                  <View
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (!onStartDm) return;
+                      showConfirm({
+                        title: "Message privé",
+                        message: `Ouvrir une conversation privée avec ${name} ?`,
+                        confirmLabel: "Ouvrir",
+                        onConfirm: () => {
+                          onDismiss();
+                          onStartDm({ id: item.id, name });
+                        },
+                      });
+                    }}
+                    activeOpacity={onStartDm ? 0.6 : 1}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
@@ -222,7 +251,10 @@ export default function ChannelInfoPanel({
                         {item.role ?? "Membre"}
                       </Text>
                     </View>
-                  </View>
+                    {onStartDm && (
+                      <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.textTertiary} />
+                    )}
+                  </TouchableOpacity>
                 );
               }}
             />
@@ -230,7 +262,7 @@ export default function ChannelInfoPanel({
         )}
 
         {activeTab === "polls" && (
-          <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 12 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12 }}>
             {polls.length === 0 ? (
               <Text style={{ color: colors.textTertiary, textAlign: "center", padding: 24 }}>
                 Aucun sondage dans ce canal.
@@ -298,9 +330,21 @@ export default function ChannelInfoPanel({
                         </View>
                       );
                     })}
-                    <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 4 }}>
-                      {totalVotes} vote{totalVotes !== 1 ? "s" : ""} au total
-                    </Text>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                      <Text style={{ fontSize: 11, color: colors.textTertiary }}>
+                        {totalVotes} vote{totalVotes !== 1 ? "s" : ""} au total
+                      </Text>
+                      {onScrollToMessage && (
+                        <TouchableOpacity
+                          onPress={() => { onDismiss(); onScrollToMessage(msg._id); }}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="arrow-undo-outline" size={13} color={colors.primary} />
+                          <Text style={{ fontSize: 11, color: colors.primary }}>Voir dans le chat</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 );
               })
@@ -309,7 +353,7 @@ export default function ChannelInfoPanel({
         )}
 
         {activeTab === "media" && (
-          <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 12 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12 }}>
             {mediaItems.length === 0 ? (
               <Text style={{ color: colors.textTertiary, textAlign: "center", padding: 24 }}>
                 Aucun média partagé dans ce canal.
@@ -319,24 +363,28 @@ export default function ChannelInfoPanel({
                 {mediaItems.map((msg) => {
                   if (msg.image) {
                     return (
-                      <Image
+                      <TouchableOpacity
                         key={msg._id}
-                        source={{ uri: msg.image }}
-                        style={{
-                          width: 96,
-                          height: 96,
-                          borderRadius: 8,
-                          backgroundColor: colors.border,
-                        }}
-                        resizeMode="cover"
-                      />
+                        activeOpacity={0.75}
+                        onPress={() => { onDismiss(); onScrollToMessage?.(msg._id); }}
+                      >
+                        <Image
+                          source={{ uri: msg.image }}
+                          style={{
+                            width: 96,
+                            height: 96,
+                            borderRadius: 8,
+                            backgroundColor: colors.border,
+                          }}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
                     );
                   }
                   if (msg.file) {
                     return (
-                      <TouchableOpacity
+                      <View
                         key={msg._id}
-                        onPress={() => Linking.openURL(msg.file!.uri).catch(() => {})}
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
@@ -350,15 +398,28 @@ export default function ChannelInfoPanel({
                           marginBottom: 2,
                         }}
                       >
-                        <Ionicons name="document-outline" size={18} color={colors.primary} />
-                        <Text
-                          style={{ fontSize: 13, color: colors.textPrimary, flex: 1 }}
-                          numberOfLines={1}
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(msg.file!.uri).catch(() => {})}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}
                         >
-                          {msg.file.name}
-                        </Text>
-                        <Ionicons name="download-outline" size={16} color={colors.textSecondary} />
-                      </TouchableOpacity>
+                          <Ionicons name="document-outline" size={18} color={colors.primary} />
+                          <Text
+                            style={{ fontSize: 13, color: colors.textPrimary, flex: 1 }}
+                            numberOfLines={1}
+                          >
+                            {msg.file.name}
+                          </Text>
+                          <Ionicons name="download-outline" size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        {onScrollToMessage && (
+                          <TouchableOpacity
+                            onPress={() => { onDismiss(); onScrollToMessage(msg._id); }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="arrow-undo-outline" size={16} color={colors.primary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     );
                   }
                   return null;
@@ -367,6 +428,7 @@ export default function ChannelInfoPanel({
             )}
           </ScrollView>
         )}
+        </View>
       </View>
     </DismissableModal>
   );

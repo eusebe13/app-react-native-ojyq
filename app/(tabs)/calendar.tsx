@@ -27,12 +27,15 @@ import {
   collectionGroup,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   setDoc,
   Timestamp,
   updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -623,7 +626,36 @@ export default function FirebaseCalendarScreen() {
             destructive: true,
             onConfirm: async () => {
               try {
-                await deleteDoc(doc(db, "projects", item.id));
+                // 1. Delete linked events
+                const eventsSnap = await getDocs(
+                  query(collection(db, "events"), where("projectId", "==", item.id))
+                );
+                if (eventsSnap.docs.length > 0) {
+                  const evtBatch = writeBatch(db);
+                  eventsSnap.docs.forEach((d) => evtBatch.delete(d.ref));
+                  await evtBatch.commit();
+                }
+
+                // 2. Delete channel + its messages
+                if (item.channelId) {
+                  const msgsSnap = await getDocs(
+                    collection(db, "channels", item.channelId, "messages")
+                  );
+                  const chBatch = writeBatch(db);
+                  msgsSnap.docs.forEach((d) => chBatch.delete(d.ref));
+                  chBatch.delete(doc(db, "channels", item.channelId));
+                  await chBatch.commit();
+                }
+
+                // 3. Delete votes subcollection + project doc
+                const votesSnap = await getDocs(
+                  collection(db, "projects", item.id, "votes")
+                );
+                const projBatch = writeBatch(db);
+                votesSnap.docs.forEach((d) => projBatch.delete(d.ref));
+                projBatch.delete(doc(db, "projects", item.id));
+                await projBatch.commit();
+
                 showToast("Projet supprimé", "success");
               } catch {
                 showToast("Impossible de supprimer", "error");
