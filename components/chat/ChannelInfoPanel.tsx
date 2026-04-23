@@ -37,6 +37,7 @@ interface Props {
   messages: ChatMessage[];
   channelMembers?: string[];
   audienceType?: string;
+  allowedRoles?: string[];
   onScrollToMessage?: (messageId: string) => void;
   onStartDm?: (member: { id: string; name: string }) => void;
 }
@@ -51,6 +52,7 @@ export default function ChannelInfoPanel({
   messages,
   channelMembers = [],
   audienceType = "public",
+  allowedRoles = [],
   onScrollToMessage,
   onStartDm,
 }: Props) {
@@ -63,17 +65,22 @@ export default function ChannelInfoPanel({
   const [members, setMembers] = useState<any[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
-  // Charger les membres : pour les canaux privés, seulement les UIDs dans channelMembers
   useEffect(() => {
     if (!visible) return;
     setLoadingMembers(true);
     getDocs(collection(db, "users"))
       .then((snap) => {
         const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const filtered =
-          audienceType === "private" && channelMembers.length > 0
-            ? all.filter((u: any) => channelMembers.includes(u.id))
+        let filtered: any[];
+        if (audienceType === "private") {
+          filtered = all.filter((u: any) => channelMembers.includes(u.id));
+        } else if (audienceType === "roles") {
+          filtered = allowedRoles.length > 0
+            ? all.filter((u: any) => allowedRoles.includes(u.role) && u.status !== "Arrêt")
             : all.filter((u: any) => u.status !== "Arrêt");
+        } else {
+          filtered = all.filter((u: any) => u.status !== "Arrêt");
+        }
         setMembers(
           filtered.sort((a: any, b: any) =>
             (a.firstName ?? "").localeCompare(b.firstName ?? ""),
@@ -82,7 +89,7 @@ export default function ChannelInfoPanel({
       })
       .catch(() => {})
       .finally(() => setLoadingMembers(false));
-  }, [visible, audienceType, channelMembers]);
+  }, [visible, audienceType, channelMembers, allowedRoles]);
 
   // Extraire les sondages depuis les messages
   const polls = useMemo(
@@ -193,6 +200,45 @@ export default function ChannelInfoPanel({
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : (
+            <>
+              {audienceType === "roles" && allowedRoles.length > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    paddingTop: 10,
+                    paddingBottom: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: colors.textSecondary, width: "100%", marginBottom: 2 }}>
+                    Accès par rôle :
+                  </Text>
+                  {allowedRoles.map((role) => (
+                    <View
+                      key={role}
+                      style={{
+                        backgroundColor: colors.primary + "22",
+                        borderRadius: 12,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>
+                        {role}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {audienceType === "public" && (
+                <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 }}>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                    Tous les membres OJYQ
+                  </Text>
+                </View>
+              )}
             <FlatList
               data={members}
               keyExtractor={(item) => item.id}
@@ -258,6 +304,7 @@ export default function ChannelInfoPanel({
                 );
               }}
             />
+            </>
           )
         )}
 
