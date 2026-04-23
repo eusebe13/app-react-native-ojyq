@@ -283,6 +283,7 @@ export default function ChannelScreen() {
   const [channelProjectId, setChannelProjectId] = useState<string | null>(null);
   const [channelMembers, setChannelMembers] = useState<string[]>([]);
   const [channelAudienceType, setChannelAudienceType] = useState<string>("public");
+  const [channelAllowedRoles, setChannelAllowedRoles] = useState<string[]>([]);
   const [infoPanelVisible, setInfoPanelVisible] = useState(false);
 
   // ── Typing: listen to channel doc ─────────────────────────────────────────
@@ -297,6 +298,7 @@ export default function ChannelScreen() {
       setChannelProjectId(data.projectId ?? null);
       setChannelMembers(data.members ?? []);
       setChannelAudienceType(data.audienceType ?? "public");
+      setChannelAllowedRoles(data.allowedRoles ?? []);
 
       const typingUsers = data.typingUsers as Record<string, any> | undefined;
       if (!typingUsers) {
@@ -1301,6 +1303,7 @@ export default function ChannelScreen() {
         messages={messages}
         channelMembers={channelMembers}
         audienceType={channelAudienceType}
+        allowedRoles={channelAllowedRoles}
         onScrollToMessage={handleScrollToMessage}
         onStartDm={handleStartDm}
       />
