@@ -64,12 +64,6 @@
       "favicon": "./assets/images/IMG_Logo-Principale.png"
     },
     "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "ios": {}
-        }
-      ],
       "./plugins/withModularHeaders",
       "./plugins/removeAgoraScreenShare",
       "expo-router",

@@ -187,7 +187,7 @@ const HomeScreen = () => {
   const { user }     = useAuth();
   const { profile }  = useProfile();
   const { events, loading: eventsLoading }     = useUpcomingEvents(6);
-  const { channels, loading: channelsLoading } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
+  const { channels, totalCount: channelsTotalCount, loading: channelsLoading } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
 
   const styles      = getStyles(colors, tokens);
   const greeting    = getGreeting();
@@ -286,9 +286,9 @@ const HomeScreen = () => {
                     <Icon name="chat-outline" size={16} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.statValue}>{channels.length}</Text>
+                    <Text style={styles.statValue}>{channelsTotalCount}</Text>
                     <Text style={styles.statLabel}>
-                      {channels.length === 1 ? "canal" : "canaux"}
+                      {channelsTotalCount === 1 ? "canal" : "canaux"}
                     </Text>
                   </View>
                 </TouchableOpacity>
