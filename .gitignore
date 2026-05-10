@@ -95,3 +95,4 @@ ai-sessions/
 .agent-*
 .worktrees/
 /.log
+package-lock.json
