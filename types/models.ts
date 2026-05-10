@@ -118,11 +118,15 @@ export interface Channel {
   name: string;
   description?: string;
   type: 'public' | 'private' | 'direct';
+  audienceType?: 'public' | 'roles' | 'private' | 'direct';
   createdBy: string;
   createdAt: Timestamp;
   lastMessage: string;
   lastMessageAt?: Timestamp;
-  members?: string[]; // Pour les canaux privés
+  members?: string[];
+  allowedRoles?: string[];
+  image?: string | null;
+  dmParticipants?: Record<string, { name: string; avatar?: string | null }>;
   avatarUrl?: string;
   unreadCount?: number;
   isPinned?: boolean;

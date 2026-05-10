@@ -21,6 +21,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -126,6 +127,8 @@ export default function ChatListScreen(): ReactElement {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [channelImage, setChannelImage] = useState<string | null>(null);
+  const [dmModalVisible, setDmModalVisible] = useState(false);
+  const [dmSearchQuery, setDmSearchQuery] = useState("");
 
   // ── Récupération Initiale ──────────────────────────────────────────────────
   useEffect(() => {
@@ -343,11 +346,22 @@ export default function ChatListScreen(): ReactElement {
 
   const navigateToChannel = useCallback(
     (channel: Channel) => {
-      router.push(
-        `/channel/${channel.id}?name=${encodeURIComponent(channel.name)}`,
-      );
+      if ((channel as any).audienceType === "direct") {
+        const otherUid = (channel.members ?? []).find(
+          (uid: string) => uid !== currentUser?.uid,
+        );
+        const participants = (channel as any).dmParticipants ?? {};
+        const otherInfo = participants[otherUid ?? ""] ?? {};
+        router.push(
+          `/channel/${channel.id}?name=${encodeURIComponent(otherInfo.name || "Message Privé")}&isDM=1`,
+        );
+      } else {
+        router.push(
+          `/channel/${channel.id}?name=${encodeURIComponent(channel.name)}`,
+        );
+      }
     },
-    [router],
+    [router, currentUser],
   );
 
   const closeModal = useCallback(() => {
@@ -361,6 +375,59 @@ export default function ChatListScreen(): ReactElement {
     setSelectedUsers([]);
   }, []);
 
+  const closeDmModal = useCallback(() => {
+    setDmModalVisible(false);
+    setDmSearchQuery("");
+  }, []);
+
+  const handleCreateOrOpenDM = useCallback(
+    async (otherUser: any) => {
+      if (!currentUser?.uid) return;
+      const myUid = currentUser.uid;
+      const otherUid = otherUser.id;
+      const dmId = "dm_" + [myUid, otherUid].sort().join("_");
+
+      const existing = channels.find((ch) => ch.id === dmId);
+      if (existing) {
+        closeDmModal();
+        navigateToChannel(existing);
+        return;
+      }
+
+      const myName = userProfile
+        ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() || "Moi"
+        : "Moi";
+      const otherName =
+        `${otherUser.firstName || ""} ${otherUser.lastName || ""}`.trim() ||
+        otherUser.email ||
+        "Utilisateur";
+
+      try {
+        await setDoc(doc(db, "channels", dmId), {
+          name: "dm",
+          type: "private",
+          audienceType: "direct",
+          members: [myUid, otherUid],
+          dmParticipants: {
+            [myUid]: { name: myName, avatar: userProfile?.avatarPreset ?? null },
+            [otherUid]: { name: otherName, avatar: otherUser.avatarPreset ?? null },
+          },
+          createdAt: Timestamp.now(),
+          createdBy: myUid,
+          lastMessage: "",
+          lastMessageAt: Timestamp.now(),
+        });
+        closeDmModal();
+        router.push(
+          `/channel/${dmId}?name=${encodeURIComponent(otherName)}&isDM=1`,
+        );
+      } catch {
+        showToast("Impossible de créer la conversation", "error");
+      }
+    },
+    [currentUser, userProfile, channels, navigateToChannel, closeDmModal, router],
+  );
+
   // ── Filtrage de visibilité (Sécurité) ──────────────────────────────────────
 
   // On récupère le rôle exact avec les majuscules (ex: "Vice-Président")
@@ -369,35 +436,37 @@ export default function ChatListScreen(): ReactElement {
 
   // 1. On filtre d'abord selon les droits d'accès
   const visibleChannels = channels.filter((ch: any) => {
-    // Règle 1 : Les administrateurs voient TOUS les groupes, sans exception.
-    if (isAdmin) return true;
-
-    // Règle 2 : Le créateur du groupe voit TOUJOURS son groupe !
+    // Créateur voit toujours son canal
     if (ch.createdBy === currentUser?.uid) return true;
 
-    // Règle 3 : Résoudre le type effectif (compatibilité anciens canaux sans audienceType)
     const effectiveAudience =
       ch.audienceType ?? (ch.type === "public" ? "public" : "private");
 
     if (effectiveAudience === "public") return true;
 
-    // Règle 4 : Canaux par Membres (privé)
-    if (effectiveAudience === "private") {
+    if (effectiveAudience === "private" || effectiveAudience === "direct") {
       return !!(ch.members && ch.members.includes(currentUser?.uid));
     }
 
-    // Règle 5 : Canaux par Rôles
     if (effectiveAudience === "roles") {
       return !!(ch.allowedRoles && ch.allowedRoles.includes(userRole));
     }
 
-    return false; // Si aucune condition n'est remplie, on cache le canal
+    return false;
   });
 
   // 2. On applique ensuite la barre de recherche sur les canaux visibles
-  const filteredChannels = visibleChannels.filter((ch) =>
-    ch.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredChannels = visibleChannels.filter((ch: any) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    if (ch.audienceType === "direct") {
+      const otherUid = (ch.members || []).find((uid: string) => uid !== currentUser?.uid);
+      const participants = ch.dmParticipants || {};
+      const otherName = (participants[otherUid || ""]?.name || "").toLowerCase();
+      return otherName.includes(q);
+    }
+    return ch.name.toLowerCase().includes(q);
+  });
 
   const styles = getStyles(colors, tokens);
 
@@ -418,11 +487,32 @@ export default function ChatListScreen(): ReactElement {
   // ── Rendu d'un canal ──────────────────────────────────────────────────────
   const renderChannel = useCallback(
     ({ item }: { item: any }) => {
-      const initials = channelInitials(item.name);
+      // For DM channels derive display info from the other participant
+      const isDirect = item.audienceType === "direct";
+      let displayName = item.name;
+      if (isDirect) {
+        const otherUid = (item.members || []).find(
+          (uid: string) => uid !== currentUser?.uid,
+        );
+        const participants = item.dmParticipants || {};
+        const otherInfo = participants[otherUid || ""] || {};
+        displayName = otherInfo.name || "Message Privé";
+      }
+
+      const initials = channelInitials(displayName);
       const time = relativeTime(item.lastMessageAt);
       const hasUnread = (item.unreadCount ?? 0) > 0;
 
       let AudienceIcon = null;
+      if (isDirect)
+        AudienceIcon = (
+          <Ionicons
+            name="person"
+            size={12}
+            color={colors.textTertiary}
+            style={{ marginLeft: 6 }}
+          />
+        );
       if (item.audienceType === "private")
         AudienceIcon = (
           <Ionicons
@@ -442,7 +532,7 @@ export default function ChatListScreen(): ReactElement {
           />
         );
 
-      // Derive a consistent color from the channel name
+      // Derive a consistent color from the display name
       const palette = [
         colors.primary,
         colors.accent1,
@@ -451,7 +541,7 @@ export default function ChatListScreen(): ReactElement {
         colors.accent4,
       ];
       let h = 0;
-      for (const c of item.name)
+      for (const c of displayName)
         h = (h * 31 + c.charCodeAt(0)) % palette.length;
       const chColor = item.isPinned ? colors.primary : palette[Math.abs(h)];
 
@@ -507,7 +597,7 @@ export default function ChatListScreen(): ReactElement {
                     ]}
                     numberOfLines={1}
                   >
-                    {item.name}
+                    {displayName}
                   </Text>
                   {AudienceIcon}
                 </View>
@@ -563,7 +653,7 @@ export default function ChatListScreen(): ReactElement {
         </View>
       );
     },
-    [colors, tokens, navigateToChannel, handleLongPress],
+    [colors, tokens, navigateToChannel, handleLongPress, currentUser],
   );
 
   return (
@@ -665,7 +755,26 @@ export default function ChatListScreen(): ReactElement {
           styles.fab,
           { backgroundColor: colors.primary, shadowColor: colors.primary },
         ]}
-        onPress={() => setModalVisible(true)}
+        onPress={() =>
+          showActionSheet({
+            title: "Nouvelle conversation",
+            actions: [
+              {
+                label: "Nouveau canal",
+                icon: "megaphone-outline",
+                style: "default",
+                onPress: () => setModalVisible(true),
+              },
+              {
+                label: "Message direct",
+                icon: "person-outline",
+                style: "default",
+                onPress: () => setDmModalVisible(true),
+              },
+              { label: "Annuler", style: "cancel", onPress: () => {} },
+            ],
+          })
+        }
         activeOpacity={0.8}
       >
         <Ionicons name="add" size={30} color="#FFFFFF" />
@@ -892,6 +1001,73 @@ export default function ChatListScreen(): ReactElement {
                 <Text style={styles.saveBtnText}>
                   {editingId ? "Mettre à jour" : "Créer"}
                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+      {/* MODAL MESSAGE DIRECT (DM) */}
+      <Modal
+        visible={dmModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeDmModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          enabled={Platform.OS !== "web"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandleArea}>
+              <View style={styles.modalHandle} />
+            </View>
+            <Text style={styles.modalTitle}>Message Direct</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Rechercher un membre..."
+              placeholderTextColor={colors.textTertiary}
+              value={dmSearchQuery}
+              onChangeText={setDmSearchQuery}
+              autoCapitalize="none"
+            />
+
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              {users
+                .filter((u) => {
+                  if (u.id === currentUser?.uid) return false;
+                  if (!dmSearchQuery.trim()) return true;
+                  const fullName = `${u.firstName || ""} ${u.lastName || ""}`.toLowerCase();
+                  return (
+                    fullName.includes(dmSearchQuery.toLowerCase()) ||
+                    (u.email || "").toLowerCase().includes(dmSearchQuery.toLowerCase())
+                  );
+                })
+                .map((u) => (
+                  <TouchableOpacity
+                    key={u.id}
+                    style={styles.checkRow}
+                    onPress={() => handleCreateOrOpenDM(u)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontWeight: "500" }}>
+                      {`${u.firstName || ""} ${u.lastName || ""}`.trim() ||
+                        u.email ||
+                        "Inconnu"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            <View style={[styles.modalButtons, { marginTop: 12 }]}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeDmModal}>
+                <Text style={styles.cancelBtnText}>Annuler</Text>
               </TouchableOpacity>
             </View>
           </View>
