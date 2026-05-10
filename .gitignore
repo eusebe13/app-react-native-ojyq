@@ -94,3 +94,4 @@ test_reports/
 ai-sessions/
 .agent-*
 .worktrees/
+/.log

@@ -82,6 +82,34 @@ export interface GeneralEvent extends CalendarEvent {
 export type CalendarItem = Shift | GeneralEvent;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MODULE PROJETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  date?: Timestamp;
+  dateObj?: Date;
+  location?: string;
+  locationLabel?: string;
+  locationAddress?: string;
+  channelId?: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export type VoteValue = 'pour' | 'contre';
+
+export interface ProjectVote {
+  userId: string;
+  userName: string;
+  vote: VoteValue;
+  votedAt: Timestamp;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MODULE CHAT
 // ═══════════════════════════════════════════════════════════════════════════
 

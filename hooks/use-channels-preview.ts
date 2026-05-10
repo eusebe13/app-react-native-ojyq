@@ -32,6 +32,7 @@ function isChannelVisible(ch: any, uid: string | null | undefined, userRole: str
 
 export function useChannelsPreview({ uid, userRole = "Membre", maxCount = 4 }: Options = {}) {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const isAdmin = userRole === "Administrateur" || userRole === "Admin";
@@ -46,10 +47,9 @@ export function useChannelsPreview({ uid, userRole = "Membre", maxCount = 4 }: O
       q,
       (snap) => {
         const all = snap.docs.map(channelFromFirestore);
-        const visible = all
-          .filter((ch) => isChannelVisible(ch, uid, userRole, isAdmin))
-          .slice(0, maxCount);
-        setChannels(visible);
+        const visible = all.filter((ch) => isChannelVisible(ch, uid, userRole, isAdmin));
+        setTotalCount(visible.length);
+        setChannels(visible.slice(0, maxCount));
         setLoading(false);
       },
       (err) => {
@@ -59,7 +59,7 @@ export function useChannelsPreview({ uid, userRole = "Membre", maxCount = 4 }: O
     );
 
     return unsub;
-  }, [uid, userRole, maxCount]);
+  }, [uid, userRole, maxCount, isAdmin]);
 
-  return { channels, loading };
+  return { channels, totalCount, loading };
 }

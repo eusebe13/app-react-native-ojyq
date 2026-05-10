@@ -7,7 +7,6 @@
     "icon": "./assets/images/IMG_Logo-Principale.png",
     "scheme": "ojyq",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "org.ojyq.app",
@@ -18,31 +17,55 @@
         "NSPhotoLibraryAddUsageDescription": "OJYQ enregistre des images dans votre galerie.",
         "NSCameraUsageDescription": "OJYQ utilise la caméra pour prendre des photos.",
         "NSMicrophoneUsageDescription": "OJYQ utilise le microphone pour les messages vocaux."
-      }
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
+      },
+      "buildNumber": "2"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
-      "versionCode": 3,
+      "versionCode": 16,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
         "backgroundColor": "#081129"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "blockedPermissions": [
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+      ],
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/IMG_Logo-Principale.png"
     },
     "plugins": [
+      "./plugins/withModularHeaders",
+      "./plugins/removeAgoraScreenShare",
       "expo-router",
       "expo-document-picker",
       [
@@ -86,7 +109,8 @@
         {
           "microphonePermission": "OJYQ utilise le microphone pour les messages vocaux."
         }
-      ]
+      ],
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -96,8 +120,12 @@
       "router": {},
       "eas": {
         "projectId": "b855df14-5396-4fbe-ab32-e111ad5d0835"
-      }
+      },
+      "lastUpdate": "03/04/2026"
     },
-    "owner": "ojyq"
+    "owner": "ojyq",
+    "updates": {
+      "url": "https://u.expo.dev/b855df14-5396-4fbe-ab32-e111ad5d0835"
+    }
   }
 }

@@ -10,6 +10,7 @@
 
 import React from "react";
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Platform,
@@ -185,8 +186,8 @@ const HomeScreen = () => {
   const router = useRouter();
   const { user }     = useAuth();
   const { profile }  = useProfile();
-  const { events }   = useUpcomingEvents(6);
-  const { channels } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
+  const { events, loading: eventsLoading }     = useUpcomingEvents(6);
+  const { channels, totalCount: channelsTotalCount, loading: channelsLoading } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
 
   const styles      = getStyles(colors, tokens);
   const greeting    = getGreeting();
@@ -285,9 +286,9 @@ const HomeScreen = () => {
                     <Icon name="chat-outline" size={16} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.statValue}>{channels.length}</Text>
+                    <Text style={styles.statValue}>{channelsTotalCount}</Text>
                     <Text style={styles.statLabel}>
-                      {channels.length === 1 ? "canal" : "canaux"}
+                      {channelsTotalCount === 1 ? "canal" : "canaux"}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -317,7 +318,11 @@ const HomeScreen = () => {
             />
           </View>
 
-          {events.length === 0 ? (
+          {eventsLoading ? (
+            <View style={[styles.emptyCard, { marginHorizontal: tokens.space.xl }]}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : events.length === 0 ? (
             <View style={[styles.emptyCard, { marginHorizontal: tokens.space.xl }]}>
               <Icon name="calendar-remove-outline" size={32} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>Aucun événement à venir</Text>
@@ -411,7 +416,11 @@ const HomeScreen = () => {
             tokens={tokens}
           />
 
-          {channels.length === 0 ? (
+          {channelsLoading ? (
+            <View style={styles.emptyCard}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : channels.length === 0 ? (
             <View style={styles.emptyCard}>
               <Icon name="chat-remove-outline" size={32} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>Aucun canal</Text>

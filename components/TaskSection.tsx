@@ -54,12 +54,6 @@ import { Icon } from "./ui/Icon";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MANAGE_ROLES: MemberRole[] = [
-  "Président",
-  "Administrateur",
-  "Vice-Président",
-];
-
 const ALL_ROLES: MemberRole[] = [
   "Membre",
   "Vice-Président",
@@ -75,6 +69,14 @@ const ALL_ROLES: MemberRole[] = [
   "Conseiller",
   "Administrateur",
 ];
+
+// Can create / edit / delete tasks
+const MANAGE_ROLES: MemberRole[] = ALL_ROLES.filter((r) => r !== "Membre");
+
+// Can view all tasks (not just their own)
+const VIEW_ALL_ROLES: MemberRole[] = ALL_ROLES.filter(
+  (r) => r === "Administrateur",
+);
 
 const PRIORITIES = [
   { key: "low" as const, label: "Faible" },
@@ -134,6 +136,9 @@ function formatDeadlineDisplay(date: Date): string {
   });
 }
 
+const toDateInputValue = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 // ─── Notification helper ──────────────────────────────────────────────────────
 
 async function notifyAssignee(
@@ -190,7 +195,8 @@ export const TaskSection = () => {
   const styles = getStyles(colors, tokens);
 
   const canManage = MANAGE_ROLES.includes(profile.role as MemberRole);
-  const displayTasks = canManage ? allTasks : myTasks;
+  const canViewAll = VIEW_ALL_ROLES.includes(profile.role as MemberRole);
+  const displayTasks = canViewAll ? allTasks : myTasks;
   const pending = displayTasks.filter((t) => t.status === "todo");
   const completed = displayTasks.filter((t) => t.status === "done");
 
@@ -886,31 +892,61 @@ export const TaskSection = () => {
 
               {/* ── Deadline ── */}
               <Text style={styles.label}>ÉCHÉANCE *</Text>
-              <TouchableOpacity
-                style={[styles.input, { justifyContent: "center" }]}
-                onPress={() => setShowDatePicker(true)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={{
-                    color: colors.textPrimary,
-                    fontSize: tokens.font.md,
+              {Platform.OS === "web" ? (
+                // @ts-ignore – web-only: direct click opens browser picker
+                <input
+                  type="date"
+                  value={toDateInputValue(deadlineDate)}
+                  min={toDateInputValue(new Date())}
+                  onChange={(e: any) => {
+                    if (!e.target.value) return;
+                    const [y, m, d] = e.target.value.split("-").map(Number);
+                    setDeadlineDate(new Date(y, m - 1, d));
                   }}
-                >
-                  {formatDeadlineDisplay(deadlineDate)}
-                </Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={deadlineDate}
-                  mode="date"
-                  display="default"
-                  minimumDate={new Date()}
-                  onChange={(_, selected) => {
-                    setShowDatePicker(false);
-                    if (selected) setDeadlineDate(selected);
+                  style={{
+                    width: "100%",
+                    height: "45px",
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: "8px",
+                    padding: "0 10px",
+                    marginBottom: "15px",
+                    backgroundColor: colors.surface,
+                    color: colors.textPrimary,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.input, { justifyContent: "center" }]}
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={{
+                        color: colors.textPrimary,
+                        fontSize: tokens.font.md,
+                      }}
+                    >
+                      {formatDeadlineDisplay(deadlineDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={deadlineDate}
+                      mode="date"
+                      display="default"
+                      minimumDate={new Date()}
+                      onChange={(_, selected) => {
+                        setShowDatePicker(false);
+                        if (selected) setDeadlineDate(selected);
+                      }}
+                    />
+                  )}
+                </>
               )}
 
               {/* ── Assignee type ── */}

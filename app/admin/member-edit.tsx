@@ -10,10 +10,12 @@
 
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { sendExpoPush } from "@/hooks/use-push-notifications";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,7 +28,7 @@ import { Icon } from "@/components/ui/Icon";
 import { showToast } from "@/components/Toast";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
-import { db } from "@/firebaseConfig";
+import { db, functions } from "@/firebaseConfig";
 import { MemberRole, UserStatus } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ export default function MemberEditScreen() {
   const [selectedStatus, setSelectedStatus] =
     useState<UserStatus>(initialStatus);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const displayName = `${firstName} ${lastName}`.trim() || "Membre sans nom";
 
@@ -149,6 +152,33 @@ export default function MemberEditScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Supprimer le membre",
+      `Supprimer définitivement ${displayName} ? Cette action est irréversible.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await httpsCallable(functions, "deleteUser")({ uid });
+              showToast(`${displayName} supprimé`, "success");
+              router.back();
+            } catch (e: any) {
+              console.error("[handleDelete] error:", e?.message ?? e);
+              showToast(e?.message ?? "Impossible de supprimer ce membre", "error");
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const styles = getStyles(colors, tokens);
@@ -263,7 +293,7 @@ export default function MemberEditScreen() {
             saving && { opacity: 0.6 },
           ]}
           onPress={handleSave}
-          disabled={saving}
+          disabled={saving || deleting}
           activeOpacity={0.75}
         >
           {saving ? (
@@ -276,6 +306,23 @@ export default function MemberEditScreen() {
             </Text>
           )}
         </TouchableOpacity>
+
+        {/* ── Delete button ──────────────────────────────────────── 
+        {initialRole !== "Administrateur" && <TouchableOpacity
+          style={[styles.deleteButton, deleting && { opacity: 0.6 }]}
+          onPress={handleDelete}
+          disabled={saving || deleting}
+          activeOpacity={0.75}
+        >
+          {deleting ? (
+            <ActivityIndicator color="#EF4444" />
+          ) : (
+            <>
+              <Icon name="delete-outline" size={16} color="#EF4444" />
+              <Text style={styles.deleteButtonText}>Supprimer le membre</Text>
+            </>
+          )}
+        </TouchableOpacity>}*/}
       </ScrollView>
     </SafeAreaView>
   );
@@ -410,6 +457,26 @@ const getStyles = (colors: any, tokens: any) =>
     },
     saveButtonText: {
       color: "#FFFFFF",
+      fontSize: tokens.font.base,
+      fontWeight: "700",
+      letterSpacing: 0.3,
+    },
+
+    // ── Delete button ────────────────────────────────────────────────────
+    deleteButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: tokens.space.sm,
+      marginTop: tokens.space.md,
+      paddingVertical: tokens.space.md,
+      borderRadius: tokens.radius.md,
+      borderWidth: 1.5,
+      borderColor: "#EF4444",
+      backgroundColor: "rgba(239,68,68,0.08)",
+    },
+    deleteButtonText: {
+      color: "#EF4444",
       fontSize: tokens.font.base,
       fontWeight: "700",
       letterSpacing: 0.3,

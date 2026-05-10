@@ -6,6 +6,7 @@
  */
 
 import { showToast } from "@/components/Toast";
+import ChannelInfoPanel from "@/components/chat/ChannelInfoPanel";
 import ChatInputBar from "@/components/chat/ChatInputBar";
 import EmojiPickerSheet from "@/components/chat/EmojiPickerSheet";
 import ForwardModal from "@/components/chat/ForwardModal";
@@ -29,6 +30,7 @@ import {
   orderBy,
   query,
   setDoc,
+  serverTimestamp,
   startAfter,
   Timestamp,
   updateDoc,
@@ -284,6 +286,7 @@ export default function ChannelScreen() {
           reactions: data.reactions ?? {},
           edited: data.edited ?? false,
           forwarded: data.forwarded ?? false,
+          projectLink: data.projectLink ?? null,
         } as ChatMessage;
       });
       setMessages((prev) => [...prev, ...older]);
@@ -1095,6 +1098,48 @@ export default function ChannelScreen() {
 
   const keyExtractor = useCallback((item: ChatMessage) => item._id, []);
 
+  // ── ChannelInfoPanel callbacks ────────────────────────────────────────────
+
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const index = messages.findIndex((m) => m._id === messageId);
+    if (index === -1) return;
+    try {
+      flatListRef.current?.scrollToIndex({ index, animated: true });
+    } catch {
+      flatListRef.current?.scrollToOffset({ offset: index * 80, animated: true });
+    }
+  }, [messages]);
+
+  const handleStartDm = useCallback(async (member: { id: string; name: string }) => {
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, "channels"),
+        where("audienceType", "==", "private"),
+        where("type", "==", "direct"),
+        where("members", "array-contains", user.uid),
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => (d.data().members as string[]).includes(member.id));
+      if (existing) {
+        router.push(`/channel/${existing.id}?name=${encodeURIComponent(member.name)}`);
+      } else {
+        const ref = await addDoc(collection(db, "channels"), {
+          name: member.name,
+          audienceType: "private",
+          type: "direct",
+          members: [user.uid, member.id],
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          lastMessage: "",
+        });
+        router.push(`/channel/${ref.id}?name=${encodeURIComponent(member.name)}`);
+      }
+    } catch {
+      showToast("Impossible d'ouvrir la conversation", "error");
+    }
+  }, [user]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -1217,6 +1262,17 @@ export default function ChannelScreen() {
                 animated: true,
               });
             }}
+            ListEmptyComponent={
+              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 64 }}>
+                <Ionicons name="chatbubbles-outline" size={52} color={colors.textTertiary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: "600", marginTop: 14 }}>
+                  Commencez la conversation
+                </Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 13, marginTop: 4 }}>
+                  Envoyez le premier message !
+                </Text>
+              </View>
+            }
             ListFooterComponent={
               loadingMore ? (
                 <ActivityIndicator color={colors.primary} style={{ padding: 16 }} />
@@ -1696,6 +1752,20 @@ export default function ChannelScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Panneau d'informations du canal */}
+      <ChannelInfoPanel
+        visible={infoPanelVisible}
+        onDismiss={() => setInfoPanelVisible(false)}
+        channelId={id ?? ""}
+        channelName={name ?? "Canal"}
+        messages={messages}
+        channelMembers={channelMembers}
+        audienceType={channelAudienceType}
+        allowedRoles={channelAllowedRoles}
+        onScrollToMessage={handleScrollToMessage}
+        onStartDm={handleStartDm}
+      />
     </SafeAreaView>
   );
 }

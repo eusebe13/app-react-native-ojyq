@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { signIn, signUp } from "./../../hooks/use-auth";
+import { getFirebaseErrorMessage } from "@/lib/firebase-errors";
 import styles from "./auth-screen.styles";
 
 interface InputFieldProps {
@@ -24,6 +25,7 @@ interface InputFieldProps {
   keyboardType?: "default" | "email-address";
   returnKeyType?: "done" | "next";
   onSubmitEditing?: () => void;
+  onToggleSecure?: () => void;
 }
 
 const InputField = ({
@@ -36,21 +38,53 @@ const InputField = ({
   keyboardType = "default",
   returnKeyType = "next",
   onSubmitEditing,
-}: InputFieldProps) => (
-  <TextInput
-    style={[styles.input, !editable && styles.inputDisabled]}
-    value={value}
-    onChangeText={onChangeText}
-    placeholder={placeholder}
-    placeholderTextColor="rgba(148, 163, 184, 0.6)"
-    secureTextEntry={secureTextEntry}
-    editable={editable}
-    autoCapitalize={autoCapitalize}
-    keyboardType={keyboardType}
-    returnKeyType={returnKeyType}
-    onSubmitEditing={onSubmitEditing}
-  />
-);
+  onToggleSecure,
+}: InputFieldProps) => {
+  const input = (
+    <TextInput
+      style={[
+        styles.input,
+        !editable && styles.inputDisabled,
+        onToggleSecure && { paddingRight: 90 },
+      ]}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor="rgba(148, 163, 184, 0.6)"
+      secureTextEntry={secureTextEntry}
+      editable={editable}
+      autoCapitalize={autoCapitalize}
+      keyboardType={keyboardType}
+      returnKeyType={returnKeyType}
+      onSubmitEditing={onSubmitEditing}
+    />
+  );
+
+  if (onToggleSecure) {
+    return (
+      <View style={{ position: "relative" }}>
+        {input}
+        <TouchableOpacity
+          style={{
+            position: "absolute",
+            right: 16,
+            top: 0,
+            bottom: 0,
+            justifyContent: "center",
+          }}
+          onPress={onToggleSecure}
+          disabled={!editable}
+        >
+          <Text style={{ color: "#A5B4FC", fontSize: 13, fontWeight: "600" }}>
+            {secureTextEntry ? "Afficher" : "Masquer"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return input;
+};
 
 const ErrorMessage = ({ message }: { message: string }) =>
   message ? <Text style={styles.errorText}>{message}</Text> : null;
@@ -71,6 +105,8 @@ const AuthScreen = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [username, setUsername] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Validation logic
   const emailValid = useMemo(
@@ -135,11 +171,7 @@ const AuthScreen = () => {
         await signUp(trimmedEmail, password, trimedUsername);
       }
     } catch (error) {
-      if (error instanceof Error) {
-        setErrorMsg(error.message);
-      } else {
-        setErrorMsg("Une erreur est survenue.");
-      }
+      setErrorMsg(getFirebaseErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -218,8 +250,9 @@ const AuthScreen = () => {
               value={password}
               onChangeText={setPassword}
               placeholder="Mot de passe"
-              secureTextEntry
+              secureTextEntry={!showPassword}
               editable={!loading}
+              onToggleSecure={() => setShowPassword((v) => !v)}
             />
             {password.length > 0 && (
               <ValidationHint
@@ -235,10 +268,11 @@ const AuthScreen = () => {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 placeholder="Confirmer le mot de passe"
-                secureTextEntry
+                secureTextEntry={!showConfirmPassword}
                 editable={!loading}
                 returnKeyType="done"
                 onSubmitEditing={canSubmit ? handleAuth : undefined}
+                onToggleSecure={() => setShowConfirmPassword((v) => !v)}
               />
               {confirmPassword.length > 0 && (
                 <ValidationHint
