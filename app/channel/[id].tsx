@@ -6,7 +6,6 @@
  */
 
 import { showToast } from "@/components/Toast";
-import ChannelInfoPanel from "@/components/chat/ChannelInfoPanel";
 import ChatInputBar from "@/components/chat/ChatInputBar";
 import EmojiPickerSheet from "@/components/chat/EmojiPickerSheet";
 import ForwardModal from "@/components/chat/ForwardModal";
@@ -29,6 +28,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   serverTimestamp,
   startAfter,
   Timestamp,
@@ -60,8 +60,10 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -72,6 +74,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "../../firebaseConfig";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
 
 // ─── Notification helper ──────────────────────────────────────────────────────
 
@@ -139,7 +151,8 @@ async function notifyChannelMembers(
 // ═════════════════════════════════════════════════════════════════════════════
 
 export default function ChannelScreen() {
-  const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
+  const { id, name, isDM } = useLocalSearchParams<{ id: string; name: string; isDM?: string }>();
+  const isDirectMessage = isDM === "1";
   const { colors, tokens } = useAppTheme();
   const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
 
@@ -188,6 +201,11 @@ export default function ChannelScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const cursorRef = useRef<any>(null);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
+
+  // ── Channel doc (info panel) ──────────────────────────────────────────────
+  const [channelDoc, setChannelDoc] = useState<any>(null);
+  const [infoPanelVisible, setInfoPanelVisible] = useState(false);
+  const [channelMembersData, setChannelMembersData] = useState<any[]>([]);
 
   // ── Typing indicator ──────────────────────────────────────────────────────
   const [typingNames, setTypingNames] = useState<string[]>([]);
@@ -278,27 +296,13 @@ export default function ChannelScreen() {
     }
   }, [id, loadingMore, hasMore]);
 
-  // ── Channel metadata (image, projectId, members) ─────────────────────────
-  const [channelImage, setChannelImage] = useState<string | null>(null);
-  const [channelProjectId, setChannelProjectId] = useState<string | null>(null);
-  const [channelMembers, setChannelMembers] = useState<string[]>([]);
-  const [channelAudienceType, setChannelAudienceType] = useState<string>("public");
-  const [channelAllowedRoles, setChannelAllowedRoles] = useState<string[]>([]);
-  const [infoPanelVisible, setInfoPanelVisible] = useState(false);
-
-  // ── Typing: listen to channel doc ─────────────────────────────────────────
+  // ── Typing + channel doc: single snapshot ────────────────────────────────
   useEffect(() => {
     if (!id || !user) return;
     return onSnapshot(doc(db, "channels", id), (snap) => {
       if (!snap.exists()) return;
       const data = snap.data();
-
-      // Capture image, projectId, members, audienceType from channel doc
-      setChannelImage(data.image ?? null);
-      setChannelProjectId(data.projectId ?? null);
-      setChannelMembers(data.members ?? []);
-      setChannelAudienceType(data.audienceType ?? "public");
-      setChannelAllowedRoles(data.allowedRoles ?? []);
+      setChannelDoc(data);
 
       const typingUsers = data.typingUsers as Record<string, any> | undefined;
       if (!typingUsers) {
@@ -318,6 +322,25 @@ export default function ChannelScreen() {
       setTypingNames(activeNames.slice(0, 3));
     });
   }, [id, user]);
+
+  // ── Fetch member profiles for info panel ─────────────────────────────────
+  useEffect(() => {
+    if (!channelDoc) return;
+    const members: string[] = channelDoc.members ?? [];
+    if (!members.length) {
+      setChannelMembersData([]);
+      return;
+    }
+    Promise.all(members.map((uid) => getDoc(doc(db, "users", uid)))).then(
+      (snaps) => {
+        setChannelMembersData(
+          snaps
+            .filter((s) => s.exists())
+            .map((s) => ({ id: s.id, ...s.data() })),
+        );
+      },
+    );
+  }, [channelDoc]);
 
   // ── Typing: publish own status ────────────────────────────────────────────
   const handleTyping = useCallback(() => {
@@ -427,6 +450,135 @@ export default function ChannelScreen() {
       );
     });
   }, [user, userProfile, id]);
+
+  // ── Info panel: full media/link fetch ────────────────────────────────────
+  const [allMediaMessages, setAllMediaMessages] = useState<ChatMessage[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaTab, setMediaTab] = useState<"images" | "fichiers" | "liens">("images");
+
+  useEffect(() => {
+    if (!infoPanelVisible || !id) return;
+    setMediaLoading(true);
+    getDocs(
+      query(
+        collection(db, "channels", id, "messages"),
+        orderBy("createdAt", "desc"),
+        limit(300),
+      ),
+    )
+      .then((snap) => {
+        setAllMediaMessages(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              _id: d.id,
+              text: data.text ?? "",
+              createdAt: data.createdAt?.toDate() ?? new Date(),
+              user: { _id: data.user._id, name: data.user.name },
+              image: data.image ?? null,
+              audio: data.audio ?? null,
+              file: data.file ?? null,
+              poll: data.poll ?? null,
+              reactions: {},
+              edited: false,
+              forwarded: false,
+            } as ChatMessage;
+          }),
+        );
+      })
+      .catch(() => {})
+      .finally(() => setMediaLoading(false));
+  }, [infoPanelVisible, id]);
+
+  const allImages = useMemo(
+    () => allMediaMessages.filter((m) => m.image),
+    [allMediaMessages],
+  );
+  const allFilesAndAudio = useMemo(
+    () => allMediaMessages.filter((m) => m.file || m.audio),
+    [allMediaMessages],
+  );
+  const allLinks = useMemo(() => {
+    const links: { messageId: string; url: string; senderName: string }[] = [];
+    for (const m of allMediaMessages) {
+      if (!m.text) continue;
+      const matches = m.text.match(/(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g);
+      if (matches) {
+        for (const url of matches) {
+          links.push({ messageId: m._id, url, senderName: m.user.name });
+        }
+      }
+    }
+    return links;
+  }, [allMediaMessages]);
+
+  const pollMessages = useMemo(
+    () => messages.filter((m) => m.poll),
+    [messages],
+  );
+
+  // ── Navigate to a message in the chat list ────────────────────────────────
+  const handleGoToMessage = useCallback(
+    (messageId: string) => {
+      setInfoPanelVisible(false);
+      const idx = messages.findIndex((m) => m._id === messageId);
+      setTimeout(() => {
+        if (idx !== -1) {
+          flatListRef.current?.scrollToIndex({ index: idx, animated: true });
+        } else {
+          showToast("Message non chargé dans la vue actuelle", "info");
+        }
+      }, 350);
+    },
+    [messages],
+  );
+
+  // ── Open a URL in the system browser ─────────────────────────────────────
+  const handleOpenLink = useCallback(async (url: string) => {
+    try {
+      const ok = await Linking.canOpenURL(url);
+      if (ok) await Linking.openURL(url);
+      else showToast("Impossible d'ouvrir ce lien", "error");
+    } catch {
+      showToast("Impossible d'ouvrir ce lien", "error");
+    }
+  }, []);
+
+  // ── Open (or create) a DM from the info panel ─────────────────────────────
+  const handleOpenDMWithMember = useCallback(
+    async (memberId: string, memberName: string, memberAvatar?: string | null) => {
+      if (!user?.uid || memberId === user.uid) return;
+      const myUid = user.uid;
+      const dmId = "dm_" + [myUid, memberId].sort().join("_");
+      const myName = userProfile
+        ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() || "Moi"
+        : "Moi";
+      try {
+        const dmSnap = await getDoc(doc(db, "channels", dmId));
+        if (!dmSnap.exists()) {
+          await setDoc(doc(db, "channels", dmId), {
+            name: "dm",
+            type: "private",
+            audienceType: "direct",
+            members: [myUid, memberId],
+            dmParticipants: {
+              [myUid]: { name: myName, avatar: userProfile?.avatarPreset ?? null },
+              [memberId]: { name: memberName, avatar: memberAvatar ?? null },
+            },
+            createdAt: Timestamp.now(),
+            createdBy: myUid,
+            lastMessage: "",
+            lastMessageAt: Timestamp.now(),
+          });
+        }
+        setInfoPanelVisible(false);
+        router.push(`/channel/${dmId}?name=${encodeURIComponent(memberName)}&isDM=1`);
+      } catch {
+        showToast("Impossible d'ouvrir la conversation", "error");
+      }
+    },
+    [user, userProfile, router],
+  );
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [sending, setSending] = useState(false);
@@ -1003,33 +1155,26 @@ export default function ChannelScreen() {
           <Ionicons name="chevron-back" size={26} color={colors.primary} />
         </TouchableOpacity>
 
-        {/* Center: avatar + name + subtitle — cliquable pour ouvrir le panneau */}
+        {/* Center: avatar + name + subtitle — tappable → info panel */}
         <TouchableOpacity
           style={styles.headerCenter}
           onPress={() => setInfoPanelVisible(true)}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
-          {channelImage ? (
-            <Image
-              source={{ uri: channelImage }}
-              style={[styles.headerAvatar, { borderRadius: 20 }]}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.headerAvatar, { backgroundColor: channelColor + "22" }]}>
-              <Text style={[styles.headerAvatarText, { color: channelColor }]}>
-                {channelInitials}
-              </Text>
-            </View>
-          )}
+          <View style={[styles.headerAvatar, { backgroundColor: channelColor + "22" }]}>
+            <Text style={[styles.headerAvatarText, { color: channelColor }]}>
+              {channelInitials}
+            </Text>
+          </View>
           <View style={styles.headerTitleGroup}>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
               {name ?? "Canal"}
             </Text>
             <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
-              {channelProjectId ? "Canal du projet · Appuyer pour infos" : "Canal de discussion · Appuyer pour infos"}
+              {isDirectMessage ? "Message direct" : "Canal de discussion"}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginRight: 4 }} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -1214,6 +1359,319 @@ export default function ChannelScreen() {
         onClose={() => setActionModalVisible(false)}
       />
 
+      {/* ── Channel Info Panel ──────────────────────────────────────────────── */}
+      <Modal
+        visible={infoPanelVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setInfoPanelVisible(false)}
+      >
+        {/* Backdrop tap → close */}
+        <TouchableOpacity
+          style={styles.sheet}
+          activeOpacity={1}
+          onPress={() => setInfoPanelVisible(false)}
+        >
+          {/* Inner sheet — absorbs touches so backdrop doesn't fire */}
+          <View
+            style={[styles.infoPanelSheet, { backgroundColor: colors.surface }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={{ paddingBottom: 32 }}
+            >
+              {/* Avatar + name */}
+              <View style={styles.infoPanelHeader}>
+                <View style={[styles.infoPanelAvatar, { backgroundColor: channelColor + "22" }]}>
+                  <Text style={[styles.infoPanelAvatarText, { color: channelColor }]}>
+                    {channelInitials}
+                  </Text>
+                </View>
+                <Text style={[styles.infoPanelTitle, { color: colors.textPrimary }]}>
+                  {name ?? "Canal"}
+                </Text>
+                {isDirectMessage ? (
+                  <Text style={[styles.infoPanelBadge, { color: colors.primary, backgroundColor: colors.primaryTint }]}>
+                    Message direct
+                  </Text>
+                ) : (
+                  <Text style={[styles.infoPanelBadge, { color: colors.textSecondary, backgroundColor: colors.surfaceDim }]}>
+                    {channelDoc?.audienceType === "public"
+                      ? "Public"
+                      : channelDoc?.audienceType === "roles"
+                      ? "Par rôle"
+                      : "Privé"}
+                  </Text>
+                )}
+              </View>
+
+              {/* Description */}
+              {channelDoc?.description ? (
+                <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
+                  <Text style={[styles.infoPanelSectionTitle, { color: colors.textSecondary }]}>
+                    Description
+                  </Text>
+                  <Text style={[styles.infoPanelDesc, { color: colors.textPrimary }]}>
+                    {channelDoc.description}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Members — tappable → start DM */}
+              {channelMembersData.length > 0 && (
+                <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
+                  <Text style={[styles.infoPanelSectionTitle, { color: colors.textSecondary }]}>
+                    {isDirectMessage ? "Participants" : `Membres (${channelMembersData.length})`}
+                  </Text>
+                  {channelMembersData.map((m) => {
+                    const fullName =
+                      `${m.firstName || ""} ${m.lastName || ""}`.trim() ||
+                      m.email ||
+                      "Inconnu";
+                    const isMe = m.id === user?.uid;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={styles.infoPanelMemberRow}
+                        onPress={() =>
+                          !isMe &&
+                          handleOpenDMWithMember(m.id, fullName, m.avatarPreset ?? null)
+                        }
+                        activeOpacity={isMe ? 1 : 0.7}
+                      >
+                        <View style={[styles.infoPanelMemberAvatar, { backgroundColor: channelColor + "22" }]}>
+                          <Text style={[styles.infoPanelMemberInitials, { color: channelColor }]}>
+                            {fullName.split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("")}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.infoPanelMemberName, { color: colors.textPrimary }]}>
+                            {fullName}{isMe ? " (vous)" : ""}
+                          </Text>
+                          {m.role ? (
+                            <Text style={[styles.infoPanelMemberRole, { color: colors.textTertiary }]}>
+                              {m.role}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {!isMe && (
+                          <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* ── Médias & Liens : tabs ──────────────────────────────────────── */}
+              <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
+                {/* Tab bar */}
+                <View style={[styles.mediaTabs, { borderColor: colors.borderLight }]}>
+                  {(["images", "fichiers", "liens"] as const).map((tab) => {
+                    const count =
+                      tab === "images"
+                        ? allImages.length
+                        : tab === "fichiers"
+                        ? allFilesAndAudio.length
+                        : allLinks.length;
+                    const label =
+                      tab === "images" ? "Images" : tab === "fichiers" ? "Fichiers" : "Liens";
+                    const active = mediaTab === tab;
+                    return (
+                      <TouchableOpacity
+                        key={tab}
+                        style={[
+                          styles.mediaTabBtn,
+                          active && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+                        ]}
+                        onPress={() => setMediaTab(tab)}
+                      >
+                        <Text style={[styles.mediaTabText, { color: active ? colors.primary : colors.textSecondary }]}>
+                          {label}
+                          {!mediaLoading && count > 0 ? ` (${count})` : ""}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {mediaLoading ? (
+                  <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+                ) : (
+                  <>
+                    {/* Images */}
+                    {mediaTab === "images" && (
+                      allImages.length === 0 ? (
+                        <Text style={[styles.mediaEmptyText, { color: colors.textTertiary }]}>
+                          Aucune image
+                        </Text>
+                      ) : (
+                        <View style={styles.mediaGrid}>
+                          {allImages.map((m) => (
+                            <View key={m._id} style={styles.mediaThumbWrap}>
+                              <TouchableOpacity
+                                onPress={() => { setInfoPanelVisible(false); setSelectedImage(m.image!); }}
+                                activeOpacity={0.85}
+                              >
+                                <Image source={{ uri: m.image! }} style={styles.mediaThumb} />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.mediaGoBtn}
+                                onPress={() => handleGoToMessage(m._id)}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <Ionicons name="navigate" size={11} color="#FFF" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )
+                    )}
+
+                    {/* Fichiers + Audio */}
+                    {mediaTab === "fichiers" && (
+                      allFilesAndAudio.length === 0 ? (
+                        <Text style={[styles.mediaEmptyText, { color: colors.textTertiary }]}>
+                          Aucun fichier
+                        </Text>
+                      ) : (
+                        allFilesAndAudio.map((m) => {
+                          const isAudio = !!m.audio && !m.file;
+                          const fileName = m.file?.name ?? "Message vocal";
+                          const fileUri = m.file?.uri ?? m.audio!;
+                          const fileSize = m.file?.size;
+                          return (
+                            <View key={m._id} style={[styles.fileRow, { borderColor: colors.borderLight }]}>
+                              <Ionicons
+                                name={isAudio ? "musical-note-outline" : "document-outline"}
+                                size={22}
+                                color={colors.primary}
+                              />
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text
+                                  numberOfLines={1}
+                                  style={[styles.fileName, { color: colors.textPrimary }]}
+                                >
+                                  {fileName}
+                                </Text>
+                                {fileSize != null && (
+                                  <Text style={[styles.fileSize, { color: colors.textTertiary }]}>
+                                    {formatSize(fileSize)}
+                                  </Text>
+                                )}
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => handleFileDownload(fileUri, fileName)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                style={{ marginLeft: 6 }}
+                              >
+                                <Ionicons name="download-outline" size={20} color={colors.primary} />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleGoToMessage(m._id)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                style={{ marginLeft: 6 }}
+                              >
+                                <Ionicons name="navigate-outline" size={20} color={colors.textSecondary} />
+                              </TouchableOpacity>
+                            </View>
+                          );
+                        })
+                      )
+                    )}
+
+                    {/* Liens */}
+                    {mediaTab === "liens" && (
+                      allLinks.length === 0 ? (
+                        <Text style={[styles.mediaEmptyText, { color: colors.textTertiary }]}>
+                          Aucun lien
+                        </Text>
+                      ) : (
+                        allLinks.map((link, i) => (
+                          <View key={`${link.messageId}-${i}`} style={[styles.linkRow, { borderColor: colors.borderLight }]}>
+                            <Ionicons name="link-outline" size={18} color={colors.primary} style={{ flexShrink: 0 }} />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text
+                                numberOfLines={2}
+                                style={[styles.linkUrl, { color: colors.primary }]}
+                              >
+                                {link.url}
+                              </Text>
+                              <Text style={[styles.fileSize, { color: colors.textTertiary }]}>
+                                {link.senderName}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => handleOpenLink(link.url)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={{ marginLeft: 6 }}
+                            >
+                              <Ionicons name="open-outline" size={20} color={colors.primary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleGoToMessage(link.messageId)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={{ marginLeft: 6 }}
+                            >
+                              <Ionicons name="navigate-outline" size={20} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                          </View>
+                        ))
+                      )
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Sondages */}
+              {pollMessages.length > 0 && (
+                <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
+                  <Text style={[styles.infoPanelSectionTitle, { color: colors.textSecondary }]}>
+                    Sondages ({pollMessages.length})
+                  </Text>
+                  {pollMessages.map((m) => {
+                    const totalVotes = m.poll!.options.reduce((acc, o) => acc + o.voters.length, 0);
+                    return (
+                      <TouchableOpacity
+                        key={m._id}
+                        style={styles.infoPanelPollRow}
+                        onPress={() => handleGoToMessage(m._id)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="bar-chart-outline" size={16} color={colors.primary} style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.infoPanelPollQuestion, { color: colors.textPrimary }]} numberOfLines={2}>
+                            {m.poll!.question}
+                          </Text>
+                          <Text style={[styles.infoPanelMemberRole, { color: colors.textTertiary }]}>
+                            {m.poll!.options.length} options · {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+                          </Text>
+                        </View>
+                        <Ionicons name="navigate-outline" size={16} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Close */}
+              <TouchableOpacity
+                style={[styles.infoPanelClose, { backgroundColor: colors.surfaceDim, borderColor: colors.border }]}
+                onPress={() => setInfoPanelVisible(false)}
+              >
+                <Text style={[styles.infoPanelCloseText, { color: colors.textSecondary }]}>
+                  Fermer
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Poll creation modal */}
       <Modal
         visible={pollModalVisible}
@@ -1294,19 +1752,6 @@ export default function ChannelScreen() {
         </View>
       </Modal>
 
-      {/* Panneau d'informations du canal */}
-      <ChannelInfoPanel
-        visible={infoPanelVisible}
-        onDismiss={() => setInfoPanelVisible(false)}
-        channelId={id ?? ""}
-        channelName={name ?? "Canal"}
-        messages={messages}
-        channelMembers={channelMembers}
-        audienceType={channelAudienceType}
-        allowedRoles={channelAllowedRoles}
-        onScrollToMessage={handleScrollToMessage}
-        onStartDm={handleStartDm}
-      />
     </SafeAreaView>
   );
 }
@@ -1480,5 +1925,180 @@ const getStyles = (colors: any, tokens: any) =>
       paddingVertical: 11,
       paddingHorizontal: 24,
       borderRadius: 12,
+    },
+
+    // Media tabs
+    mediaTabs: {
+      flexDirection: "row",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      marginBottom: 12,
+    },
+    mediaTabBtn: {
+      flex: 1,
+      alignItems: "center",
+      paddingVertical: 10,
+      borderBottomWidth: 2,
+      borderBottomColor: "transparent",
+    },
+    mediaTabText: {
+      fontSize: tokens.font.sm,
+      fontWeight: "600",
+    },
+    mediaThumbWrap: {
+      position: "relative",
+    },
+    mediaGoBtn: {
+      position: "absolute",
+      bottom: 4,
+      right: 4,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      borderRadius: 10,
+      padding: 3,
+    },
+    mediaEmptyText: {
+      textAlign: "center",
+      paddingVertical: 20,
+      fontSize: tokens.font.sm,
+    },
+    fileRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    fileName: {
+      fontSize: tokens.font.base,
+      fontWeight: "500",
+    },
+    fileSize: {
+      fontSize: tokens.font.xs,
+      marginTop: 2,
+    },
+    linkRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    linkUrl: {
+      fontSize: tokens.font.sm,
+      fontWeight: "500",
+    },
+
+    // Info panel
+    infoPanelSheet: {
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      maxHeight: "88%",
+    },
+    mediaGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 3,
+    },
+    mediaThumb: {
+      width: 80,
+      height: 80,
+      borderRadius: 8,
+    },
+    infoPanelPollRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+      paddingVertical: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: "transparent",
+    },
+    infoPanelPollQuestion: {
+      fontSize: tokens.font.base,
+      fontWeight: "600",
+      marginBottom: 2,
+    },
+    infoPanelHeader: {
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    infoPanelAvatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 12,
+    },
+    infoPanelAvatarText: {
+      fontSize: 22,
+      fontWeight: "800",
+    },
+    infoPanelTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      marginBottom: 6,
+      textAlign: "center",
+    },
+    infoPanelBadge: {
+      fontSize: 12,
+      fontWeight: "600",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      overflow: "hidden",
+    },
+    infoPanelSection: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingTop: 14,
+      marginBottom: 14,
+    },
+    infoPanelSectionTitle: {
+      fontSize: 11,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 10,
+    },
+    infoPanelDesc: {
+      fontSize: tokens.font.base,
+      lineHeight: 20,
+    },
+    infoPanelMemberRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 7,
+    },
+    infoPanelMemberAvatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    infoPanelMemberInitials: {
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    infoPanelMemberName: {
+      fontSize: tokens.font.base,
+      fontWeight: "600",
+    },
+    infoPanelMemberRole: {
+      fontSize: tokens.font.sm,
+      marginTop: 1,
+    },
+    infoPanelClose: {
+      marginTop: 8,
+      paddingVertical: 13,
+      borderRadius: 12,
+      alignItems: "center",
+      borderWidth: 1,
+    },
+    infoPanelCloseText: {
+      fontSize: tokens.font.base,
+      fontWeight: "600",
     },
   });
