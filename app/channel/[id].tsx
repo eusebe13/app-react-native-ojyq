@@ -6,7 +6,6 @@
  */
 
 import { showToast } from "@/components/Toast";
-import ChannelInfoPanel from "@/components/chat/ChannelInfoPanel";
 import ChatInputBar from "@/components/chat/ChatInputBar";
 import EmojiPickerSheet from "@/components/chat/EmojiPickerSheet";
 import ForwardModal from "@/components/chat/ForwardModal";
@@ -1753,19 +1752,6 @@ export default function ChannelScreen() {
         </View>
       </Modal>
 
-      {/* Panneau d'informations du canal */}
-      <ChannelInfoPanel
-        visible={infoPanelVisible}
-        onDismiss={() => setInfoPanelVisible(false)}
-        channelId={id ?? ""}
-        channelName={name ?? "Canal"}
-        messages={messages}
-        channelMembers={channelMembers}
-        audienceType={channelAudienceType}
-        allowedRoles={channelAllowedRoles}
-        onScrollToMessage={handleScrollToMessage}
-        onStartDm={handleStartDm}
-      />
     </SafeAreaView>
   );
 }
