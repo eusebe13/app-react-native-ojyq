@@ -1013,7 +1013,8 @@ export default function FirebaseCalendarScreen() {
   };
 
   return (
-    <SafeAreaView style={[dynamicStyles.container]} edges={["top"]}>
+    <SafeAreaView style={[dynamicStyles.container]} edges={[]}>
+
       <Header
         title="Agenda OJYQ"
         titleIcon="calendar-outline"

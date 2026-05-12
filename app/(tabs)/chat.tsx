@@ -658,7 +658,8 @@ export default function ChatListScreen(): ReactElement {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
+
       <Header
         title="Discussions"
         titleIcon="message-text-outline"

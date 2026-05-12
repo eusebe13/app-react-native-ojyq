@@ -22,7 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/Icon";
 import { showConfirm } from "@/components/ui/ConfirmModal";
@@ -229,6 +229,7 @@ function NavRow({
 export default function ProfileScreen() {
   const { profile, loading, saveProfile } = useProfile();
   const { colors, tokens } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   const handleSelectPreset = async (index: number) => {
@@ -297,14 +298,14 @@ export default function ProfileScreen() {
   const styles = getStyles(colors, tokens);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={[]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {/* ══════════════════ HEADER ══════════════════ */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + tokens.space.xxl }]}>
           <View style={styles.decorCircle1} />
           <View style={styles.decorCircle2} />
 

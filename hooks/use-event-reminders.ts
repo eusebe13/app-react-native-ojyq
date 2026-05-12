@@ -50,6 +50,7 @@ export async function scheduleEventReminders(event: CalendarItem): Promise<void>
         body: `Rappel : ${BODY_MAP[label]}`,
         data: { type: "event", eventId: event.id, eventTitle: event.title },
         sound: "default",
+        categoryIdentifier: "event-actions",
       },
       trigger: {
         type: SchedulableTriggerInputTypes.DATE,

@@ -2,6 +2,7 @@ import { auth, db } from "@/firebaseConfig";
 import {
     createUserWithEmailAndPassword,
     onAuthStateChanged,
+    sendPasswordResetEmail,
     signInWithEmailAndPassword,
     signOut,
     User,
@@ -18,7 +19,7 @@ import {
     where,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { sendExpoPush } from "@/hooks/use-push-notifications";
+import { sendExpoPush } from "@/lib/sendExpoPush";
 
 // Hook to manage authentication state
 export default function useAuth() {
@@ -122,4 +123,8 @@ export const logOut = async () => {
     } catch (error) {
         throw error;
     }
+};
+
+export const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
 };

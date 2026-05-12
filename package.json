@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "build": "expo export --platform web",
     "lint": "expo lint",
-    "postinstall": "node ./scripts/fix-image-utils-cache.js"
+    "postinstall": "node ./scripts/fix-image-utils-cache.js",
+    "test": "jest && npx -y expo-doctor"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
