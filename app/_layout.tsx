@@ -14,6 +14,7 @@ import ActionSheet from "@/components/ActionSheet";
 import Toast from "@/components/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { ThemeContextProvider, useAppTheme } from "@/contexts/ThemeContext";
+import { UnreadProvider } from "@/contexts/UnreadContext";
 import useAuth from "@/hooks/use-auth";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import AuthScreen from "./auth/auth-screen";
@@ -88,6 +89,10 @@ function RootLayoutInner() {
           name="treasury/member-payment"
           options={{ title: "Gestion des Paiements" }}
         />
+        <Stack.Screen
+          name="task/[id]"
+          options={{ headerShown: false }}
+        />
       </Stack>
     );
   };
@@ -118,7 +123,9 @@ function RootLayoutInner() {
 export default function RootLayout() {
   return (
     <ThemeContextProvider>
-      <RootLayoutInner />
+      <UnreadProvider>
+        <RootLayoutInner />
+      </UnreadProvider>
     </ThemeContextProvider>
   );
 }

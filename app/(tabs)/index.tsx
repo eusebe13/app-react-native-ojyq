@@ -186,7 +186,7 @@ const HomeScreen = () => {
   const router = useRouter();
   const { user }     = useAuth();
   const { profile }  = useProfile();
-  const { events, loading: eventsLoading }     = useUpcomingEvents(6);
+  const { events, totalCount: eventsTotalCount, loading: eventsLoading } = useUpcomingEvents(6);
   const { channels, totalCount: channelsTotalCount, loading: channelsLoading } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
 
   const styles      = getStyles(colors, tokens);
@@ -228,7 +228,7 @@ const HomeScreen = () => {
                 activeOpacity={0.85}
               >
                 <View style={styles.avatarRing}>
-                  <Avatar name={fullName} size={42} />
+                  <Avatar name={fullName} size={42} avatarPreset={profile.avatarPreset ?? null} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -257,7 +257,7 @@ const HomeScreen = () => {
             </View>
 
             {/* Row 4: quick stats */}
-            {(events.length > 0 || channels.length > 0) && (
+            {(eventsTotalCount > 0 || channelsTotalCount > 0) && (
               <View style={styles.statsRow}>
                 <TouchableOpacity
                   style={styles.statBtn}
@@ -268,9 +268,9 @@ const HomeScreen = () => {
                     <Icon name="calendar-check-outline" size={16} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.statValue}>{events.length}</Text>
+                    <Text style={styles.statValue}>{eventsTotalCount}</Text>
                     <Text style={styles.statLabel}>
-                      {events.length === 1 ? "événement" : "événements"}
+                      {eventsTotalCount === 1 ? "événement" : "événements"}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -585,12 +585,14 @@ const HomeScreen = () => {
             FOOTER
             ══════════════════════════════════════════════════════════ */}
         <View style={styles.footer}>
-          <Image
-            source={{ uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg" }}
-            style={styles.footerLogo}
-          />
+          <TouchableOpacity onPress={() => Linking.openURL("https://ojyq.org")} activeOpacity={0.75}>
+            <Image
+              source={{ uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg" }}
+              style={styles.footerLogo}
+            />
+          </TouchableOpacity>
           <Text style={styles.footerText}>
-            © 2026 Organisation de la jeunesse Yira du Québec
+            © {new Date().getFullYear()} Organisation de la jeunesse Yira du Québec
           </Text>
           <Text style={styles.footerSub}>Tous droits réservés</Text>
         </View>

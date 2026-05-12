@@ -11,15 +11,54 @@
  */
 
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { Icon } from "@/components/ui/Icon";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { computeIsUnread, useUnread } from "@/contexts/UnreadContext";
+import useAuth from "@/hooks/use-auth";
+import { useProfile } from "@/hooks/use-profile";
+import { db } from "@/firebaseConfig";
+import type { Channel } from "@/types/models";
+
+function isChannelVisible(ch: any, uid: string | null | undefined, userRole: string): boolean {
+  const effectiveAudience = ch.audienceType ?? (ch.type === "public" ? "public" : "private");
+  if (ch.createdBy === uid) return true;
+  if (effectiveAudience === "public") return true;
+  if (effectiveAudience === "private" || effectiveAudience === "direct") {
+    return !!(ch.members && ch.members.includes(uid));
+  }
+  if (effectiveAudience === "roles") return !!(ch.allowedRoles && ch.allowedRoles.includes(userRole));
+  return false;
+}
+
+function useHasUnreadChannels(uid: string | null | undefined, userRole: string): boolean {
+  const { readsMap } = useUnread();
+  const [channels, setChannels] = useState<Channel[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "channels"), orderBy("lastMessageAt", "desc"));
+    return onSnapshot(q, (snap) => {
+      setChannels(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Channel)));
+    });
+  }, []);
+
+  return channels.some((ch) => {
+    if (!isChannelVisible(ch, uid, userRole)) return false;
+    const lastActivity = ch.lastMessageAt?.toDate?.() ?? null;
+    const lastRead = readsMap[ch.id]?.lastReadAt ?? null;
+    return computeIsUnread(lastActivity, lastRead);
+  });
+}
 
 export default function TabLayout() {
   const { colors, isDark } = useAppTheme();
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const hasUnreadChat = useHasUnreadChannels(user?.uid, profile.role);
 
   return (
     <Tabs
@@ -100,6 +139,15 @@ export default function TabLayout() {
         name="chat"
         options={{
           title: "Messages",
+          tabBarBadge: hasUnreadChat ? "" : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primary,
+            minWidth: 10,
+            height: 10,
+            borderRadius: 5,
+            fontSize: 1,
+            lineHeight: 10,
+          },
           tabBarIcon: ({ focused, color }) => (
             <View style={styles.iconContainer}>
               <Icon
