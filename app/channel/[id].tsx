@@ -14,6 +14,8 @@ import MessageBubble from "@/components/chat/MessageBubble";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import type { ChatMessage, FileData, PollData, ReplyInfo } from "@/components/chat/types";
 import { sendExpoPush } from "@/hooks/use-push-notifications";
+import { useReadState } from "@/hooks/use-read-state";
+import { useWriteReadReceipt } from "@/hooks/use-read-receipts";
 import { router, useLocalSearchParams } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
@@ -155,6 +157,9 @@ export default function ChannelScreen() {
   const isDirectMessage = isDM === "1";
   const { colors, tokens } = useAppTheme();
   const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
+
+  useReadState(id, "channel");
+  useWriteReadReceipt(id);
 
   // ── Channel color + initials (consistent with chat list) ─────────────────
   const channelPalette = [colors.primary, colors.accent1, colors.accent2, colors.accent3, colors.accent4];

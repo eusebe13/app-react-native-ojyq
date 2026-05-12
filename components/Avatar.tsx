@@ -16,6 +16,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import { useAppTheme } from "../contexts/ThemeContext";
 import { Icon } from "./ui/Icon";
+import { PRESET_AVATARS } from "@/constants/avatarPresets";
 
 interface AvatarProps {
   name: string;
@@ -23,6 +24,7 @@ interface AvatarProps {
   isGroup?: boolean;
   isOnline?: boolean;
   color?: string;
+  avatarPreset?: number | null;
 }
 
 export const Avatar = ({
@@ -31,6 +33,7 @@ export const Avatar = ({
   isGroup = false,
   isOnline = false,
   color,
+  avatarPreset,
 }: AvatarProps) => {
   const { colors } = useAppTheme();
 
@@ -43,7 +46,13 @@ export const Avatar = ({
     colors.accent5,
   ];
   const hash = name.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  const bg = color || accentColors[hash % accentColors.length];
+
+  const preset =
+    avatarPreset != null && avatarPreset >= 0 && avatarPreset < PRESET_AVATARS.length
+      ? PRESET_AVATARS[avatarPreset]
+      : null;
+
+  const bg = color || (preset ? preset.bg : accentColors[hash % accentColors.length]);
   const lightBg = bg + "18";
 
   const radius = size / 2;
@@ -74,6 +83,8 @@ export const Avatar = ({
         >
           {isGroup ? (
             <Icon name="account-group" size={iconSize + 2} color={bg} />
+          ) : preset ? (
+            <Icon name={preset.icon as any} size={iconSize + 2} color="#FFFFFF" />
           ) : (
             <Text
               style={{

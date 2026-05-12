@@ -1,5 +1,6 @@
 import { db } from "@/firebaseConfig";
 import useAuth from "@/hooks/use-auth";
+import { getNotificationRoute } from "@/utils/notificationRouting";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
@@ -23,13 +24,9 @@ function navigateFromNotification(
   router: ReturnType<typeof useRouter>,
   data: Record<string, unknown>
 ) {
-  if (data?.type === "message" && data?.channelId) {
-    router.push({
-      pathname: "/channel/[id]",
-      params: { id: data.channelId as string, name: (data.channelName as string) ?? "Canal" },
-    });
-  } else if (data?.type === "task") {
-    router.push("/(tabs)");
+  const route = getNotificationRoute(data);
+  if (route) {
+    router.push(route as any);
   }
 }
 

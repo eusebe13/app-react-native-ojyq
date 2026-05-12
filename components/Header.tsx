@@ -56,7 +56,7 @@ export const Header = ({ title, titleIcon, chip }: HeaderProps = {}) => {
             activeOpacity={0.85}
           >
             <View style={styles.avatarRing}>
-              <Avatar name={fullName} size={40} />
+              <Avatar name={fullName} size={40} avatarPreset={profile.avatarPreset ?? null} />
             </View>
           </TouchableOpacity>
         </View>
