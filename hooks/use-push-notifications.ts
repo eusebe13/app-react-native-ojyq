@@ -40,12 +40,12 @@ async function registerNotificationCategories(): Promise<void> {
         submitButtonTitle: "Envoyer",
         placeholder: "Répondre...",
       },
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
     {
       identifier: "mark-read",
       buttonTitle: "Marquer lu",
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
   ]);
 
@@ -53,12 +53,12 @@ async function registerNotificationCategories(): Promise<void> {
     {
       identifier: "going",
       buttonTitle: "✅ Je participe",
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
     {
       identifier: "not-going",
       buttonTitle: "❌ Pas disponible",
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
   ]);
 }
@@ -168,13 +168,14 @@ export function usePushNotifications() {
     );
   }, []);
 
-  // Handle cold start: app killed → opened via notification tap (default action only)
+  // Handle cold start: app killed → opened via notification tap.
+  // Wait for user to be authenticated before navigating — router isn't ready before auth resolves.
   useEffect(() => {
-    if (!lastResponse) return;
+    if (!lastResponse || !user?.uid) return;
     if (lastResponse.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     const data = lastResponse.notification.request.content.data as Record<string, unknown>;
     navigateFromNotification(router, data);
-  }, [lastResponse, router]);
+  }, [lastResponse, router, user?.uid]);
 
   useEffect(() => {
     if (!user?.uid || Platform.OS === "web") return;

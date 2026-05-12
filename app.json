@@ -21,12 +21,12 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
-      "versionCode": 23,
+      "versionCode": 24,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
         "backgroundColor": "#081129"

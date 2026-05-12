@@ -37,11 +37,17 @@ export async function sendExpoPush(
         },
         body: JSON.stringify(chunk.map((to) => ({ to, ...base }))),
       });
+
+      if (!res.ok) {
+        console.error("[sendExpoPush] HTTP error:", res.status, res.statusText);
+        continue;
+      }
+
       const json = await res.json();
       const tickets: any[] = Array.isArray(json?.data) ? json.data : [];
       tickets.forEach((t, j) => {
         if (t?.status === "error") {
-          console.warn("[sendExpoPush] error:", t.message);
+          console.error("[sendExpoPush] ticket error:", t.message, t?.details);
           const errorCode = t?.details?.error;
           if (
             errorCode === "DeviceNotRegistered" ||
@@ -52,7 +58,7 @@ export async function sendExpoPush(
         }
       });
     } catch (e) {
-      console.warn("[sendExpoPush] Network error:", e);
+      console.error("[sendExpoPush] fetch failed (CORS ou réseau):", e);
     }
   }
 
