@@ -13,6 +13,7 @@ import { showToast } from "@/components/Toast";
 import { showConfirm } from "@/components/ui/ConfirmModal";
 import { DismissableModal } from "@/components/ui/DismissableModal";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { scheduleEventReminders } from "@/hooks/use-event-reminders";
 import { useProfile } from "@/hooks/use-profile";
 import { formatAttendanceText } from "@/utils/attendanceUtils";
 import { Ionicons } from "@expo/vector-icons";
@@ -722,11 +723,25 @@ export default function FirebaseCalendarScreen() {
     };
 
     try {
+      let eventId: string;
       if (editingId) {
         await updateDoc(doc(db, "events", editingId), eventData);
+        eventId = editingId;
       } else {
-        await addDoc(collection(db, "events"), eventData);
+        const ref = await addDoc(collection(db, "events"), eventData);
+        eventId = ref.id;
       }
+
+      scheduleEventReminders({
+        id: eventId,
+        title: eventData.title,
+        date: eventData.date,
+        dateObj: data.date,
+        type: "general",
+        location: eventData.location,
+        createdBy: user?.uid ?? "",
+        createdAt: Timestamp.now(),
+      } as any).catch(() => {});
 
       if (data.saveAddress && data.locationLabel.trim()) {
         await addDoc(collection(db, "savedLocations"), {
@@ -998,7 +1013,8 @@ export default function FirebaseCalendarScreen() {
   };
 
   return (
-    <SafeAreaView style={[dynamicStyles.container]} edges={["top"]}>
+    <SafeAreaView style={[dynamicStyles.container]} edges={[]}>
+
       <Header
         title="Agenda OJYQ"
         titleIcon="calendar-outline"

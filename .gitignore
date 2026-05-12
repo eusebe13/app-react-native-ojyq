@@ -96,3 +96,5 @@ ai-sessions/
 .worktrees/
 /.log
 package-lock.json
+/__mocks__
+/__tests__

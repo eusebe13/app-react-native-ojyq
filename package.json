@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "build": "expo export --platform web",
     "lint": "expo lint",
-    "postinstall": "node ./scripts/fix-image-utils-cache.js"
+    "postinstall": "node ./scripts/fix-image-utils-cache.js",
+    "test": "jest && npx -y expo-doctor"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
@@ -79,7 +80,9 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "jest": "~29.7.0",
+    "jest-util": "^29.7.0",
     "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   },
   "private": true,

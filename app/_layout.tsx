@@ -13,7 +13,9 @@ import AppSplashScreen from "@/components/AppSplashScreen";
 import ActionSheet from "@/components/ActionSheet";
 import Toast from "@/components/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import { NotificationTester } from "@/components/dev/NotificationTester";
 import { ThemeContextProvider, useAppTheme } from "@/contexts/ThemeContext";
+import { UnreadProvider } from "@/contexts/UnreadContext";
 import useAuth from "@/hooks/use-auth";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import AuthScreen from "./auth/auth-screen";
@@ -88,6 +90,10 @@ function RootLayoutInner() {
           name="treasury/member-payment"
           options={{ title: "Gestion des Paiements" }}
         />
+        <Stack.Screen
+          name="task/[id]"
+          options={{ headerShown: false }}
+        />
       </Stack>
     );
   };
@@ -103,6 +109,7 @@ function RootLayoutInner() {
       <Toast />
       <ActionSheet />
       <ConfirmModal />
+      {__DEV__ && <NotificationTester />}
 
       {/* Animated JS splash — sits on top until isReady, then fades out */}
       {!splashDone && (
@@ -118,7 +125,9 @@ function RootLayoutInner() {
 export default function RootLayout() {
   return (
     <ThemeContextProvider>
-      <RootLayoutInner />
+      <UnreadProvider>
+        <RootLayoutInner />
+      </UnreadProvider>
     </ThemeContextProvider>
   );
 }
