@@ -75,16 +75,38 @@ export default function AppSettings() {
           <Text style={styles.sectionTitle}>À Propos</Text>
 
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Version de l&apos;Application</Text>
+            <Text style={styles.infoLabel}>Version</Text>
             <Text style={styles.infoValue}>
               {Constants.expoConfig?.version ?? "1.0.0"}
             </Text>
           </View>
 
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Dernière Mise à Jour</Text>
+            <Text style={styles.infoLabel}>Build</Text>
+            <Text style={styles.infoValue}>
+              {Constants.expoConfig?.ios?.buildNumber ??
+                String(Constants.expoConfig?.android?.versionCode ?? "—")}
+            </Text>
+          </View>
+
+          <View style={styles.infoBox}>
+            <Text style={styles.infoLabel}>Dernière mise à jour</Text>
             <Text style={styles.infoValue}>
               {(Constants.expoConfig?.extra as any)?.lastUpdate ?? "—"}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.infoBox,
+              { flexDirection: "column", alignItems: "flex-start", gap: 4 },
+            ]}
+          >
+            <Text style={styles.infoLabel}>Nouveautés</Text>
+            <Text
+              style={[styles.infoValue, { fontSize: 12, lineHeight: 18, flexShrink: 1 }]}
+            >
+              {(Constants.expoConfig?.extra as any)?.changelog ?? "—"}
             </Text>
           </View>
         </View>
