@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -43,9 +44,14 @@ async function registerNotificationCategories(): Promise<void> {
       options: { opensAppToForeground: true },
     },
     {
+      identifier: "like",
+      buttonTitle: "👍 J'aime",
+      options: { opensAppToForeground: false },
+    },
+    {
       identifier: "mark-read",
       buttonTitle: "Marquer lu",
-      options: { opensAppToForeground: true },
+      options: { opensAppToForeground: false },
     },
   ]);
 
@@ -100,6 +106,14 @@ async function handleNotificationAction(
         doc(db, "users", uid, "reads", channelId),
         { type: "channel", lastReadAt: serverTimestamp() },
         { merge: true },
+      );
+      return;
+    }
+
+    if (actionIdentifier === "like" && typeof data.messageId === "string") {
+      await updateDoc(
+        doc(db, "channels", channelId, "messages", data.messageId as string),
+        { "reactions.👍": arrayUnion(uid) },
       );
       return;
     }

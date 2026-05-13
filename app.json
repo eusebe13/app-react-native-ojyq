@@ -107,7 +107,7 @@
       "eas": {
         "projectId": "b855df14-5396-4fbe-ab32-e111ad5d0835"
       },
-      "lastUpdate": "10/05/2026"
+      "changelog": "v1.0.4 : Swipe agenda gauche/droite, optimisation sélecteur date/heure, corrections diverses."
     },
     "owner": "ojyq",
     "updates": {

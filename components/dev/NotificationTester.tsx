@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useUpdateStatus } from "@/contexts/UpdateContext";
 
 const TEST_CASES = [
   {
@@ -33,6 +34,7 @@ const TEST_CASES = [
 
 export function NotificationTester() {
   const [open, setOpen] = useState(false);
+  const { setHasUpdate } = useUpdateStatus();
 
   async function fire(content: Notifications.NotificationContentInput) {
     const { status } = await Notifications.requestPermissionsAsync();
@@ -78,6 +80,12 @@ export function NotificationTester() {
               <Text style={styles.btnText}>{tc.label}</Text>
             </Pressable>
           ))}
+          <Pressable
+            style={[styles.btn, styles.updateBtn]}
+            onPress={() => { setHasUpdate(true); setOpen(false); }}
+          >
+            <Text style={styles.btnText}>🆕 Mise à jour</Text>
+          </Pressable>
           <Pressable
             style={[styles.btn, styles.closeBtn]}
             onPress={() => setOpen(false)}
@@ -128,6 +136,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   btnPressed: { opacity: 0.75 },
+  updateBtn: { backgroundColor: "#059669" },
   closeBtn: { backgroundColor: "#444" },
   btnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
 });

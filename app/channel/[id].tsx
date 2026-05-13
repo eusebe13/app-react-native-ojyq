@@ -95,6 +95,7 @@ async function notifyChannelMembers(
   senderName: string,
   senderUid: string,
   preview: string,
+  messageId: string,
 ): Promise<void> {
   const channelSnap = await getDoc(doc(db, "channels", channelId));
   if (!channelSnap.exists()) return;
@@ -114,7 +115,11 @@ async function notifyChannelMembers(
     if (!roles?.length) return;
     userDocs = (await getDocs(query(collection(db, "users"), where("role", "in", roles)))).docs;
   } else {
-    userDocs = (await getDocs(collection(db, "users"))).docs;
+    userDocs = (
+      await getDocs(
+        query(collection(db, "users"), where("status", "!=", "Arrêt")),
+      )
+    ).docs;
   }
 
   const tokenMap = new Map<string, string>();
@@ -132,7 +137,7 @@ async function notifyChannelMembers(
           token,
           channelName,
           `${senderName} : ${preview}`,
-          { type: "message", channelId, channelName },
+          { type: "message", channelId, channelName, messageId },
           "message-actions",
         ),
       ),
@@ -334,20 +339,30 @@ export default function ChannelScreen() {
   // ── Fetch member profiles for info panel ─────────────────────────────────
   useEffect(() => {
     if (!channelDoc) return;
-    const members: string[] = channelDoc.members ?? [];
-    if (!members.length) {
-      setChannelMembersData([]);
-      return;
+    const type = channelDoc.audienceType as string;
+    if (type === "private" || type === "direct") {
+      const members: string[] = channelDoc.members ?? [];
+      if (!members.length) { setChannelMembersData([]); return; }
+      Promise.all(members.map((uid) => getDoc(doc(db, "users", uid)))).then(
+        (snaps) => {
+          setChannelMembersData(
+            snaps.filter((s) => s.exists()).map((s) => ({ id: s.id, ...s.data() })),
+          );
+        },
+      );
+    } else if (type === "roles") {
+      const roles: string[] = channelDoc.allowedRoles ?? [];
+      const q = roles.length
+        ? query(collection(db, "users"), where("role", "in", roles), where("status", "!=", "Arrêt"))
+        : query(collection(db, "users"), where("status", "!=", "Arrêt"));
+      getDocs(q).then((snap) =>
+        setChannelMembersData(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      );
+    } else {
+      getDocs(query(collection(db, "users"), where("status", "!=", "Arrêt"))).then((snap) =>
+        setChannelMembersData(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      );
     }
-    Promise.all(members.map((uid) => getDoc(doc(db, "users", uid)))).then(
-      (snaps) => {
-        setChannelMembersData(
-          snaps
-            .filter((s) => s.exists())
-            .map((s) => ({ id: s.id, ...s.data() })),
-        );
-      },
-    );
   }, [channelDoc]);
 
   // ── Typing: publish own status ────────────────────────────────────────────
@@ -652,7 +667,7 @@ export default function ChannelScreen() {
 
       setSending(true);
       try {
-        await addDoc(collection(db, "channels", id, "messages"), {
+        const msgRef = await addDoc(collection(db, "channels", id, "messages"), {
           text: content,
           createdAt: Timestamp.now(),
           user: currentUser,
@@ -681,6 +696,7 @@ export default function ChannelScreen() {
           currentUser.name,
           currentUser._id,
           preview,
+          msgRef.id,
         ).catch((e) => console.warn("[notify]", e));
       } catch {
         showToast("Message non envoyé", "error");
@@ -1441,6 +1457,7 @@ export default function ChannelScreen() {
                       m.email ||
                       "Inconnu";
                     const isMe = m.id === user?.uid;
+                    const memberPhone: string | undefined = m.phoneNumber || undefined;
                     return (
                       <TouchableOpacity
                         key={m.id}
@@ -1466,12 +1483,66 @@ export default function ChannelScreen() {
                             </Text>
                           ) : null}
                         </View>
-                        {!isMe && (
-                          <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
-                        )}
+                        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                          {!isMe && m.email ? (
+                            <TouchableOpacity
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              onPress={(e) => {
+                                e.stopPropagation?.();
+                                Linking.openURL(`mailto:${m.email}`).catch(() => {});
+                              }}
+                            >
+                              <Ionicons name="mail-outline" size={16} color={colors.primary} />
+                            </TouchableOpacity>
+                          ) : null}
+                          {!isMe && memberPhone ? (
+                            <TouchableOpacity
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              onPress={(e) => {
+                                e.stopPropagation?.();
+                                Linking.openURL(`tel:${memberPhone}`).catch(() => {});
+                              }}
+                            >
+                              <Ionicons name="call-outline" size={16} color={colors.primary} />
+                            </TouchableOpacity>
+                          ) : null}
+                          {!isMe && (
+                            <Ionicons name="chatbubble-outline" size={16} color={colors.textTertiary} />
+                          )}
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
+                  {channelMembersData.some((m) => m.email) && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        const isAdminUser = ["Administrateur", "Admin", "Président", "Vice-Président"].includes(
+                          userProfile?.role ?? "",
+                        );
+                        const emails = channelMembersData.map((m) => m.email).filter(Boolean) as string[];
+                        if (!emails.length) return;
+                        const field = isAdminUser ? "to" : "bcc";
+                        Linking.openURL(`mailto:?${field}=${emails.join(",")}`).catch(() => {});
+                      }}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        marginTop: 8,
+                        paddingVertical: 10,
+                        backgroundColor: colors.primary + "18",
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: colors.primary + "40",
+                      }}
+                    >
+                      <Ionicons name="mail-outline" size={16} color={colors.primary} />
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+                        Contacter tous les membres
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
 
