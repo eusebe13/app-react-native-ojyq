@@ -405,6 +405,13 @@ export default function ProfileScreen() {
               label="Gérer les membres"
               sublabel="Rôles, statuts, accès"
               onPress={() => router.push("/admin/members")}
+            />
+            <NavRow
+              icon="newspaper-variant-outline"
+              iconBg={colors.accent2}
+              label="Notes de version"
+              sublabel="Créer et publier des mises à jour"
+              onPress={() => router.push("/admin/release-notes")}
               last
             />
           </NavCard>
