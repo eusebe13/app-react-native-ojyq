@@ -83,6 +83,14 @@ function RootLayoutInner() {
           options={{ title: "Modifier le membre" }}
         />
         <Stack.Screen
+          name="admin/release-notes"
+          options={{ title: "Notes de version" }}
+        />
+        <Stack.Screen
+          name="admin/release-note-edit"
+          options={{ title: "Note de version" }}
+        />
+        <Stack.Screen
           name="channel/[id]"
           options={{ headerShown: false }}
         />

@@ -28,6 +28,8 @@ import useAuth from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useUpcomingEvents } from "@/hooks/use-upcoming-events";
 import { useChannelsPreview } from "@/hooks/use-channels-preview";
+import { useReleaseNotes } from "@/hooks/use-release-notes";
+import ReleaseNotesModal from "@/components/ReleaseNotesModal";
 import { TaskSection } from "@/components/TaskSection";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/ui/Icon";
@@ -188,6 +190,7 @@ const HomeScreen = () => {
   const { profile }  = useProfile();
   const { events, totalCount: eventsTotalCount, loading: eventsLoading } = useUpcomingEvents(6);
   const { channels, totalCount: channelsTotalCount, loading: channelsLoading } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
+  const { latestNote, isNew, markAsSeen } = useReleaseNotes(user?.uid);
 
   const styles      = getStyles(colors, tokens);
   const greeting    = getGreeting();
@@ -597,6 +600,10 @@ const HomeScreen = () => {
           <Text style={styles.footerSub}>Tous droits réservés</Text>
         </View>
       </ScrollView>
+
+      {isNew && latestNote && (
+        <ReleaseNotesModal note={latestNote} onDismiss={markAsSeen} />
+      )}
     </>
   );
 };

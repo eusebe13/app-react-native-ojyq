@@ -36,6 +36,7 @@ export interface ChatMessage {
   createdAt: Date;
   user: ChatUser;
   image?: string | null;
+  video?: string | null;
   audio?: string | null;
   poll?: PollData | null;
   file?: FileData | null;
@@ -43,5 +44,6 @@ export interface ChatMessage {
   reactions?: Record<string, string[]>;
   edited?: boolean;
   forwarded?: boolean;
+  isPending?: boolean;
   projectLink?: ProjectLinkData | null;
 }

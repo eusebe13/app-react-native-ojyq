@@ -228,6 +228,7 @@ const EmojiButton = React.memo(
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     const handlePress = useCallback(() => {
+      onPress(emoji);
       Animated.sequence([
         Animated.spring(scaleAnim, {
           toValue: 1.35,
@@ -241,7 +242,7 @@ const EmojiButton = React.memo(
           friction: 12,
           useNativeDriver: true,
         }),
-      ]).start(() => onPress(emoji));
+      ]).start();
     }, [emoji, onPress, scaleAnim]);
 
     return (
