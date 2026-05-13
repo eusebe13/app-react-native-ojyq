@@ -9,17 +9,42 @@ import { showToast } from "@/components/Toast";
 import ChatInputBar from "@/components/chat/ChatInputBar";
 import EmojiPickerSheet from "@/components/chat/EmojiPickerSheet";
 import ForwardModal from "@/components/chat/ForwardModal";
-import MessageActionModal, { MessageAction } from "@/components/chat/MessageActionModal";
+import MessageActionModal, {
+  MessageAction,
+} from "@/components/chat/MessageActionModal";
 import MessageBubble from "@/components/chat/MessageBubble";
 import TypingIndicator from "@/components/chat/TypingIndicator";
-import type { ChatMessage, FileData, PollData, ReplyInfo } from "@/components/chat/types";
+import type {
+  ChatMessage,
+  FileData,
+  PollData,
+  ReplyInfo,
+} from "@/components/chat/types";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { sendExpoPush } from "@/hooks/use-push-notifications";
-import { useReadState } from "@/hooks/use-read-state";
 import { useWriteReadReceipt } from "@/hooks/use-read-receipts";
+import { useReadState } from "@/hooks/use-read-state";
+import {
+  deleteFromR2,
+  uploadDocument,
+  uploadImageBase64,
+  uploadImageUri,
+  uploadVideoUri,
+} from "@/lib/uploadToR2";
+import { Ionicons } from "@expo/vector-icons";
+import { ResizeMode, Video } from "expo-av";
+import * as Clipboard from "expo-clipboard";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import { router, useLocalSearchParams } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   deleteField,
@@ -30,32 +55,14 @@ import {
   onSnapshot,
   orderBy,
   query,
-  setDoc,
   serverTimestamp,
+  setDoc,
   startAfter,
   Timestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
-import * as ImagePicker from "expo-image-picker";
-import * as Clipboard from "expo-clipboard";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Haptics from "expo-haptics";
-import * as MediaLibrary from "expo-media-library";
-import * as Sharing from "expo-sharing";
-import {
-  deleteFromR2,
-  uploadDocument,
-  uploadImageBase64,
-  uploadImageUri,
-} from "@/lib/uploadToR2";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -70,11 +77,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme } from "@/contexts/ThemeContext";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { db } from "../../firebaseConfig";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -99,20 +108,25 @@ async function notifyChannelMembers(
   const channelSnap = await getDoc(doc(db, "channels", channelId));
   if (!channelSnap.exists()) return;
   const channelData = channelSnap.data();
-  const audienceType = channelData.audienceType as "public" | "roles" | "private";
+  const audienceType = channelData.audienceType as
+    | "public"
+    | "roles"
+    | "private";
 
   let userDocs: { id: string; data: () => any }[] = [];
   if (audienceType === "private") {
     const members = (channelData.members as string[] | undefined) ?? [];
     const targets = members.filter((uid) => uid !== senderUid);
     if (!targets.length) return;
-    userDocs = (await Promise.all(targets.map((uid) => getDoc(doc(db, "users", uid))))).filter(
-      (s) => s.exists(),
-    );
+    userDocs = (
+      await Promise.all(targets.map((uid) => getDoc(doc(db, "users", uid))))
+    ).filter((s) => s.exists());
   } else if (audienceType === "roles") {
     const roles = channelData.allowedRoles as string[] | undefined;
     if (!roles?.length) return;
-    userDocs = (await getDocs(query(collection(db, "users"), where("role", "in", roles)))).docs;
+    userDocs = (
+      await getDocs(query(collection(db, "users"), where("role", "in", roles)))
+    ).docs;
   } else {
     userDocs = (await getDocs(collection(db, "users"))).docs;
   }
@@ -144,7 +158,9 @@ async function notifyChannelMembers(
       stale.map((token) => {
         const uid = tokenMap.get(token);
         if (!uid) return;
-        return updateDoc(doc(db, "users", uid), { expoPushToken: deleteField() });
+        return updateDoc(doc(db, "users", uid), {
+          expoPushToken: deleteField(),
+        });
       }),
     );
   }
@@ -155,17 +171,28 @@ async function notifyChannelMembers(
 // ═════════════════════════════════════════════════════════════════════════════
 
 export default function ChannelScreen() {
-  const { id, name, isDM } = useLocalSearchParams<{ id: string; name: string; isDM?: string }>();
+  const { id, name, isDM } = useLocalSearchParams<{
+    id: string;
+    name: string;
+    isDM?: string;
+  }>();
   const isDirectMessage = isDM === "1";
   const { colors, tokens } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
 
   useReadState(id, "channel");
   useWriteReadReceipt(id);
 
   // ── Channel color + initials (consistent with chat list) ─────────────────
-  const channelPalette = [colors.primary, colors.accent1, colors.accent2, colors.accent3, colors.accent4];
+  const channelPalette = [
+    colors.primary,
+    colors.accent1,
+    colors.accent2,
+    colors.accent3,
+    colors.accent4,
+  ];
   const channelColor = (() => {
     const n = name ?? "Canal";
     let h = 0;
@@ -173,7 +200,10 @@ export default function ChannelScreen() {
     return channelPalette[Math.abs(h)];
   })();
   const channelInitials = (name ?? "Canal")
-    .split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("");
+    .split(" ")
+    .slice(0, 2)
+    .map((w: string) => w[0]?.toUpperCase() ?? "")
+    .join("");
 
   // ── Auth & user profile ───────────────────────────────────────────────────
   const auth = getAuth();
@@ -192,7 +222,7 @@ export default function ChannelScreen() {
       _id: user?.uid ?? "anonyme",
       name: userProfile?.firstName
         ? `${userProfile.firstName} ${userProfile.lastName ?? ""}`.trim()
-        : user?.displayName ?? "Utilisateur",
+        : (user?.displayName ?? "Utilisateur"),
       avatar: user?.photoURL ?? null,
       avatarPreset: userProfile?.avatarPreset ?? null,
       role: userProfile?.role ?? "Membre",
@@ -204,6 +234,10 @@ export default function ChannelScreen() {
   const PAGE_SIZE = 30;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -228,7 +262,8 @@ export default function ChannelScreen() {
     );
     return onSnapshot(q, (snap) => {
       if (snap.docs.length < PAGE_SIZE) setHasMore(false);
-      if (snap.docs.length > 0) cursorRef.current = snap.docs[snap.docs.length - 1];
+      if (snap.docs.length > 0)
+        cursorRef.current = snap.docs[snap.docs.length - 1];
       setMessages(
         snap.docs.map((d) => {
           const data = d.data();
@@ -244,6 +279,7 @@ export default function ChannelScreen() {
               role: data.user.role ?? "Membre",
             },
             image: data.image ?? null,
+            video: data.video ?? null,
             audio: data.audio ?? null,
             poll: data.poll ?? null,
             file: data.file ?? null,
@@ -271,7 +307,8 @@ export default function ChannelScreen() {
       );
       const snap = await getDocs(q);
       if (snap.docs.length < PAGE_SIZE) setHasMore(false);
-      if (snap.docs.length > 0) cursorRef.current = snap.docs[snap.docs.length - 1];
+      if (snap.docs.length > 0)
+        cursorRef.current = snap.docs[snap.docs.length - 1];
       const older = snap.docs.map((d) => {
         const data = d.data();
         return {
@@ -286,6 +323,7 @@ export default function ChannelScreen() {
             role: data.user.role ?? "Membre",
           },
           image: data.image ?? null,
+          video: data.video ?? null,
           audio: data.audio ?? null,
           poll: data.poll ?? null,
           file: data.file ?? null,
@@ -406,7 +444,9 @@ export default function ChannelScreen() {
     if (!q) return [];
     return messages
       .map((msg, index) => ({ index, id: msg._id }))
-      .filter(({ index }) => (messages[index].text ?? "").toLowerCase().includes(q));
+      .filter(({ index }) =>
+        (messages[index].text ?? "").toLowerCase().includes(q),
+      );
   }, [searchQuery, messages]);
 
   // Scroll to the focused match whenever index changes
@@ -414,7 +454,10 @@ export default function ChannelScreen() {
     if (!searchMatches.length) return;
     const safeIdx = Math.min(searchMatchIndex, searchMatches.length - 1);
     try {
-      flatListRef.current?.scrollToIndex({ index: searchMatches[safeIdx].index, animated: true });
+      flatListRef.current?.scrollToIndex({
+        index: searchMatches[safeIdx].index,
+        animated: true,
+      });
     } catch {
       // ignore if not rendered yet
     }
@@ -427,7 +470,9 @@ export default function ChannelScreen() {
 
   const handleSearchPrev = useCallback(() => {
     if (!searchMatches.length) return;
-    setSearchMatchIndex((i) => (i - 1 + searchMatches.length) % searchMatches.length);
+    setSearchMatchIndex(
+      (i) => (i - 1 + searchMatches.length) % searchMatches.length,
+    );
   }, [searchMatches.length]);
 
   // Reset match cursor when query changes
@@ -462,7 +507,9 @@ export default function ChannelScreen() {
   // ── Info panel: full media/link fetch ────────────────────────────────────
   const [allMediaMessages, setAllMediaMessages] = useState<ChatMessage[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaTab, setMediaTab] = useState<"images" | "fichiers" | "liens">("images");
+  const [mediaTab, setMediaTab] = useState<"images" | "fichiers" | "liens">(
+    "images",
+  );
 
   useEffect(() => {
     if (!infoPanelVisible || !id) return;
@@ -484,6 +531,7 @@ export default function ChannelScreen() {
               createdAt: data.createdAt?.toDate() ?? new Date(),
               user: { _id: data.user._id, name: data.user.name },
               image: data.image ?? null,
+              video: data.video ?? null,
               audio: data.audio ?? null,
               file: data.file ?? null,
               poll: data.poll ?? null,
@@ -498,8 +546,8 @@ export default function ChannelScreen() {
       .finally(() => setMediaLoading(false));
   }, [infoPanelVisible, id]);
 
-  const allImages = useMemo(
-    () => allMediaMessages.filter((m) => m.image),
+  const allMedia = useMemo(
+    () => allMediaMessages.filter((m) => m.image || m.video),
     [allMediaMessages],
   );
   const allFilesAndAudio = useMemo(
@@ -554,12 +602,17 @@ export default function ChannelScreen() {
 
   // ── Open (or create) a DM from the info panel ─────────────────────────────
   const handleOpenDMWithMember = useCallback(
-    async (memberId: string, memberName: string, memberAvatar?: string | null) => {
+    async (
+      memberId: string,
+      memberName: string,
+      memberAvatar?: string | null,
+    ) => {
       if (!user?.uid || memberId === user.uid) return;
       const myUid = user.uid;
       const dmId = "dm_" + [myUid, memberId].sort().join("_");
       const myName = userProfile
-        ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() || "Moi"
+        ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() ||
+          "Moi"
         : "Moi";
       try {
         const dmSnap = await getDoc(doc(db, "channels", dmId));
@@ -570,7 +623,10 @@ export default function ChannelScreen() {
             audienceType: "direct",
             members: [myUid, memberId],
             dmParticipants: {
-              [myUid]: { name: myName, avatar: userProfile?.avatarPreset ?? null },
+              [myUid]: {
+                name: myName,
+                avatar: userProfile?.avatarPreset ?? null,
+              },
               [memberId]: { name: memberName, avatar: memberAvatar ?? null },
             },
             createdAt: Timestamp.now(),
@@ -580,7 +636,9 @@ export default function ChannelScreen() {
           });
         }
         setInfoPanelVisible(false);
-        router.push(`/channel/${dmId}?name=${encodeURIComponent(memberName)}&isDM=1`);
+        router.push(
+          `/channel/${dmId}?name=${encodeURIComponent(memberName)}&isDM=1`,
+        );
       } catch {
         showToast("Impossible d'ouvrir la conversation", "error");
       }
@@ -590,10 +648,21 @@ export default function ChannelScreen() {
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [sending, setSending] = useState(false);
-  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(null);
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(
+    null,
+  );
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(
+    null,
+  );
+  const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(
+    null,
+  );
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [videoStartPosition, setVideoStartPosition] = useState(0);
+  const resumeInlineVideoRef = useRef<((positionMillis: number) => void) | null>(null);
+  const modalVideoRef = useRef<Video | null>(null);
+  const webVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Emoji picker
   const [emojiPickerFor, setEmojiPickerFor] = useState<string | null>(null);
@@ -606,8 +675,11 @@ export default function ChannelScreen() {
 
   // Action modal
   const [actionModalVisible, setActionModalVisible] = useState(false);
-  const [actionModalMessage, setActionModalMessage] = useState<ChatMessage | null>(null);
-  const [actionModalActions, setActionModalActions] = useState<MessageAction[]>([]);
+  const [actionModalMessage, setActionModalMessage] =
+    useState<ChatMessage | null>(null);
+  const [actionModalActions, setActionModalActions] = useState<MessageAction[]>(
+    [],
+  );
 
   // ── Core send to Firestore ────────────────────────────────────────────────
   const sendToFirestore = useCallback(
@@ -617,9 +689,11 @@ export default function ChannelScreen() {
       poll?: any,
       file?: FileData,
       audioUrl?: string,
+      videoUrl?: string,
     ) => {
       const content = text.trim();
-      if (!content && !imageUri && !poll && !file && !audioUrl) return;
+      if (!content && !imageUri && !poll && !file && !audioUrl && !videoUrl)
+        return;
       if (!id) return;
 
       // Edit mode — updateDoc only
@@ -657,12 +731,15 @@ export default function ChannelScreen() {
           createdAt: Timestamp.now(),
           user: currentUser,
           image: imageUri ?? null,
+          video: videoUrl ?? null,
           poll: poll ?? null,
           file: file ?? null,
           audio: audioUrl ?? null,
           replyTo: replyData,
         });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
 
         const preview = poll
           ? poll.question
@@ -670,10 +747,11 @@ export default function ChannelScreen() {
             ? "Message vocal"
             : content || "Photo";
 
-        await updateDoc(doc(db, "channels", id), {
+        // Fire-and-forget — doesn't need to block the send
+        updateDoc(doc(db, "channels", id), {
           lastMessage: file ? file.name : preview,
           lastMessageAt: Timestamp.now(),
-        });
+        }).catch((e) => console.warn("[lastMessage]", e));
 
         notifyChannelMembers(
           id,
@@ -698,15 +776,38 @@ export default function ChannelScreen() {
   );
 
   const handleSendAudio = useCallback(
-    (audioUrl: string) => sendToFirestore("", undefined, undefined, undefined, audioUrl),
+    (audioUrl: string) =>
+      sendToFirestore("", undefined, undefined, undefined, audioUrl),
     [sendToFirestore],
   );
 
-  // Camera image from ChatInputBar — upload to Supabase then store URL
+  const addOptimisticImage = useCallback(
+    (localUri: string): string => {
+      const tempId = `pending_${Date.now()}`;
+      setMessages((prev) => [
+        {
+          _id: tempId,
+          text: "",
+          createdAt: new Date(),
+          user: currentUser,
+          image: localUri,
+          isPending: true,
+        },
+        ...prev,
+      ]);
+      return tempId;
+    },
+    [currentUser],
+  );
+
+  const removeOptimisticMessage = useCallback((tempId: string) => {
+    setMessages((prev) => prev.filter((m) => m._id !== tempId));
+  }, []);
+
   const handleSendImage = useCallback(
     async (uri: string) => {
       if (!id) return;
-      setSending(true);
+      const tempId = addOptimisticImage(uri);
       try {
         let imageUrl: string;
         if (uri.startsWith("data:")) {
@@ -714,14 +815,14 @@ export default function ChannelScreen() {
         } else {
           imageUrl = await uploadImageUri(uri, id);
         }
+        removeOptimisticMessage(tempId);
         await sendToFirestore("", imageUrl);
       } catch {
+        removeOptimisticMessage(tempId);
         showToast("Erreur upload image", "error");
-      } finally {
-        setSending(false);
       }
     },
-    [id, sendToFirestore],
+    [id, sendToFirestore, addOptimisticImage, removeOptimisticMessage],
   );
 
   const handleOpenGallery = useCallback(async () => {
@@ -731,23 +832,65 @@ export default function ChannelScreen() {
       Platform.OS === "web" ? { ...opts, allowsEditing: false } : opts,
     );
     if (!result.canceled) {
-      setSending(true);
+      const localUri = result.assets[0].uri;
+      const tempId = addOptimisticImage(localUri);
       try {
-        const imageUrl = await uploadImageUri(result.assets[0].uri, id);
+        const imageUrl = await uploadImageUri(localUri, id);
+        removeOptimisticMessage(tempId);
         await sendToFirestore("", imageUrl);
       } catch {
+        removeOptimisticMessage(tempId);
         showToast("Erreur upload image", "error");
-      } finally {
-        setSending(false);
       }
     }
-  }, [id, sendToFirestore]);
+  }, [id, sendToFirestore, addOptimisticImage, removeOptimisticMessage]);
 
   const handleOpenPoll = useCallback(() => {
     setPollQuestion("");
     setPollOptions(["", ""]);
     setPollModalVisible(true);
   }, []);
+
+  const handleOpenVideo = useCallback(async () => {
+    if (!id) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "videos",
+      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
+      videoMaxDuration: 600, //10 minutes max
+      quality: 0.5,
+    });
+    if (!result.canceled) {
+      const localUri = result.assets[0].uri;
+      // Show local video immediately while uploading
+      const tempId = `pending_${Date.now()}`;
+      setMessages((prev) => [
+        {
+          _id: tempId,
+          text: "",
+          createdAt: new Date(),
+          user: currentUser,
+          video: localUri,
+          isPending: true,
+        },
+        ...prev,
+      ]);
+      try {
+        const videoUrl = await uploadVideoUri(localUri, id);
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
+        await sendToFirestore(
+          "",
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          videoUrl,
+        );
+      } catch {
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
+        showToast("Erreur upload vidéo", "error");
+      }
+    }
+  }, [id, sendToFirestore, currentUser]);
 
   const handleOpenDocument = useCallback(async () => {
     if (!id) return;
@@ -784,12 +927,35 @@ export default function ChannelScreen() {
   const handleDeleteMessage = useCallback(
     async (msg: ChatMessage) => {
       if (!id) return;
+      const isNewest = messagesRef.current[0]?._id === msg._id;
+      const newLast = isNewest ? messagesRef.current[1] : null;
       await deleteDoc(doc(db, "channels", id, "messages", msg._id));
+      if (isNewest) {
+        if (!newLast) {
+          updateDoc(doc(db, "channels", id), {
+            lastMessage: "",
+            lastMessageAt: deleteField(),
+          }).catch(() => {});
+        } else {
+          const preview = newLast.poll
+            ? newLast.poll.question
+            : newLast.audio
+              ? "Message vocal"
+              : newLast.text || "Photo";
+          updateDoc(doc(db, "channels", id), {
+            lastMessage: newLast.file ? newLast.file.name : preview,
+            lastMessageAt: Timestamp.fromDate(newLast.createdAt),
+          }).catch(() => {});
+        }
+      }
       // Clean up R2 media — non-blocking, FIFO may have already removed it
       const r2Path = (url: string) => url.split(".r2.dev/")[1];
-      if (msg.image) deleteFromR2(r2Path(msg.image) ?? msg.image).catch(() => {});
-      if (msg.audio) deleteFromR2(r2Path(msg.audio) ?? msg.audio).catch(() => {});
-      if (msg.file)  deleteFromR2(r2Path(msg.file.uri) ?? msg.file.uri).catch(() => {});
+      if (msg.image)
+        deleteFromR2(r2Path(msg.image) ?? msg.image).catch(() => {});
+      if (msg.audio)
+        deleteFromR2(r2Path(msg.audio) ?? msg.audio).catch(() => {});
+      if (msg.file)
+        deleteFromR2(r2Path(msg.file.uri) ?? msg.file.uri).catch(() => {});
     },
     [id],
   );
@@ -875,17 +1041,34 @@ export default function ChannelScreen() {
     async (messageId: string, emoji: string) => {
       if (!id) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      const msgRef = doc(db, "channels", id, "messages", messageId);
-      const snap = await getDoc(msgRef);
-      if (!snap.exists()) return;
-      const reactions: Record<string, string[]> = snap.data().reactions ?? {};
-      const users = reactions[emoji] ?? [];
-      reactions[emoji] = users.includes(currentUser._id)
-        ? users.filter((u) => u !== currentUser._id)
-        : [...users, currentUser._id];
-      await updateDoc(msgRef, { reactions });
+
+      // Optimistic update — instant UI feedback
+      const isRemoving =
+        messages
+          .find((m) => m._id === messageId)
+          ?.reactions?.[emoji]?.includes(currentUser._id) ?? false;
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m._id !== messageId) return m;
+          const reactions = { ...(m.reactions ?? {}) };
+          const users = reactions[emoji] ?? [];
+          reactions[emoji] = isRemoving
+            ? users.filter((u) => u !== currentUser._id)
+            : [...users, currentUser._id];
+          if (reactions[emoji].length === 0) delete reactions[emoji];
+          return { ...m, reactions };
+        }),
+      );
+
+      // Single atomic write — no read needed
+      await updateDoc(doc(db, "channels", id, "messages", messageId), {
+        [`reactions.${emoji}`]: isRemoving
+          ? arrayRemove(currentUser._id)
+          : arrayUnion(currentUser._id),
+      });
     },
-    [id, currentUser._id],
+    [id, currentUser._id, messages],
   );
 
   const handleAddReaction = useCallback((messageId: string) => {
@@ -919,11 +1102,36 @@ export default function ChannelScreen() {
     setSelectedImage(uri);
   }, []);
 
+  const handleVideoPress = useCallback(
+    (uri: string, positionMillis: number, resumeInline: (pos: number) => void) => {
+      setVideoStartPosition(positionMillis);
+      resumeInlineVideoRef.current = resumeInline;
+      setSelectedVideo(uri);
+    },
+    [],
+  );
+
+  const handleCloseVideoModal = useCallback(async () => {
+    let currentPos = 0;
+    if (Platform.OS === "web") {
+      currentPos = webVideoRef.current ? webVideoRef.current.currentTime * 1000 : 0;
+    } else {
+      const status = await modalVideoRef.current?.getStatusAsync().catch(() => null);
+      currentPos = status?.isLoaded ? status.positionMillis : 0;
+      modalVideoRef.current?.pauseAsync().catch(() => {});
+    }
+    resumeInlineVideoRef.current?.(currentPos);
+    resumeInlineVideoRef.current = null;
+    setSelectedVideo(null);
+  }, []);
+
   const handlePollVote = useCallback(
     async (messageId: string, poll: PollData, optionIndex: number) => {
       if (!id) return;
       const uid = currentUser._id;
-      const previousIndex = poll.options.findIndex((o) => o.voters.includes(uid));
+      const previousIndex = poll.options.findIndex((o) =>
+        o.voters.includes(uid),
+      );
       let updated: typeof poll.options;
       if (previousIndex === optionIndex) {
         // Same option tapped → cancel vote
@@ -935,7 +1143,8 @@ export default function ChannelScreen() {
       } else {
         // Different option (or first vote) → move / add vote
         updated = poll.options.map((o, i) => {
-          if (i === previousIndex) return { ...o, voters: o.voters.filter((v) => v !== uid) };
+          if (i === previousIndex)
+            return { ...o, voters: o.voters.filter((v) => v !== uid) };
           if (i === optionIndex) return { ...o, voters: [...o.voters, uid] };
           return o;
         });
@@ -989,11 +1198,16 @@ export default function ChannelScreen() {
           showToast("Permission galerie refusée", "error");
           return;
         }
-        const localUri = (FileSystem.cacheDirectory ?? "") + `img_${Date.now()}.jpg`;
+        const localUri =
+          (FileSystem.cacheDirectory ?? "") + `img_${Date.now()}.jpg`;
         if (imageUri.startsWith("data:")) {
-          await FileSystem.writeAsStringAsync(localUri, imageUri.split(",")[1], {
-            encoding: FileSystem.EncodingType.Base64,
-          });
+          await FileSystem.writeAsStringAsync(
+            localUri,
+            imageUri.split(",")[1],
+            {
+              encoding: FileSystem.EncodingType.Base64,
+            },
+          );
         } else {
           await FileSystem.downloadAsync(imageUri, localUri);
         }
@@ -1063,6 +1277,26 @@ export default function ChannelScreen() {
     setReplyToMessage(msg);
   }, []);
 
+  // ── Reply-press scroll ────────────────────────────────────────────────────
+  const handleReplyPress = useCallback(
+    (replyId: string) => {
+      const index = messages.findIndex((m) => m._id === replyId);
+      if (index === -1) {
+        showToast("Message introuvable", "info");
+        return;
+      }
+      try {
+        flatListRef.current?.scrollToIndex({ index, animated: true });
+      } catch {
+        flatListRef.current?.scrollToOffset({
+          offset: index * 80,
+          animated: true,
+        });
+      }
+    },
+    [messages],
+  );
+
   // ── FlatList renderItem ───────────────────────────────────────────────────
   // Messages are ordered newest-first (inverted FlatList), so:
   //   - previousMessage (visually above) = messages[index + 1]
@@ -1073,8 +1307,8 @@ export default function ChannelScreen() {
     ({ item, index }: { item: ChatMessage; index: number }) => (
       <MessageBubble
         message={item}
-        previousMessage={messages[index + 1] ?? null}
-        nextMessage={messages[index - 1] ?? null}
+        previousMessage={messagesRef.current[index + 1] ?? null}
+        nextMessage={messagesRef.current[index - 1] ?? null}
         currentUserId={currentUser._id}
         onLongPress={handleLongPress}
         onReactionPress={handleReactionPress}
@@ -1083,20 +1317,23 @@ export default function ChannelScreen() {
         onPollVote={handlePollVote}
         onFileDownload={handleFileDownload}
         onSwipeReply={handleSwipeReply}
+        onReplyPress={handleReplyPress}
+        onVideoPress={handleVideoPress}
         searchQuery={searchActive ? searchQuery : ""}
         isSearchFocus={searchActive && item._id === activeSearchMatchId}
       />
     ),
     [
-      messages,
       currentUser._id,
       handleLongPress,
       handleReactionPress,
       handleAddReaction,
       handleImagePress,
+      handleVideoPress,
       handlePollVote,
       handleFileDownload,
       handleSwipeReply,
+      handleReplyPress,
       searchActive,
       searchQuery,
       activeSearchMatchId,
@@ -1107,54 +1344,82 @@ export default function ChannelScreen() {
 
   // ── ChannelInfoPanel callbacks ────────────────────────────────────────────
 
-  const handleScrollToMessage = useCallback((messageId: string) => {
-    const index = messages.findIndex((m) => m._id === messageId);
-    if (index === -1) return;
-    try {
-      flatListRef.current?.scrollToIndex({ index, animated: true });
-    } catch {
-      flatListRef.current?.scrollToOffset({ offset: index * 80, animated: true });
-    }
-  }, [messages]);
-
-  const handleStartDm = useCallback(async (member: { id: string; name: string }) => {
-    if (!user) return;
-    try {
-      const q = query(
-        collection(db, "channels"),
-        where("audienceType", "==", "private"),
-        where("type", "==", "direct"),
-        where("members", "array-contains", user.uid),
-      );
-      const snap = await getDocs(q);
-      const existing = snap.docs.find((d) => (d.data().members as string[]).includes(member.id));
-      if (existing) {
-        router.push(`/channel/${existing.id}?name=${encodeURIComponent(member.name)}`);
-      } else {
-        const ref = await addDoc(collection(db, "channels"), {
-          name: member.name,
-          audienceType: "private",
-          type: "direct",
-          members: [user.uid, member.id],
-          createdBy: user.uid,
-          createdAt: serverTimestamp(),
-          lastMessage: "",
+  const handleScrollToMessage = useCallback(
+    (messageId: string) => {
+      const index = messages.findIndex((m) => m._id === messageId);
+      if (index === -1) return;
+      try {
+        flatListRef.current?.scrollToIndex({ index, animated: true });
+      } catch {
+        flatListRef.current?.scrollToOffset({
+          offset: index * 80,
+          animated: true,
         });
-        router.push(`/channel/${ref.id}?name=${encodeURIComponent(member.name)}`);
       }
-    } catch {
-      showToast("Impossible d'ouvrir la conversation", "error");
-    }
-  }, [user]);
+    },
+    [messages],
+  );
+
+  const handleStartDm = useCallback(
+    async (member: { id: string; name: string }) => {
+      if (!user) return;
+      try {
+        const q = query(
+          collection(db, "channels"),
+          where("audienceType", "==", "private"),
+          where("type", "==", "direct"),
+          where("members", "array-contains", user.uid),
+        );
+        const snap = await getDocs(q);
+        const existing = snap.docs.find((d) =>
+          (d.data().members as string[]).includes(member.id),
+        );
+        if (existing) {
+          router.push(
+            `/channel/${existing.id}?name=${encodeURIComponent(member.name)}`,
+          );
+        } else {
+          const ref = await addDoc(collection(db, "channels"), {
+            name: member.name,
+            audienceType: "private",
+            type: "direct",
+            members: [user.uid, member.id],
+            createdBy: user.uid,
+            createdAt: serverTimestamp(),
+            lastMessage: "",
+          });
+          router.push(
+            `/channel/${ref.id}?name=${encodeURIComponent(member.name)}`,
+          );
+        }
+      } catch {
+        showToast("Impossible d'ouvrir la conversation", "error");
+      }
+    },
+    [user],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: colors.chatBackground }]}>
+    <SafeAreaView
+      edges={["bottom"]}
+      style={[styles.root, { backgroundColor: colors.chatBackground }]}
+    >
       {/* Custom header */}
-      <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight, paddingTop: insets.top, height: 62 + insets.top }]}>
+      <View
+        style={[
+          styles.customHeader,
+          {
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.borderLight,
+            paddingTop: insets.top,
+            height: 62 + insets.top,
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1169,20 +1434,35 @@ export default function ChannelScreen() {
           onPress={() => setInfoPanelVisible(true)}
           activeOpacity={0.75}
         >
-          <View style={[styles.headerAvatar, { backgroundColor: channelColor + "22" }]}>
+          <View
+            style={[
+              styles.headerAvatar,
+              { backgroundColor: channelColor + "22" },
+            ]}
+          >
             <Text style={[styles.headerAvatarText, { color: channelColor }]}>
               {channelInitials}
             </Text>
           </View>
           <View style={styles.headerTitleGroup}>
-            <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+            <Text
+              style={[styles.headerTitle, { color: colors.textPrimary }]}
+              numberOfLines={1}
+            >
               {name ?? "Canal"}
             </Text>
-            <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
+            <Text
+              style={[styles.headerSubtitle, { color: colors.textTertiary }]}
+            >
               {isDirectMessage ? "Message direct" : "Canal de discussion"}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginRight: 4 }} />
+          <Ionicons
+            name="chevron-forward"
+            size={14}
+            color={colors.textTertiary}
+            style={{ marginRight: 4 }}
+          />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -1200,8 +1480,21 @@ export default function ChannelScreen() {
 
       {/* Search bar */}
       {searchActive && (
-        <View style={[styles.searchBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <Ionicons name="search" size={18} color={colors.textTertiary} style={{ marginLeft: 12 }} />
+        <View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: colors.surface,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <Ionicons
+            name="search"
+            size={18}
+            color={colors.textTertiary}
+            style={{ marginLeft: 12 }}
+          />
           <TextInput
             ref={searchInputRef}
             style={[styles.searchInput, { color: colors.textPrimary }]}
@@ -1224,11 +1517,23 @@ export default function ChannelScreen() {
           )}
           {searchMatches.length > 1 && (
             <>
-              <TouchableOpacity onPress={handleSearchPrev} style={styles.searchNavBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+              <TouchableOpacity
+                onPress={handleSearchPrev}
+                style={styles.searchNavBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              >
                 <Ionicons name="chevron-up" size={20} color={colors.primary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleSearchNext} style={styles.searchNavBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                <Ionicons name="chevron-down" size={20} color={colors.primary} />
+              <TouchableOpacity
+                onPress={handleSearchNext}
+                style={styles.searchNavBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              >
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={colors.primary}
+                />
               </TouchableOpacity>
             </>
           )}
@@ -1237,9 +1542,19 @@ export default function ChannelScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex1}
-        behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : Platform.OS === "android"
+              ? "height"
+              : undefined
+        }
         enabled={Platform.OS !== "web"}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 0, default: 0 })}
+        keyboardVerticalOffset={Platform.select({
+          ios: 0,
+          android: 0,
+          default: 0,
+        })}
       >
         {loading ? (
           <View style={styles.centered}>
@@ -1270,19 +1585,45 @@ export default function ChannelScreen() {
               });
             }}
             ListEmptyComponent={
-              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 64 }}>
-                <Ionicons name="chatbubbles-outline" size={52} color={colors.textTertiary} />
-                <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: "600", marginTop: 14 }}>
+              <View
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingVertical: 64,
+                }}
+              >
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={52}
+                  color={colors.textTertiary}
+                />
+                <Text
+                  style={{
+                    color: colors.textSecondary,
+                    fontSize: 16,
+                    fontWeight: "600",
+                    marginTop: 14,
+                  }}
+                >
                   Commencez la conversation
                 </Text>
-                <Text style={{ color: colors.textTertiary, fontSize: 13, marginTop: 4 }}>
+                <Text
+                  style={{
+                    color: colors.textTertiary,
+                    fontSize: 13,
+                    marginTop: 4,
+                  }}
+                >
                   Envoyez le premier message !
                 </Text>
               </View>
             }
             ListFooterComponent={
               loadingMore ? (
-                <ActivityIndicator color={colors.primary} style={{ padding: 16 }} />
+                <ActivityIndicator
+                  color={colors.primary}
+                  style={{ padding: 16 }}
+                />
               ) : null
             }
             ListHeaderComponent={
@@ -1303,6 +1644,7 @@ export default function ChannelScreen() {
           onOpenGallery={handleOpenGallery}
           onOpenPoll={handleOpenPoll}
           onOpenDocument={handleOpenDocument}
+          onOpenVideo={handleOpenVideo}
           onCancelReply={handleCancelReply}
           sending={sending}
           onTyping={handleTyping}
@@ -1339,6 +1681,63 @@ export default function ChannelScreen() {
                 <Text style={styles.imageDownloadText}>Enregistrer</Text>
               </TouchableOpacity>
             </>
+          )}
+        </View>
+      </Modal>
+
+      {/* Video fullscreen viewer */}
+      <Modal
+        visible={!!selectedVideo}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseVideoModal}
+        statusBarTranslucent
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "#000",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <TouchableOpacity
+            style={styles.imageModalClose}
+            onPress={handleCloseVideoModal}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close-circle" size={34} color="#FFF" />
+          </TouchableOpacity>
+          {selectedVideo && (
+            Platform.OS === "web" ? (
+              // @ts-ignore — HTML elements are valid in React Native Web
+              <video
+                ref={(el: HTMLVideoElement | null) => { webVideoRef.current = el; }}
+                src={selectedVideo}
+                controls
+                autoPlay
+                onLoadedMetadata={(e: any) => {
+                  e.target.currentTime = videoStartPosition / 1000;
+                }}
+                style={{
+                  width: "100%",
+                  maxWidth: "100vw",
+                  maxHeight: "75vh",
+                  objectFit: "contain",
+                  display: "block",
+                } as any}
+              />
+            ) : (
+              <Video
+                ref={modalVideoRef}
+                source={{ uri: selectedVideo }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+                positionMillis={videoStartPosition}
+                style={{ width: windowWidth, height: windowHeight * 0.75 }}
+              />
+            )
           )}
         </View>
       </Modal>
@@ -1385,7 +1784,9 @@ export default function ChannelScreen() {
             style={[styles.infoPanelSheet, { backgroundColor: colors.surface }]}
             onStartShouldSetResponder={() => true}
           >
-            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -1394,36 +1795,79 @@ export default function ChannelScreen() {
             >
               {/* Avatar + name */}
               <View style={styles.infoPanelHeader}>
-                <View style={[styles.infoPanelAvatar, { backgroundColor: channelColor + "22" }]}>
-                  <Text style={[styles.infoPanelAvatarText, { color: channelColor }]}>
+                <View
+                  style={[
+                    styles.infoPanelAvatar,
+                    { backgroundColor: channelColor + "22" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.infoPanelAvatarText,
+                      { color: channelColor },
+                    ]}
+                  >
                     {channelInitials}
                   </Text>
                 </View>
-                <Text style={[styles.infoPanelTitle, { color: colors.textPrimary }]}>
+                <Text
+                  style={[styles.infoPanelTitle, { color: colors.textPrimary }]}
+                >
                   {name ?? "Canal"}
                 </Text>
                 {isDirectMessage ? (
-                  <Text style={[styles.infoPanelBadge, { color: colors.primary, backgroundColor: colors.primaryTint }]}>
+                  <Text
+                    style={[
+                      styles.infoPanelBadge,
+                      {
+                        color: colors.primary,
+                        backgroundColor: colors.primaryTint,
+                      },
+                    ]}
+                  >
                     Message direct
                   </Text>
                 ) : (
-                  <Text style={[styles.infoPanelBadge, { color: colors.textSecondary, backgroundColor: colors.surfaceDim }]}>
+                  <Text
+                    style={[
+                      styles.infoPanelBadge,
+                      {
+                        color: colors.textSecondary,
+                        backgroundColor: colors.surfaceDim,
+                      },
+                    ]}
+                  >
                     {channelDoc?.audienceType === "public"
                       ? "Public"
                       : channelDoc?.audienceType === "roles"
-                      ? "Par rôle"
-                      : "Privé"}
+                        ? "Par rôle"
+                        : "Privé"}
                   </Text>
                 )}
               </View>
 
               {/* Description */}
               {channelDoc?.description ? (
-                <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
-                  <Text style={[styles.infoPanelSectionTitle, { color: colors.textSecondary }]}>
+                <View
+                  style={[
+                    styles.infoPanelSection,
+                    { borderColor: colors.borderLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.infoPanelSectionTitle,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     Description
                   </Text>
-                  <Text style={[styles.infoPanelDesc, { color: colors.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.infoPanelDesc,
+                      { color: colors.textPrimary },
+                    ]}
+                  >
                     {channelDoc.description}
                   </Text>
                 </View>
@@ -1431,9 +1875,21 @@ export default function ChannelScreen() {
 
               {/* Members — tappable → start DM */}
               {channelMembersData.length > 0 && (
-                <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
-                  <Text style={[styles.infoPanelSectionTitle, { color: colors.textSecondary }]}>
-                    {isDirectMessage ? "Participants" : `Membres (${channelMembersData.length})`}
+                <View
+                  style={[
+                    styles.infoPanelSection,
+                    { borderColor: colors.borderLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.infoPanelSectionTitle,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {isDirectMessage
+                      ? "Participants"
+                      : `Membres (${channelMembersData.length})`}
                   </Text>
                   {channelMembersData.map((m) => {
                     const fullName =
@@ -1447,27 +1903,60 @@ export default function ChannelScreen() {
                         style={styles.infoPanelMemberRow}
                         onPress={() =>
                           !isMe &&
-                          handleOpenDMWithMember(m.id, fullName, m.avatarPreset ?? null)
+                          handleOpenDMWithMember(
+                            m.id,
+                            fullName,
+                            m.avatarPreset ?? null,
+                          )
                         }
                         activeOpacity={isMe ? 1 : 0.7}
                       >
-                        <View style={[styles.infoPanelMemberAvatar, { backgroundColor: channelColor + "22" }]}>
-                          <Text style={[styles.infoPanelMemberInitials, { color: channelColor }]}>
-                            {fullName.split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("")}
+                        <View
+                          style={[
+                            styles.infoPanelMemberAvatar,
+                            { backgroundColor: channelColor + "22" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.infoPanelMemberInitials,
+                              { color: channelColor },
+                            ]}
+                          >
+                            {fullName
+                              .split(" ")
+                              .slice(0, 2)
+                              .map((w: string) => w[0]?.toUpperCase() ?? "")
+                              .join("")}
                           </Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.infoPanelMemberName, { color: colors.textPrimary }]}>
-                            {fullName}{isMe ? " (vous)" : ""}
+                          <Text
+                            style={[
+                              styles.infoPanelMemberName,
+                              { color: colors.textPrimary },
+                            ]}
+                          >
+                            {fullName}
+                            {isMe ? " (vous)" : ""}
                           </Text>
                           {m.role ? (
-                            <Text style={[styles.infoPanelMemberRole, { color: colors.textTertiary }]}>
+                            <Text
+                              style={[
+                                styles.infoPanelMemberRole,
+                                { color: colors.textTertiary },
+                              ]}
+                            >
                               {m.role}
                             </Text>
                           ) : null}
                         </View>
                         {!isMe && (
-                          <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+                          <Ionicons
+                            name="chatbubble-outline"
+                            size={16}
+                            color={colors.primary}
+                          />
                         )}
                       </TouchableOpacity>
                     );
@@ -1476,29 +1965,55 @@ export default function ChannelScreen() {
               )}
 
               {/* ── Médias & Liens : tabs ──────────────────────────────────────── */}
-              <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
+              <View
+                style={[
+                  styles.infoPanelSection,
+                  { borderColor: colors.borderLight },
+                ]}
+              >
                 {/* Tab bar */}
-                <View style={[styles.mediaTabs, { borderColor: colors.borderLight }]}>
+                <View
+                  style={[
+                    styles.mediaTabs,
+                    { borderColor: colors.borderLight },
+                  ]}
+                >
                   {(["images", "fichiers", "liens"] as const).map((tab) => {
                     const count =
                       tab === "images"
-                        ? allImages.length
+                        ? allMedia.length
                         : tab === "fichiers"
-                        ? allFilesAndAudio.length
-                        : allLinks.length;
+                          ? allFilesAndAudio.length
+                          : allLinks.length;
                     const label =
-                      tab === "images" ? "Images" : tab === "fichiers" ? "Fichiers" : "Liens";
+                      tab === "images"
+                        ? "Médias"
+                        : tab === "fichiers"
+                          ? "Fichiers"
+                          : "Liens";
                     const active = mediaTab === tab;
                     return (
                       <TouchableOpacity
                         key={tab}
                         style={[
                           styles.mediaTabBtn,
-                          active && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+                          active && {
+                            borderBottomColor: colors.primary,
+                            borderBottomWidth: 2,
+                          },
                         ]}
                         onPress={() => setMediaTab(tab)}
                       >
-                        <Text style={[styles.mediaTabText, { color: active ? colors.primary : colors.textSecondary }]}>
+                        <Text
+                          style={[
+                            styles.mediaTabText,
+                            {
+                              color: active
+                                ? colors.primary
+                                : colors.textSecondary,
+                            },
+                          ]}
+                        >
                           {label}
                           {!mediaLoading && count > 0 ? ` (${count})` : ""}
                         </Text>
@@ -1508,42 +2023,90 @@ export default function ChannelScreen() {
                 </View>
 
                 {mediaLoading ? (
-                  <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+                  <ActivityIndicator
+                    color={colors.primary}
+                    style={{ marginVertical: 20 }}
+                  />
                 ) : (
                   <>
-                    {/* Images */}
-                    {mediaTab === "images" && (
-                      allImages.length === 0 ? (
-                        <Text style={[styles.mediaEmptyText, { color: colors.textTertiary }]}>
-                          Aucune image
+                    {/* Médias (images + vidéos) */}
+                    {mediaTab === "images" &&
+                      (allMedia.length === 0 ? (
+                        <Text
+                          style={[
+                            styles.mediaEmptyText,
+                            { color: colors.textTertiary },
+                          ]}
+                        >
+                          Aucun média
                         </Text>
                       ) : (
                         <View style={styles.mediaGrid}>
-                          {allImages.map((m) => (
+                          {allMedia.map((m) => (
                             <View key={m._id} style={styles.mediaThumbWrap}>
                               <TouchableOpacity
-                                onPress={() => { setInfoPanelVisible(false); setSelectedImage(m.image!); }}
+                                onPress={() => {
+                                  setInfoPanelVisible(false);
+                                  if (m.image) setSelectedImage(m.image);
+                                  else if (m.video) setSelectedVideo(m.video);
+                                  else handleGoToMessage(m._id);
+                                }}
                                 activeOpacity={0.85}
                               >
-                                <Image source={{ uri: m.image! }} style={styles.mediaThumb} />
+                                {m.image ? (
+                                  <Image
+                                    source={{ uri: m.image }}
+                                    style={styles.mediaThumb}
+                                  />
+                                ) : (
+                                  <View
+                                    style={[
+                                      styles.mediaThumb,
+                                      {
+                                        backgroundColor: "#111",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                      },
+                                    ]}
+                                  >
+                                    <Ionicons
+                                      name="play-circle"
+                                      size={32}
+                                      color="#FFF"
+                                    />
+                                  </View>
+                                )}
                               </TouchableOpacity>
                               <TouchableOpacity
                                 style={styles.mediaGoBtn}
                                 onPress={() => handleGoToMessage(m._id)}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                hitSlop={{
+                                  top: 6,
+                                  bottom: 6,
+                                  left: 6,
+                                  right: 6,
+                                }}
                               >
-                                <Ionicons name="navigate" size={11} color="#FFF" />
+                                <Ionicons
+                                  name="navigate"
+                                  size={11}
+                                  color="#FFF"
+                                />
                               </TouchableOpacity>
                             </View>
                           ))}
                         </View>
-                      )
-                    )}
+                      ))}
 
                     {/* Fichiers + Audio */}
-                    {mediaTab === "fichiers" && (
-                      allFilesAndAudio.length === 0 ? (
-                        <Text style={[styles.mediaEmptyText, { color: colors.textTertiary }]}>
+                    {mediaTab === "fichiers" &&
+                      (allFilesAndAudio.length === 0 ? (
+                        <Text
+                          style={[
+                            styles.mediaEmptyText,
+                            { color: colors.textTertiary },
+                          ]}
+                        >
                           Aucun fichier
                         </Text>
                       ) : (
@@ -1553,63 +2116,124 @@ export default function ChannelScreen() {
                           const fileUri = m.file?.uri ?? m.audio!;
                           const fileSize = m.file?.size;
                           return (
-                            <View key={m._id} style={[styles.fileRow, { borderColor: colors.borderLight }]}>
+                            <View
+                              key={m._id}
+                              style={[
+                                styles.fileRow,
+                                { borderColor: colors.borderLight },
+                              ]}
+                            >
                               <Ionicons
-                                name={isAudio ? "musical-note-outline" : "document-outline"}
+                                name={
+                                  isAudio
+                                    ? "musical-note-outline"
+                                    : "document-outline"
+                                }
                                 size={22}
                                 color={colors.primary}
                               />
                               <View style={{ flex: 1, minWidth: 0 }}>
                                 <Text
                                   numberOfLines={1}
-                                  style={[styles.fileName, { color: colors.textPrimary }]}
+                                  style={[
+                                    styles.fileName,
+                                    { color: colors.textPrimary },
+                                  ]}
                                 >
                                   {fileName}
                                 </Text>
                                 {fileSize != null && (
-                                  <Text style={[styles.fileSize, { color: colors.textTertiary }]}>
+                                  <Text
+                                    style={[
+                                      styles.fileSize,
+                                      { color: colors.textTertiary },
+                                    ]}
+                                  >
                                     {formatSize(fileSize)}
                                   </Text>
                                 )}
                               </View>
                               <TouchableOpacity
-                                onPress={() => handleFileDownload(fileUri, fileName)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                onPress={() =>
+                                  handleFileDownload(fileUri, fileName)
+                                }
+                                hitSlop={{
+                                  top: 8,
+                                  bottom: 8,
+                                  left: 8,
+                                  right: 8,
+                                }}
                                 style={{ marginLeft: 6 }}
                               >
-                                <Ionicons name="download-outline" size={20} color={colors.primary} />
+                                <Ionicons
+                                  name="download-outline"
+                                  size={20}
+                                  color={colors.primary}
+                                />
                               </TouchableOpacity>
                               <TouchableOpacity
                                 onPress={() => handleGoToMessage(m._id)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                hitSlop={{
+                                  top: 8,
+                                  bottom: 8,
+                                  left: 8,
+                                  right: 8,
+                                }}
                                 style={{ marginLeft: 6 }}
                               >
-                                <Ionicons name="navigate-outline" size={20} color={colors.textSecondary} />
+                                <Ionicons
+                                  name="navigate-outline"
+                                  size={20}
+                                  color={colors.textSecondary}
+                                />
                               </TouchableOpacity>
                             </View>
                           );
                         })
-                      )
-                    )}
+                      ))}
 
                     {/* Liens */}
-                    {mediaTab === "liens" && (
-                      allLinks.length === 0 ? (
-                        <Text style={[styles.mediaEmptyText, { color: colors.textTertiary }]}>
+                    {mediaTab === "liens" &&
+                      (allLinks.length === 0 ? (
+                        <Text
+                          style={[
+                            styles.mediaEmptyText,
+                            { color: colors.textTertiary },
+                          ]}
+                        >
                           Aucun lien
                         </Text>
                       ) : (
                         allLinks.map((link, i) => (
-                          <View key={`${link.messageId}-${i}`} style={[styles.linkRow, { borderColor: colors.borderLight }]}>
-                            <Ionicons name="link-outline" size={18} color={colors.primary} style={{ flexShrink: 0 }} />
+                          <View
+                            key={`${link.messageId}-${i}`}
+                            style={[
+                              styles.linkRow,
+                              { borderColor: colors.borderLight },
+                            ]}
+                          >
+                            <Ionicons
+                              name="link-outline"
+                              size={18}
+                              color={colors.primary}
+                              style={{ flexShrink: 0 }}
+                            />
                             <View style={{ flex: 1, minWidth: 0 }}>
                               <Text
                                 numberOfLines={2}
-                                style={[styles.linkUrl, { color: colors.primary }]}
+                                style={[
+                                  styles.linkUrl,
+                                  { color: colors.primary },
+                                ]}
                               >
                                 {link.url}
                               </Text>
-                              <Text style={[styles.fileSize, { color: colors.textTertiary }]}>
+                              <Text
+                                style={[
+                                  styles.fileSize,
+                                  { color: colors.textTertiary },
+                                ]}
+                              >
                                 {link.senderName}
                               </Text>
                             </View>
@@ -1618,31 +2242,51 @@ export default function ChannelScreen() {
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               style={{ marginLeft: 6 }}
                             >
-                              <Ionicons name="open-outline" size={20} color={colors.primary} />
+                              <Ionicons
+                                name="open-outline"
+                                size={20}
+                                color={colors.primary}
+                              />
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => handleGoToMessage(link.messageId)}
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               style={{ marginLeft: 6 }}
                             >
-                              <Ionicons name="navigate-outline" size={20} color={colors.textSecondary} />
+                              <Ionicons
+                                name="navigate-outline"
+                                size={20}
+                                color={colors.textSecondary}
+                              />
                             </TouchableOpacity>
                           </View>
                         ))
-                      )
-                    )}
+                      ))}
                   </>
                 )}
               </View>
 
               {/* Sondages */}
               {pollMessages.length > 0 && (
-                <View style={[styles.infoPanelSection, { borderColor: colors.borderLight }]}>
-                  <Text style={[styles.infoPanelSectionTitle, { color: colors.textSecondary }]}>
+                <View
+                  style={[
+                    styles.infoPanelSection,
+                    { borderColor: colors.borderLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.infoPanelSectionTitle,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     Sondages ({pollMessages.length})
                   </Text>
                   {pollMessages.map((m) => {
-                    const totalVotes = m.poll!.options.reduce((acc, o) => acc + o.voters.length, 0);
+                    const totalVotes = m.poll!.options.reduce(
+                      (acc, o) => acc + o.voters.length,
+                      0,
+                    );
                     return (
                       <TouchableOpacity
                         key={m._id}
@@ -1650,16 +2294,37 @@ export default function ChannelScreen() {
                         onPress={() => handleGoToMessage(m._id)}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="bar-chart-outline" size={16} color={colors.primary} style={{ marginTop: 2 }} />
+                        <Ionicons
+                          name="bar-chart-outline"
+                          size={16}
+                          color={colors.primary}
+                          style={{ marginTop: 2 }}
+                        />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.infoPanelPollQuestion, { color: colors.textPrimary }]} numberOfLines={2}>
+                          <Text
+                            style={[
+                              styles.infoPanelPollQuestion,
+                              { color: colors.textPrimary },
+                            ]}
+                            numberOfLines={2}
+                          >
                             {m.poll!.question}
                           </Text>
-                          <Text style={[styles.infoPanelMemberRole, { color: colors.textTertiary }]}>
-                            {m.poll!.options.length} options · {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+                          <Text
+                            style={[
+                              styles.infoPanelMemberRole,
+                              { color: colors.textTertiary },
+                            ]}
+                          >
+                            {m.poll!.options.length} options · {totalVotes} vote
+                            {totalVotes !== 1 ? "s" : ""}
                           </Text>
                         </View>
-                        <Ionicons name="navigate-outline" size={16} color={colors.textSecondary} />
+                        <Ionicons
+                          name="navigate-outline"
+                          size={16}
+                          color={colors.textSecondary}
+                        />
                       </TouchableOpacity>
                     );
                   })}
@@ -1668,10 +2333,21 @@ export default function ChannelScreen() {
 
               {/* Close */}
               <TouchableOpacity
-                style={[styles.infoPanelClose, { backgroundColor: colors.surfaceDim, borderColor: colors.border }]}
+                style={[
+                  styles.infoPanelClose,
+                  {
+                    backgroundColor: colors.surfaceDim,
+                    borderColor: colors.border,
+                  },
+                ]}
                 onPress={() => setInfoPanelVisible(false)}
               >
-                <Text style={[styles.infoPanelCloseText, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.infoPanelCloseText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Fermer
                 </Text>
               </TouchableOpacity>
@@ -1688,14 +2364,21 @@ export default function ChannelScreen() {
         onRequestClose={() => setPollModalVisible(false)}
       >
         <View style={styles.sheet}>
-          <View style={[styles.sheetContent, { backgroundColor: colors.surface }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+          <View
+            style={[styles.sheetContent, { backgroundColor: colors.surface }]}
+          >
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
             <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
               Créer un sondage
             </Text>
 
             <TextInput
-              style={[styles.pollInput, { borderColor: colors.border, color: colors.textPrimary }]}
+              style={[
+                styles.pollInput,
+                { borderColor: colors.border, color: colors.textPrimary },
+              ]}
               placeholder="Votre question ?"
               placeholderTextColor={colors.textTertiary}
               value={pollQuestion}
@@ -1707,7 +2390,12 @@ export default function ChannelScreen() {
                 <TextInput
                   style={[
                     styles.pollInput,
-                    { flex: 1, marginBottom: 0, borderColor: colors.border, color: colors.textPrimary },
+                    {
+                      flex: 1,
+                      marginBottom: 0,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
                   ]}
                   placeholder={`Option ${i + 1}`}
                   placeholderTextColor={colors.textTertiary}
@@ -1720,7 +2408,9 @@ export default function ChannelScreen() {
                 />
                 {pollOptions.length > 2 && (
                   <TouchableOpacity
-                    onPress={() => setPollOptions(pollOptions.filter((_, j) => j !== i))}
+                    onPress={() =>
+                      setPollOptions(pollOptions.filter((_, j) => j !== i))
+                    }
                     style={styles.pollRemoveBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
@@ -1733,7 +2423,10 @@ export default function ChannelScreen() {
             {pollOptions.length < 6 && (
               <TouchableOpacity
                 onPress={() => setPollOptions([...pollOptions, ""])}
-                style={[styles.addOptionBtn, { backgroundColor: colors.surfaceDim }]}
+                style={[
+                  styles.addOptionBtn,
+                  { backgroundColor: colors.surfaceDim },
+                ]}
               >
                 <Ionicons name="add" size={18} color={colors.primary} />
                 <Text style={[styles.addOptionText, { color: colors.primary }]}>
@@ -1747,11 +2440,18 @@ export default function ChannelScreen() {
                 onPress={() => setPollModalVisible(false)}
                 style={styles.pollCancelBtn}
               >
-                <Text style={{ color: colors.textSecondary, fontWeight: "600" }}>Annuler</Text>
+                <Text
+                  style={{ color: colors.textSecondary, fontWeight: "600" }}
+                >
+                  Annuler
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSubmitPoll}
-                style={[styles.pollSubmitBtn, { backgroundColor: colors.primary }]}
+                style={[
+                  styles.pollSubmitBtn,
+                  { backgroundColor: colors.primary },
+                ]}
               >
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Créer</Text>
               </TouchableOpacity>
@@ -1759,7 +2459,6 @@ export default function ChannelScreen() {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -1872,10 +2571,18 @@ const getStyles = (colors: any, tokens: any) =>
       paddingVertical: 11,
       borderRadius: 22,
     },
-    imageDownloadText: { color: "#FFF", fontWeight: "600", fontSize: tokens.font.base },
+    imageDownloadText: {
+      color: "#FFF",
+      fontWeight: "600",
+      fontSize: tokens.font.base,
+    },
 
     // Bottom sheet (poll)
-    sheet: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+    sheet: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.5)",
+    },
     sheetContent: {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
