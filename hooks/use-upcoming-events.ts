@@ -12,6 +12,7 @@ import { CalendarItem, eventFromFirestore } from "@/types/models";
 
 export function useUpcomingEvents(maxCount = 4) {
   const [events, setEvents] = useState<CalendarItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +31,9 @@ export function useUpcomingEvents(maxCount = 4) {
         todayStart.setHours(0, 0, 0, 0);
         const upcoming = snap.docs
           .map(eventFromFirestore)
-          .filter((e) => (e.dateObj ?? new Date(0)) >= todayStart)
-          .slice(0, maxCount);
-        setEvents(upcoming);
+          .filter((e) => (e.dateObj ?? new Date(0)) >= todayStart);
+        setTotalCount(upcoming.length);
+        setEvents(upcoming.slice(0, maxCount));
         setLoading(false);
       },
       (err) => {
@@ -44,5 +45,5 @@ export function useUpcomingEvents(maxCount = 4) {
     return unsub;
   }, [maxCount]);
 
-  return { events, loading };
+  return { events, totalCount, loading };
 }

@@ -14,6 +14,8 @@ import MessageBubble from "@/components/chat/MessageBubble";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import type { ChatMessage, FileData, PollData, ReplyInfo } from "@/components/chat/types";
 import { sendExpoPush } from "@/hooks/use-push-notifications";
+import { useReadState } from "@/hooks/use-read-state";
+import { useWriteReadReceipt } from "@/hooks/use-read-receipts";
 import { router, useLocalSearchParams } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
@@ -71,7 +73,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { db } from "../../firebaseConfig";
 
@@ -126,11 +128,13 @@ async function notifyChannelMembers(
   const stale = (
     await Promise.all(
       [...tokenMap.keys()].map((token) =>
-        sendExpoPush(token, channelName, `${senderName} : ${preview}`, {
-          type: "message",
-          channelId,
+        sendExpoPush(
+          token,
           channelName,
-        }),
+          `${senderName} : ${preview}`,
+          { type: "message", channelId, channelName },
+          "message-actions",
+        ),
       ),
     )
   ).flat();
@@ -154,7 +158,11 @@ export default function ChannelScreen() {
   const { id, name, isDM } = useLocalSearchParams<{ id: string; name: string; isDM?: string }>();
   const isDirectMessage = isDM === "1";
   const { colors, tokens } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
+
+  useReadState(id, "channel");
+  useWriteReadReceipt(id);
 
   // ── Channel color + initials (consistent with chat list) ─────────────────
   const channelPalette = [colors.primary, colors.accent1, colors.accent2, colors.accent3, colors.accent4];
@@ -1144,9 +1152,9 @@ export default function ChannelScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: colors.chatBackground }]}>
+    <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: colors.chatBackground }]}>
       {/* Custom header */}
-      <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight }]}>
+      <View style={[styles.customHeader, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight, paddingTop: insets.top, height: 62 + insets.top }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

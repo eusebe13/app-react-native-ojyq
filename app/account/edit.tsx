@@ -324,7 +324,11 @@ export default function EditProfile() {
               // @ts-ignore – web-only: direct click opens browser picker
               <input
                 type="date"
-                value={toDateInputValue(formData.birthDate instanceof Date ? formData.birthDate : new Date())}
+                value={
+                  formData.birthDate instanceof Date
+                    ? toDateInputValue(formData.birthDate)
+                    : ""
+                }
                 max={toDateInputValue(new Date())}
                 min="1920-01-01"
                 onChange={(e: any) => {
@@ -332,6 +336,7 @@ export default function EditProfile() {
                   const [y, m, d] = e.target.value.split("-").map(Number);
                   handleDateChange(null, new Date(y, m - 1, d));
                 }}
+                onMouseDown={(e: any) => e.stopPropagation()}
                 style={{
                   width: "100%", height: "45px",
                   border: `1px solid ${colors.border}`,

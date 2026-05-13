@@ -43,6 +43,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import { computeIsUnread, useUnread } from "../../contexts/UnreadContext";
 import { db } from "../../firebaseConfig";
 import { Channel, channelFromFirestore } from "../../types/models";
 
@@ -468,6 +469,8 @@ export default function ChatListScreen(): ReactElement {
     return ch.name.toLowerCase().includes(q);
   });
 
+  const { readsMap } = useUnread();
+
   const styles = getStyles(colors, tokens);
 
   // ── Swipe-down to dismiss modal ───────────────────────────────────────────
@@ -501,7 +504,9 @@ export default function ChatListScreen(): ReactElement {
 
       const initials = channelInitials(displayName);
       const time = relativeTime(item.lastMessageAt);
-      const hasUnread = (item.unreadCount ?? 0) > 0;
+      const lastActivity = item.lastMessageAt?.toDate?.() ?? null;
+      const lastRead = readsMap[item.id]?.lastReadAt ?? null;
+      const hasUnread = computeIsUnread(lastActivity, lastRead);
 
       let AudienceIcon = null;
       if (isDirect)
@@ -620,11 +625,7 @@ export default function ChatListScreen(): ReactElement {
 
             {/* Right: unread dot badge or nothing */}
             {hasUnread ? (
-              <View style={[styles.badge, { backgroundColor: chColor }]}>
-                <Text style={styles.badgeText}>
-                  {item.unreadCount! > 99 ? "99+" : item.unreadCount}
-                </Text>
-              </View>
+              <View style={[styles.badge, { backgroundColor: chColor, minWidth: 10, height: 10, borderRadius: 5 }]} />
             ) : (
               !Platform.OS.startsWith("web") && (
                 <Ionicons
@@ -653,11 +654,12 @@ export default function ChatListScreen(): ReactElement {
         </View>
       );
     },
-    [colors, tokens, navigateToChannel, handleLongPress, currentUser],
+    [colors, tokens, navigateToChannel, handleLongPress, currentUser, readsMap],
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
+
       <Header
         title="Discussions"
         titleIcon="message-text-outline"

@@ -196,69 +196,90 @@ export function EventFormModal({
           <View style={{ flexDirection: "row", width: "100%", justifyContent: "space-between" }}>
             <View style={{ flex: 1, marginRight: 10 }}>
               <Text style={labelStyle}>Date</Text>
-              <TouchableOpacity
-                style={{
-                  width: "100%",
-                  height: 45,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  paddingHorizontal: 10,
-                  marginBottom: 15,
-                  backgroundColor: colors.surface,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-                onPress={openDatePicker}
-              >
-                <Text style={{ color: colors.textPrimary }}>
-                  {date.toLocaleDateString("fr-FR")}
-                </Text>
-                <Ionicons name="calendar-outline" size={18} color="#666" />
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "inline" : "default"}
-                  onChange={onChangeDate}
-                  minimumDate={new Date()}
+              {Platform.OS === "web" ? (
+                // @ts-ignore – web-only
+                <input
+                  type="date"
+                  value={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`}
+                  min={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`}
+                  onChange={(e: any) => {
+                    if (!e.target.value) return;
+                    const [y, m, d] = e.target.value.split("-").map(Number);
+                    const next = new Date(date);
+                    next.setFullYear(y); next.setMonth(m - 1); next.setDate(d);
+                    setDate(next);
+                  }}
+                  onMouseDown={(e: any) => e.stopPropagation()}
+                  style={{
+                    width: "100%", height: "45px",
+                    borderColor: colors.border, borderWidth: "1px", borderStyle: "solid",
+                    borderRadius: "8px", paddingLeft: "10px", marginBottom: "15px",
+                    backgroundColor: colors.surface, color: colors.textPrimary,
+                    fontSize: "14px", cursor: "pointer", outline: "none",
+                    boxSizing: "border-box",
+                  }}
                 />
+              ) : (
+                <TouchableOpacity
+                  style={{
+                    width: "100%", height: 45,
+                    borderColor: showDatePicker ? colors.primary : colors.border,
+                    borderWidth: showDatePicker ? 2 : 1,
+                    borderRadius: 8, paddingHorizontal: 10, marginBottom: 15,
+                    backgroundColor: colors.surface, flexDirection: "row",
+                    alignItems: "center", justifyContent: "space-between",
+                  }}
+                  onPress={() => { setShowTimePicker(false); setShowDatePicker(v => !v); }}
+                >
+                  <Text style={{ color: colors.textPrimary }}>
+                    {date.toLocaleDateString("fr-FR")}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={18} color={showDatePicker ? colors.primary : "#666"} />
+                </TouchableOpacity>
               )}
             </View>
 
             <View style={{ flex: 1 }}>
               <Text style={labelStyle}>Heure</Text>
-              <TouchableOpacity
-                style={{
-                  width: "100%",
-                  height: 45,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  paddingHorizontal: 10,
-                  marginBottom: 15,
-                  backgroundColor: colors.surface,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-                onPress={openTimePicker}
-              >
-                <Text style={{ color: colors.textPrimary }}>
-                  {date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                </Text>
-                <Ionicons name="time-outline" size={18} color="#666" />
-              </TouchableOpacity>
-              {showTimePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="time"
-                  is24Hour={true}
-                  display="spinner"
-                  onChange={onChangeTime}
+              {Platform.OS === "web" ? (
+                // @ts-ignore – web-only
+                <input
+                  type="time"
+                  value={`${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`}
+                  onChange={(e: any) => {
+                    if (!e.target.value) return;
+                    const [h, m] = e.target.value.split(":").map(Number);
+                    const next = new Date(date);
+                    next.setHours(h); next.setMinutes(m);
+                    setDate(next);
+                  }}
+                  onMouseDown={(e: any) => e.stopPropagation()}
+                  style={{
+                    width: "100%", height: "45px",
+                    borderColor: colors.border, borderWidth: "1px", borderStyle: "solid",
+                    borderRadius: "8px", paddingLeft: "10px", marginBottom: "15px",
+                    backgroundColor: colors.surface, color: colors.textPrimary,
+                    fontSize: "14px", cursor: "pointer", outline: "none",
+                    boxSizing: "border-box",
+                  }}
                 />
+              ) : (
+                <TouchableOpacity
+                  style={{
+                    width: "100%", height: 45,
+                    borderColor: showTimePicker ? colors.primary : colors.border,
+                    borderWidth: showTimePicker ? 2 : 1,
+                    borderRadius: 8, paddingHorizontal: 10, marginBottom: 15,
+                    backgroundColor: colors.surface, flexDirection: "row",
+                    alignItems: "center", justifyContent: "space-between",
+                  }}
+                  onPress={() => { setShowDatePicker(false); setShowTimePicker(v => !v); }}
+                >
+                  <Text style={{ color: colors.textPrimary }}>
+                    {date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                  <Ionicons name="time-outline" size={18} color={showTimePicker ? colors.primary : "#666"} />
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -358,6 +379,26 @@ export function EventFormModal({
             </Text>
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Pickers natifs hors du ScrollView — évite les conflits de touch iOS */}
+        {Platform.OS !== "web" && showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={onChangeDate}
+            minimumDate={new Date()}
+          />
+        )}
+        {Platform.OS !== "web" && showTimePicker && (
+          <DateTimePicker
+            value={date}
+            mode="time"
+            is24Hour={true}
+            display="spinner"
+            onChange={onChangeTime}
+          />
+        )}
 
         {/* Boutons */}
         <View

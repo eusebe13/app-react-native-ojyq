@@ -160,50 +160,100 @@ export function AvailabilityModal({ visible, onDismiss, onSave }: Props) {
 
           {/* Heure de début */}
           <Text style={labelStyle}>Heure de début</Text>
-          <TouchableOpacity
-            style={timePickerRow}
-            onPress={() => setShowStartPicker(true)}
-          >
-            <Text style={{ fontSize: 14, color: colors.textPrimary, flex: 1 }}>
-              {startTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-            <Ionicons name="time" size={20} color="#007AFF" />
-          </TouchableOpacity>
-          {showStartPicker && (
-            <DateTimePicker
-              value={startTime}
-              mode="time"
-              display="spinner"
-              onChange={(_: any, t?: Date) => {
-                if (t) setStartTime(t);
-                if (Platform.OS === "android") setShowStartPicker(false);
+          {Platform.OS === "web" ? (
+            // @ts-ignore – web-only
+            <input
+              type="time"
+              value={`${String(startTime.getHours()).padStart(2, "0")}:${String(startTime.getMinutes()).padStart(2, "0")}`}
+              onChange={(e: any) => {
+                if (!e.target.value) return;
+                const [h, m] = e.target.value.split(":").map(Number);
+                const next = new Date(startTime);
+                next.setHours(h); next.setMinutes(m);
+                setStartTime(next);
+              }}
+              onMouseDown={(e: any) => e.stopPropagation()}
+              style={{
+                width: "100%", height: "45px",
+                borderColor: colors.border, borderWidth: "1px", borderStyle: "solid",
+                borderRadius: "8px", paddingLeft: "10px", marginBottom: "15px",
+                backgroundColor: colors.surface, color: colors.textPrimary,
+                fontSize: "14px", cursor: "pointer", outline: "none",
+                boxSizing: "border-box",
               }}
             />
+          ) : (
+            <TouchableOpacity
+              style={{ ...timePickerRow, borderColor: showStartPicker ? colors.primary : colors.border, borderWidth: showStartPicker ? 2 : 1 }}
+              onPress={() => { setShowEndPicker(false); setShowStartPicker(v => !v); }}
+            >
+              <Text style={{ fontSize: 14, color: colors.textPrimary, flex: 1 }}>
+                {startTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </Text>
+              <Ionicons name="time" size={20} color={showStartPicker ? colors.primary : "#007AFF"} />
+            </TouchableOpacity>
           )}
 
           {/* Heure de fin */}
           <Text style={labelStyle}>Heure de fin</Text>
-          <TouchableOpacity
-            style={timePickerRow}
-            onPress={() => setShowEndPicker(true)}
-          >
-            <Text style={{ fontSize: 14, color: colors.textPrimary, flex: 1 }}>
-              {endTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-            <Ionicons name="time" size={20} color="#007AFF" />
-          </TouchableOpacity>
-          {showEndPicker && (
-            <DateTimePicker
-              value={endTime}
-              mode="time"
-              display="spinner"
-              onChange={(_: any, t?: Date) => {
-                if (t) setEndTime(t);
-                if (Platform.OS === "android") setShowEndPicker(false);
+          {Platform.OS === "web" ? (
+            // @ts-ignore – web-only
+            <input
+              type="time"
+              value={`${String(endTime.getHours()).padStart(2, "0")}:${String(endTime.getMinutes()).padStart(2, "0")}`}
+              onChange={(e: any) => {
+                if (!e.target.value) return;
+                const [h, m] = e.target.value.split(":").map(Number);
+                const next = new Date(endTime);
+                next.setHours(h); next.setMinutes(m);
+                setEndTime(next);
+              }}
+              onMouseDown={(e: any) => e.stopPropagation()}
+              style={{
+                width: "100%", height: "45px",
+                borderColor: colors.border, borderWidth: "1px", borderStyle: "solid",
+                borderRadius: "8px", paddingLeft: "10px", marginBottom: "15px",
+                backgroundColor: colors.surface, color: colors.textPrimary,
+                fontSize: "14px", cursor: "pointer", outline: "none",
+                boxSizing: "border-box",
               }}
             />
+          ) : (
+            <TouchableOpacity
+              style={{ ...timePickerRow, borderColor: showEndPicker ? colors.primary : colors.border, borderWidth: showEndPicker ? 2 : 1 }}
+              onPress={() => { setShowStartPicker(false); setShowEndPicker(v => !v); }}
+            >
+              <Text style={{ fontSize: 14, color: colors.textPrimary, flex: 1 }}>
+                {endTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </Text>
+              <Ionicons name="time" size={20} color={showEndPicker ? colors.primary : "#007AFF"} />
+            </TouchableOpacity>
           )}
         </ScrollView>
+
+        {/* Pickers natifs hors du ScrollView — évite les conflits de touch iOS */}
+        {Platform.OS !== "web" && showStartPicker && (
+          <DateTimePicker
+            value={startTime}
+            mode="time"
+            display="spinner"
+            onChange={(_: any, t?: Date) => {
+              if (t) setStartTime(t);
+              if (Platform.OS === "android") setShowStartPicker(false);
+            }}
+          />
+        )}
+        {Platform.OS !== "web" && showEndPicker && (
+          <DateTimePicker
+            value={endTime}
+            mode="time"
+            display="spinner"
+            onChange={(_: any, t?: Date) => {
+              if (t) setEndTime(t);
+              if (Platform.OS === "android") setShowEndPicker(false);
+            }}
+          />
+        )}
 
         {/* Boutons */}
         <View

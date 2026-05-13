@@ -1,9 +1,19 @@
 import { db } from "@/firebaseConfig";
 import useAuth from "@/hooks/use-auth";
+import { getNotificationRoute } from "@/utils/notificationRouting";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
-import { doc, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
@@ -19,19 +29,127 @@ if (Platform.OS !== "web") {
   });
 }
 
-function navigateFromNotification(
-  router: ReturnType<typeof useRouter>,
-  data: Record<string, unknown>
-) {
-  if (data?.type === "message" && data?.channelId) {
-    router.push({
-      pathname: "/channel/[id]",
-      params: { id: data.channelId as string, name: (data.channelName as string) ?? "Canal" },
-    });
-  } else if (data?.type === "task") {
-    router.push("/(tabs)");
+// ─── Interactive notification categories ─────────────────────────────────────
+
+async function registerNotificationCategories(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync("message-actions", [
+    {
+      identifier: "reply",
+      buttonTitle: "Répondre",
+      textInput: {
+        submitButtonTitle: "Envoyer",
+        placeholder: "Répondre...",
+      },
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: "mark-read",
+      buttonTitle: "Marquer lu",
+      options: { opensAppToForeground: true },
+    },
+  ]);
+
+  await Notifications.setNotificationCategoryAsync("event-actions", [
+    {
+      identifier: "going",
+      buttonTitle: "✅ Je participe",
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: "not-going",
+      buttonTitle: "❌ Pas disponible",
+      options: { opensAppToForeground: true },
+    },
+  ]);
+}
+
+// ─── Notification action handler ──────────────────────────────────────────────
+
+async function handleNotificationAction(
+  response: Notifications.NotificationResponse,
+  uid: string,
+): Promise<void> {
+  const { actionIdentifier, userText } = response;
+  const data = response.notification.request.content.data as Record<string, unknown>;
+
+  if (data.type === "message" && typeof data.channelId === "string") {
+    const channelId = data.channelId;
+
+    if (actionIdentifier === "reply" && userText?.trim()) {
+      const userSnap = await getDoc(doc(db, "users", uid));
+      const ud = userSnap.data();
+      const displayName =
+        [ud?.firstName, ud?.lastName].filter(Boolean).join(" ") || "Membre";
+
+      await addDoc(collection(db, "channels", channelId, "messages"), {
+        text: userText.trim(),
+        createdAt: Timestamp.now(),
+        user: { _id: uid, name: displayName, avatar: null },
+        image: null,
+        poll: null,
+        file: null,
+        audio: null,
+        replyTo: null,
+      });
+      await updateDoc(doc(db, "channels", channelId), {
+        lastMessage: userText.trim(),
+        lastMessageAt: Timestamp.now(),
+      });
+      // Mark read since the user just replied
+      await setDoc(
+        doc(db, "users", uid, "reads", channelId),
+        { type: "channel", lastReadAt: serverTimestamp() },
+        { merge: true },
+      );
+      return;
+    }
+
+    if (actionIdentifier === "mark-read") {
+      await Promise.all([
+        setDoc(
+          doc(db, "users", uid, "reads", channelId),
+          { type: "channel", lastReadAt: serverTimestamp() },
+          { merge: true },
+        ),
+        updateDoc(doc(db, "channels", channelId), {
+          [`lastMessageReadBy.${uid}`]: serverTimestamp(),
+        }),
+      ]);
+    }
+  }
+
+  if (data.type === "event" && typeof data.eventId === "string") {
+    const eventId = data.eventId;
+
+    if (actionIdentifier === "going" || actionIdentifier === "not-going") {
+      const userSnap = await getDoc(doc(db, "users", uid));
+      const ud = userSnap.data();
+      const displayName =
+        [ud?.firstName, ud?.lastName].filter(Boolean).join(" ") || "Membre";
+
+      await setDoc(doc(db, "events", eventId, "participants", uid), {
+        userId: uid,
+        userName: displayName,
+        status: actionIdentifier === "going" ? "going" : "not_going",
+        updatedAt: Timestamp.now(),
+      });
+    }
   }
 }
+
+// ─── Navigation helper ────────────────────────────────────────────────────────
+
+function navigateFromNotification(
+  router: ReturnType<typeof useRouter>,
+  data: Record<string, unknown>,
+) {
+  const route = getNotificationRoute(data);
+  if (route) {
+    router.push(route as any);
+  }
+}
+
+// ─── Main hook ────────────────────────────────────────────────────────────────
 
 export function usePushNotifications() {
   const { user } = useAuth();
@@ -39,36 +157,52 @@ export function usePushNotifications() {
   const receivedSub = useRef<Notifications.EventSubscription | null>(null);
   const responseSub = useRef<Notifications.EventSubscription | null>(null);
 
-  // Handle cold start: app was killed and opened via notification tap
-  // Platform.OS is a constant so calling hooks conditionally on it is safe
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const lastResponse = Platform.OS !== "web" ? Notifications.useLastNotificationResponse() : undefined;
+  const lastResponse =
+    Platform.OS !== "web" ? Notifications.useLastNotificationResponse() : undefined;
+
+  // Register interactive categories once on mount
   useEffect(() => {
-    if (!lastResponse) return;
+    if (Platform.OS === "web") return;
+    registerNotificationCategories().catch((e) =>
+      console.warn("[push] category registration failed:", e),
+    );
+  }, []);
+
+  // Handle cold start: app killed → opened via notification tap.
+  // Wait for user to be authenticated before navigating — router isn't ready before auth resolves.
+  useEffect(() => {
+    if (!lastResponse || !user?.uid) return;
+    if (lastResponse.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     const data = lastResponse.notification.request.content.data as Record<string, unknown>;
     navigateFromNotification(router, data);
-  }, [lastResponse, router]);
+  }, [lastResponse, router, user?.uid]);
 
   useEffect(() => {
     if (!user?.uid || Platform.OS === "web") return;
 
     registerForPushNotificationsAsync(user.uid).catch((e) =>
-      console.warn("[push-notifications] registration failed:", e)
+      console.warn("[push-notifications] registration failed:", e),
     );
 
-    // Notification received while app is open
     receivedSub.current = Notifications.addNotificationReceivedListener(
       (notification) => {
         console.log("[push] received:", notification.request.content.title);
-      }
+      },
     );
 
-    // User tapped on a notification (app in foreground or background)
     responseSub.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
+        // Action button tapped — handle in Firestore, don't navigate
+        if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
+          handleNotificationAction(response, user.uid).catch((e) =>
+            console.warn("[push] action handler failed:", e),
+          );
+          return;
+        }
+        // Notification body tapped — navigate
         const data = response.notification.request.content.data as Record<string, unknown>;
         navigateFromNotification(router, data);
-      }
+      },
     );
 
     return () => {
@@ -78,14 +212,14 @@ export function usePushNotifications() {
   }, [user?.uid, router]);
 }
 
+// ─── Push registration ────────────────────────────────────────────────────────
+
 async function registerForPushNotificationsAsync(uid: string): Promise<void> {
-  // Push notifications are not supported in Expo Go since SDK 53
   if (Constants.executionEnvironment === "storeClient") {
     console.log("[push-notifications] Expo Go detected — skipping push registration");
     return;
   }
 
-  // Android requires a channel before any notification can appear
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "OJYQ",
@@ -122,52 +256,5 @@ async function registerForPushNotificationsAsync(uid: string): Promise<void> {
   await updateDoc(doc(db, "users", uid), { expoPushToken: token });
 }
 
-/**
- * Sends push notifications to one or multiple tokens in one HTTP request.
- */
-/**
- * Sends push notifications to one or multiple tokens.
- * Returns the list of stale tokens (DeviceNotRegistered) for cleanup.
- */
-export async function sendExpoPush(
-  tokens: string | string[],
-  title: string,
-  body: string,
-  data?: Record<string, unknown>
-): Promise<string[]> {
-  const list = Array.isArray(tokens) ? tokens : [tokens];
-  if (!list.length) return [];
-
-  const base = { sound: "default", channelId: "default", title, body, data: data ?? {}, priority: "high" };
-  const staleTokens: string[] = [];
-
-  for (let i = 0; i < list.length; i += 100) {
-    const chunk = list.slice(i, i + 100);
-    try {
-      const res = await fetch("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Accept-encoding": "gzip, deflate",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(chunk.map((to) => ({ to, ...base }))),
-      });
-      const json = await res.json();
-      const tickets: any[] = Array.isArray(json?.data) ? json.data : [];
-      tickets.forEach((t, j) => {
-        if (t?.status === "error") {
-          console.warn("[sendExpoPush] error:", t.message);
-          const errorCode = t?.details?.error;
-          if (errorCode === "DeviceNotRegistered" || errorCode === "InvalidCredentials") {
-            staleTokens.push(chunk[j]);
-          }
-        }
-      });
-    } catch (e) {
-      console.warn("[sendExpoPush] Network error:", e);
-    }
-  }
-
-  return staleTokens;
-}
+// Re-export so existing imports from this file keep working
+export { sendExpoPush } from "@/lib/sendExpoPush";
