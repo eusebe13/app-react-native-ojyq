@@ -44,6 +44,7 @@ import {
   FlatList,
   Linking,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   Text,
@@ -354,6 +355,21 @@ export default function FirebaseCalendarScreen() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"events" | "projects" | "availability">("events");
+  const viewModeRef = useRef<"events" | "projects" | "availability">("events");
+  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
+
+  const TABS = ["events", "projects", "availability"] as const;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
+        Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 20,
+      onPanResponderRelease: (_, { dx }) => {
+        const idx = TABS.indexOf(viewModeRef.current);
+        if (dx < -60 && idx < TABS.length - 1) setViewMode(TABS[idx + 1]);
+        else if (dx > 60 && idx > 0) setViewMode(TABS[idx - 1]);
+      },
+    })
+  ).current;
 
   // États pour le formulaire projet
   const [projectModalVisible, setProjectModalVisible] = useState(false);
@@ -1124,6 +1140,7 @@ export default function FirebaseCalendarScreen() {
         </TouchableOpacity>
       )}
 
+      <View style={{ flex: 1 }} {...panResponder.panHandlers}>
       {loading ? (
         <View style={dynamicStyles.centerContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
@@ -1545,6 +1562,7 @@ export default function FirebaseCalendarScreen() {
           );
         })()
       )}
+      </View>
 
       <TouchableOpacity
         style={[dynamicStyles.fab]}
