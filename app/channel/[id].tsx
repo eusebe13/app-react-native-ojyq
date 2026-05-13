@@ -660,7 +660,9 @@ export default function ChannelScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [videoStartPosition, setVideoStartPosition] = useState(0);
-  const resumeInlineVideoRef = useRef<((positionMillis: number) => void) | null>(null);
+  const resumeInlineVideoRef = useRef<
+    ((positionMillis: number) => void) | null
+  >(null);
   const modalVideoRef = useRef<Video | null>(null);
   const webVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -745,7 +747,9 @@ export default function ChannelScreen() {
           ? poll.question
           : audioUrl
             ? "Message vocal"
-            : content || "Photo";
+            : videoUrl
+              ? "Vidéo"
+              : content || "Photo";
 
         // Fire-and-forget — doesn't need to block the send
         updateDoc(doc(db, "channels", id), {
@@ -1103,7 +1107,11 @@ export default function ChannelScreen() {
   }, []);
 
   const handleVideoPress = useCallback(
-    (uri: string, positionMillis: number, resumeInline: (pos: number) => void) => {
+    (
+      uri: string,
+      positionMillis: number,
+      resumeInline: (pos: number) => void,
+    ) => {
       setVideoStartPosition(positionMillis);
       resumeInlineVideoRef.current = resumeInline;
       setSelectedVideo(uri);
@@ -1114,9 +1122,13 @@ export default function ChannelScreen() {
   const handleCloseVideoModal = useCallback(async () => {
     let currentPos = 0;
     if (Platform.OS === "web") {
-      currentPos = webVideoRef.current ? webVideoRef.current.currentTime * 1000 : 0;
+      currentPos = webVideoRef.current
+        ? webVideoRef.current.currentTime * 1000
+        : 0;
     } else {
-      const status = await modalVideoRef.current?.getStatusAsync().catch(() => null);
+      const status = await modalVideoRef.current
+        ?.getStatusAsync()
+        .catch(() => null);
       currentPos = status?.isLoaded ? status.positionMillis : 0;
       modalVideoRef.current?.pauseAsync().catch(() => {});
     }
@@ -1708,24 +1720,28 @@ export default function ChannelScreen() {
           >
             <Ionicons name="close-circle" size={34} color="#FFF" />
           </TouchableOpacity>
-          {selectedVideo && (
-            Platform.OS === "web" ? (
+          {selectedVideo &&
+            (Platform.OS === "web" ? (
               // @ts-ignore — HTML elements are valid in React Native Web
               <video
-                ref={(el: HTMLVideoElement | null) => { webVideoRef.current = el; }}
+                ref={(el: HTMLVideoElement | null) => {
+                  webVideoRef.current = el;
+                }}
                 src={selectedVideo}
                 controls
                 autoPlay
                 onLoadedMetadata={(e: any) => {
                   e.target.currentTime = videoStartPosition / 1000;
                 }}
-                style={{
-                  width: "100%",
-                  maxWidth: "100vw",
-                  maxHeight: "75vh",
-                  objectFit: "contain",
-                  display: "block",
-                } as any}
+                style={
+                  {
+                    width: "100%",
+                    maxWidth: "100vw",
+                    maxHeight: "75vh",
+                    objectFit: "contain",
+                    display: "block",
+                  } as any
+                }
               />
             ) : (
               <Video
@@ -1737,8 +1753,7 @@ export default function ChannelScreen() {
                 positionMillis={videoStartPosition}
                 style={{ width: windowWidth, height: windowHeight * 0.75 }}
               />
-            )
-          )}
+            ))}
         </View>
       </Modal>
 
