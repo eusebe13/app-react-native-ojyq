@@ -2,7 +2,7 @@
   "expo": {
     "name": "OJYQ",
     "slug": "OJYQ",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/IMG_Logo-Principale.png",
     "scheme": "ojyq",
@@ -21,12 +21,12 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "org.ojyq.app",
-      "versionCode": 16,
+      "versionCode": 26,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/IMG_Logo-Principale.png",
         "backgroundColor": "#081129"
@@ -42,20 +42,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.MODIFY_AUDIO_SETTINGS"
-      ],
-      "blockedPermissions": [
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
       ],
       "runtimeVersion": "1.0.0"
     },
@@ -65,7 +52,6 @@
     },
     "plugins": [
       "./plugins/withModularHeaders",
-      "./plugins/removeAgoraScreenShare",
       "expo-router",
       "expo-document-picker",
       [
@@ -79,7 +65,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/IMG_Logo-Principale.png",
-          "imageWidth": 160,
+          "imageWidth": 300,
           "resizeMode": "contain",
           "backgroundColor": "#081129",
           "dark": {
@@ -121,7 +107,7 @@
       "eas": {
         "projectId": "b855df14-5396-4fbe-ab32-e111ad5d0835"
       },
-      "lastUpdate": "03/04/2026"
+      "changelog": "v1.0.4 : Swipe agenda gauche/droite, optimisation sélecteur date/heure, corrections diverses."
     },
     "owner": "ojyq",
     "updates": {

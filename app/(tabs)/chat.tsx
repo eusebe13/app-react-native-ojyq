@@ -43,6 +43,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import { computeIsUnread, useUnread } from "../../contexts/UnreadContext";
 import { db } from "../../firebaseConfig";
 import { Channel, channelFromFirestore } from "../../types/models";
 
@@ -129,6 +130,7 @@ export default function ChatListScreen(): ReactElement {
   const [channelImage, setChannelImage] = useState<string | null>(null);
   const [dmModalVisible, setDmModalVisible] = useState(false);
   const [dmSearchQuery, setDmSearchQuery] = useState("");
+  const [originalEditMembers, setOriginalEditMembers] = useState<string[]>([]);
 
   // ── Récupération Initiale ──────────────────────────────────────────────────
   useEffect(() => {
@@ -251,6 +253,61 @@ export default function ChatListScreen(): ReactElement {
 
       if (editingId) {
         await updateDoc(doc(db, "channels", editingId), channelData);
+
+        // Private DM preservation: when a 2-person private channel is expanded
+        // to 3+ members, auto-create a new direct channel for the original pair.
+        const newMemberCount = channelData.members?.length ?? 0;
+        const isExpansion =
+          audienceType === "private" &&
+          originalEditMembers.length === 2 &&
+          newMemberCount > 2;
+
+        if (isExpansion) {
+          const [uidA, uidB] = originalEditMembers;
+
+          const dmExists = channels.some(
+            (c) =>
+              (c.type === "direct" || c.audienceType === "direct") &&
+              c.members?.includes(uidA) &&
+              c.members?.includes(uidB),
+          );
+
+          if (!dmExists) {
+            const userA = users.find((u) => u.id === uidA);
+            const userB = users.find((u) => u.id === uidB);
+            const nameA =
+              [userA?.firstName, userA?.lastName].filter(Boolean).join(" ") ||
+              userA?.email ||
+              uidA;
+            const nameB =
+              [userB?.firstName, userB?.lastName].filter(Boolean).join(" ") ||
+              userB?.email ||
+              uidB;
+
+            await addDoc(collection(db, "channels"), {
+              name: `${nameA} & ${nameB}`,
+              description: null,
+              image: null,
+              type: "direct",
+              audienceType: "direct",
+              allowedRoles: [],
+              members: [uidA, uidB],
+              dmParticipants: {
+                [uidA]: { name: nameA, avatar: null },
+                [uidB]: { name: nameB, avatar: null },
+              },
+              createdAt: Timestamp.now(),
+              createdBy: currentUser?.uid || uidA,
+              lastMessage: "Canal privé créé automatiquement",
+              lastMessageAt: Timestamp.now(),
+            });
+
+            showToast(
+              `Canal privé recréé pour ${nameA} & ${nameB}`,
+              "success",
+            );
+          }
+        }
       } else {
         await addDoc(collection(db, "channels"), {
           ...channelData,
@@ -273,6 +330,9 @@ export default function ChatListScreen(): ReactElement {
     selectedRoles,
     selectedUsers,
     currentUser,
+    originalEditMembers,
+    channels,
+    users,
   ]);
 
   // ── Long Press (Modifier/Supprimer) ───────────────────────────────────────
@@ -311,7 +371,9 @@ export default function ChatListScreen(): ReactElement {
                 ).map((g) => g.id);
                 setSelectedRoles(mappedRoles);
               } else if (channel.audienceType === "private") {
-                setSelectedUsers(channel.members || []);
+                const mems = channel.members || [];
+                setSelectedUsers(mems);
+                setOriginalEditMembers(mems);
               }
 
               setModalVisible(true);
@@ -373,6 +435,7 @@ export default function ChatListScreen(): ReactElement {
     setAudienceType("public");
     setSelectedRoles([]);
     setSelectedUsers([]);
+    setOriginalEditMembers([]);
   }, []);
 
   const closeDmModal = useCallback(() => {
@@ -468,6 +531,8 @@ export default function ChatListScreen(): ReactElement {
     return ch.name.toLowerCase().includes(q);
   });
 
+  const { readsMap } = useUnread();
+
   const styles = getStyles(colors, tokens);
 
   // ── Swipe-down to dismiss modal ───────────────────────────────────────────
@@ -501,7 +566,9 @@ export default function ChatListScreen(): ReactElement {
 
       const initials = channelInitials(displayName);
       const time = relativeTime(item.lastMessageAt);
-      const hasUnread = (item.unreadCount ?? 0) > 0;
+      const lastActivity = item.lastMessageAt?.toDate?.() ?? null;
+      const lastRead = readsMap[item.id]?.lastReadAt ?? null;
+      const hasUnread = computeIsUnread(lastActivity, lastRead);
 
       let AudienceIcon = null;
       if (isDirect)
@@ -620,11 +687,7 @@ export default function ChatListScreen(): ReactElement {
 
             {/* Right: unread dot badge or nothing */}
             {hasUnread ? (
-              <View style={[styles.badge, { backgroundColor: chColor }]}>
-                <Text style={styles.badgeText}>
-                  {item.unreadCount! > 99 ? "99+" : item.unreadCount}
-                </Text>
-              </View>
+              <View style={[styles.badge, { backgroundColor: chColor, minWidth: 10, height: 10, borderRadius: 5 }]} />
             ) : (
               !Platform.OS.startsWith("web") && (
                 <Ionicons
@@ -653,11 +716,12 @@ export default function ChatListScreen(): ReactElement {
         </View>
       );
     },
-    [colors, tokens, navigateToChannel, handleLongPress, currentUser],
+    [colors, tokens, navigateToChannel, handleLongPress, currentUser, readsMap],
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
+
       <Header
         title="Discussions"
         titleIcon="message-text-outline"

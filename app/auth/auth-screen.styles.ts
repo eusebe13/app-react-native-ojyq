@@ -8,6 +8,10 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#0F172A", // Dark blue-gray background
     },
+    scroll: {
+        flex: 1,
+        backgroundColor: "#0F172A",
+    },
     scrollContent: {
         flexGrow: 1,
         justifyContent: "center",
@@ -144,6 +148,38 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "600",
         letterSpacing: 0.3,
+    },
+    forgotLink: {
+        alignSelf: "flex-end",
+        marginTop: 10,
+        paddingVertical: 4,
+        paddingHorizontal: 2,
+    },
+    forgotText: {
+        color: "#A5B4FC",
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    successContainer: {
+        alignItems: "center",
+        paddingVertical: 16,
+        gap: 12,
+    },
+    successIcon: {
+        fontSize: 48,
+    },
+    successTitle: {
+        fontSize: 22,
+        fontWeight: "800",
+        color: "#FFFFFF",
+        letterSpacing: -0.3,
+    },
+    successText: {
+        fontSize: 14,
+        color: "#94A3B8",
+        textAlign: "center",
+        lineHeight: 22,
+        fontWeight: "500",
     },
 });
 

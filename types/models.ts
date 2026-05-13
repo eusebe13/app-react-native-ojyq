@@ -8,6 +8,16 @@
 import { Timestamp } from 'firebase/firestore';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// READ TRACKING
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Firestore: `users/{uid}/reads/{itemId}` — itemId is the channel/task/event doc ID */
+export interface ReadEntry {
+  type: "channel" | "task" | "event";
+  lastReadAt: Timestamp;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MEMBRES ET RÔLES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -130,6 +140,7 @@ export interface Channel {
   avatarUrl?: string;
   unreadCount?: number;
   isPinned?: boolean;
+  lastMessageReadBy?: Record<string, Timestamp>;
 }
 
 export interface MessageUser {

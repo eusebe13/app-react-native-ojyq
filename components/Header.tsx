@@ -1,4 +1,5 @@
 import { useProfile } from "@/hooks/use-profile";
+import { useUpdateStatus } from "@/contexts/UpdateContext";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -9,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "../contexts/ThemeContext";
 import { Avatar } from "./Avatar";
 import { Icon } from "./ui/Icon";
@@ -26,6 +28,7 @@ export const Header = ({ title, titleIcon, chip }: HeaderProps = {}) => {
   const styles = getStyles(colors, tokens);
   const router = useRouter();
   const { profile } = useProfile();
+  const { hasUpdate, showModal, setShowModal } = useUpdateStatus();
   const fullName =
     [profile.firstName, profile.lastName].filter(Boolean).join(" ") || "Membre";
 
@@ -41,14 +44,52 @@ export const Header = ({ title, titleIcon, chip }: HeaderProps = {}) => {
       <View style={styles.headerInner}>
         {/* ── Row 1 : brand pill ←→ avatar ────────────────────────────── */}
         <View style={styles.topRow}>
-          <View style={styles.brandPill}>
-            <Image
-              source={{
-                uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
-              }}
-              style={styles.brandLogo}
-            />
-            <Text style={styles.brandText}>OJYQ</Text>
+          <View style={{ position: "relative" }}>
+            <View style={styles.brandPill}>
+              <Image
+                source={{
+                  uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg",
+                }}
+                style={styles.brandLogo}
+              />
+              <Text style={styles.brandText}>OJYQ</Text>
+            </View>
+            {hasUpdate && showModal && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: -3,
+                  right: -3,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: "#EF4444",
+                  borderWidth: 1.5,
+                  borderColor: colors.primaryDark,
+                }}
+              />
+            )}
+            {hasUpdate && !showModal && (
+              <TouchableOpacity
+                onPress={() => setShowModal(true)}
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -8,
+                  backgroundColor: "#EF4444",
+                  borderRadius: 10,
+                  width: 20,
+                  height: 20,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1.5,
+                  borderColor: colors.primaryDark,
+                }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Ionicons name="arrow-up-circle" size={13} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
 
           <TouchableOpacity
@@ -56,7 +97,7 @@ export const Header = ({ title, titleIcon, chip }: HeaderProps = {}) => {
             activeOpacity={0.85}
           >
             <View style={styles.avatarRing}>
-              <Avatar name={fullName} size={40} />
+              <Avatar name={fullName} size={40} avatarPreset={profile.avatarPreset ?? null} />
             </View>
           </TouchableOpacity>
         </View>
