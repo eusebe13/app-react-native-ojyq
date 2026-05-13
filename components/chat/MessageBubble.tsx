@@ -355,6 +355,22 @@ const HighlightedText = React.memo(
             );
           }
 
+          if (linkPart.type === "phone") {
+            return (
+              <Text
+                key={`phone-${linkIdx}`}
+                style={{ color: "#0EA5E9", textDecorationLine: "underline" }}
+                onPress={() =>
+                  Linking.openURL(
+                    `tel:${linkPart.value.replace(/[\s\-\(\)]/g, "")}`,
+                  ).catch(() => {})
+                }
+              >
+                {linkPart.value}
+              </Text>
+            );
+          }
+
           // For non-link text, apply search highlighting
           if (!q) return <Text key={`text-${linkIdx}`}>{linkPart.value}</Text>;
 

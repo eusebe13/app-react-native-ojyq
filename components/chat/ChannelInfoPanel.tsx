@@ -7,6 +7,7 @@
 import { DismissableModal } from "@/components/ui/DismissableModal";
 import { showConfirm } from "@/components/ui/ConfirmModal";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { useProfile } from "@/hooks/use-profile";
 import { Ionicons } from "@expo/vector-icons";
 import { Image, Linking } from "react-native";
 import React, { useEffect, useMemo, useState } from "react";
@@ -57,6 +58,10 @@ export default function ChannelInfoPanel({
   onStartDm,
 }: Props) {
   const { colors } = useAppTheme();
+  const { profile } = useProfile();
+  const isAdmin = ["Administrateur", "Admin", "Président", "Vice-Président"].includes(
+    profile.role ?? "",
+  );
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const isDesktop = screenWidth >= 1024;
   const modalWidth = isDesktop ? screenWidth * 0.6 : screenWidth * 0.85;
@@ -251,6 +256,7 @@ export default function ChannelInfoPanel({
               }
               renderItem={({ item }) => {
                 const name = [item.firstName, item.lastName].filter(Boolean).join(" ") || item.email || item.id;
+                const phone: string | undefined = item.phone || item.phoneNumber;
                 return (
                   <TouchableOpacity
                     onPress={() => {
@@ -297,13 +303,68 @@ export default function ChannelInfoPanel({
                         {item.role ?? "Membre"}
                       </Text>
                     </View>
-                    {onStartDm && (
-                      <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.textTertiary} />
-                    )}
+                    {/* Action icons row */}
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                      {item.email && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            Linking.openURL(`mailto:${item.email}`).catch(() => {});
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="mail-outline" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                      )}
+                      {phone && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            Linking.openURL(`tel:${phone}`).catch(() => {});
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="call-outline" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                      )}
+                      {onStartDm && (
+                        <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.textTertiary} />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               }}
             />
+            {/* Contact all button */}
+            {members.some((m) => m.email) && (
+              <TouchableOpacity
+                onPress={() => {
+                  const emails = members
+                    .map((m) => m.email)
+                    .filter(Boolean) as string[];
+                  if (!emails.length) return;
+                  const field = isAdmin ? "to" : "bcc";
+                  Linking.openURL(`mailto:?${field}=${emails.join(",")}`).catch(() => {});
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  margin: 12,
+                  paddingVertical: 10,
+                  backgroundColor: colors.primary + "18",
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.primary + "40",
+                }}
+              >
+                <Ionicons name="mail-outline" size={16} color={colors.primary} />
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+                  Contacter tous les membres
+                </Text>
+              </TouchableOpacity>
+            )}
             </>
           )
         )}
