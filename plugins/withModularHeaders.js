@@ -66,11 +66,18 @@ function withModularHeaders(config) {
         );
       }
 
-      // Append a NEW post_install block at the very end so our patches run
-      // AFTER react_native_post_install (which may regenerate xcconfigs).
-      // CocoaPods supports multiple post_install blocks; they run in order.
+      // Insert at END of existing post_install block (before its closing 'end')
+      // so our patches run AFTER react_native_post_install.
+      // post_install is always the last block in an Expo-generated Podfile.
       if (!podfile.includes('Scan ALL xcconfig files in Pods/ and remove problematic flags')) {
-        podfile += `\npost_install do |installer|\n${GRPC_POST_INSTALL_FIX}\nend\n`;
+        if (podfile.includes('post_install do |installer|')) {
+          podfile = podfile.replace(
+            /\nend(\s*)$/,
+            `\n${GRPC_POST_INSTALL_FIX}\nend$1`
+          );
+        } else {
+          podfile += `\npost_install do |installer|\n${GRPC_POST_INSTALL_FIX}\nend\n`;
+        }
       }
 
       fs.writeFileSync(podfilePath, podfile, 'utf8');
