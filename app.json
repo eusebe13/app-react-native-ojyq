@@ -2,7 +2,7 @@
   "expo": {
     "name": "OJYQ",
     "slug": "OJYQ",
-    "version": "1.0.4",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/IMG_Logo-Principale.png",
     "scheme": "ojyq",
@@ -21,7 +21,7 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -44,7 +44,9 @@
         "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "runtimeVersion": "1.0.0"
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "output": "static",
@@ -96,11 +98,18 @@
           "microphonePermission": "OJYQ utilise le microphone pour les messages vocaux."
         }
       ],
-      "expo-build-properties"
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0",
+            "newArchEnabled": true
+          }
+        }
+      ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},

@@ -10,7 +10,7 @@
  */
 
 import React from "react";
-import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../contexts/ThemeContext";
 
 interface IconProps {
@@ -24,7 +24,7 @@ export const Icon = ({ name, size = 20, color, style }: IconProps) => {
   const { colors } = useAppTheme();
   return (
     <MaterialCommunityIcons
-      name={name}
+      name={name as any}
       size={size}
       color={color ?? colors.textSecondary}
       style={style}

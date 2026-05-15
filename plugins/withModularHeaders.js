@@ -66,16 +66,11 @@ function withModularHeaders(config) {
         );
       }
 
-      // Add gRPC post_install fix if not already present
+      // Append a NEW post_install block at the very end so our patches run
+      // AFTER react_native_post_install (which may regenerate xcconfigs).
+      // CocoaPods supports multiple post_install blocks; they run in order.
       if (!podfile.includes('Scan ALL xcconfig files in Pods/ and remove problematic flags')) {
-        if (podfile.includes('post_install do |installer|')) {
-          podfile = podfile.replace(
-            /post_install do \|installer\|/,
-            `post_install do |installer|\n${GRPC_POST_INSTALL_FIX}`
-          );
-        } else {
-          podfile += `\npost_install do |installer|\n${GRPC_POST_INSTALL_FIX}\nend\n`;
-        }
+        podfile += `\npost_install do |installer|\n${GRPC_POST_INSTALL_FIX}\nend\n`;
       }
 
       fs.writeFileSync(podfilePath, podfile, 'utf8');

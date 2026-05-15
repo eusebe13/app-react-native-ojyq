@@ -1,6 +1,6 @@
 // firebaseConfig.ts
 import { getApps, initializeApp } from 'firebase/app';
-import { Auth, browserLocalPersistence, initializeAuth } from 'firebase/auth';
+import { Auth, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { Platform } from 'react-native';
@@ -23,6 +23,8 @@ let auth: Auth;
 
 if (Platform.OS === 'web') {
   // Web : browserLocalPersistence (localStorage natif du navigateur)
+  // require() évite que les types React Native excluent l'export web-only
+  const { browserLocalPersistence } = require('firebase/auth');
   auth = initializeAuth(app, {
     persistence: browserLocalPersistence,
   });

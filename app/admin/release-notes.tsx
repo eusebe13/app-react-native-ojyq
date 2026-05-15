@@ -78,7 +78,7 @@ export default function AdminReleaseNotesScreen() {
     ({ item }: { item: NoteRow }) => (
       <TouchableOpacity
         style={styles.row}
-        onPress={() => router.push(`/admin/release-note-edit?id=${item.id}`)}
+        onPress={() => router.push(`/admin/release-note-edit?id=${item.id}` as any)}
         activeOpacity={0.7}
       >
         <View style={styles.rowLeft}>
@@ -118,7 +118,7 @@ export default function AdminReleaseNotesScreen() {
           title: "Notes de version",
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => router.push("/admin/release-note-edit")}
+              onPress={() => router.push("/admin/release-note-edit" as any)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ marginRight: 4 }}
             >
@@ -154,7 +154,7 @@ export default function AdminReleaseNotesScreen() {
               </Text>
               <TouchableOpacity
                 style={[styles.createBtn, { backgroundColor: colors.primary }]}
-                onPress={() => router.push("/admin/release-note-edit")}
+                onPress={() => router.push("/admin/release-note-edit" as any)}
               >
                 <Text style={styles.createBtnText}>Créer la première</Text>
               </TouchableOpacity>

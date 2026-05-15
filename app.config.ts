@@ -10,5 +10,5 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...config.extra,
       lastUpdate,
     },
-  };
+  } as ExpoConfig;
 };

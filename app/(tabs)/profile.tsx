@@ -419,7 +419,7 @@ export default function ProfileScreen() {
               iconBg={colors.accent2}
               label="Notes de version"
               sublabel="Créer et publier des mises à jour"
-              onPress={() => router.push("/admin/release-notes")}
+              onPress={() => router.push("/admin/release-notes" as any)}
               last
             />
           </NavCard>
