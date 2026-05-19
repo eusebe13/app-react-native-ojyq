@@ -25,12 +25,18 @@ export interface ChatUser {
   role?: string;
 }
 
+export interface ProjectLinkData {
+  projectId: string;
+  projectName: string;
+}
+
 export interface ChatMessage {
   _id: string;
   text: string;
   createdAt: Date;
   user: ChatUser;
   image?: string | null;
+  video?: string | null;
   audio?: string | null;
   poll?: PollData | null;
   file?: FileData | null;
@@ -38,4 +44,6 @@ export interface ChatMessage {
   reactions?: Record<string, string[]>;
   edited?: boolean;
   forwarded?: boolean;
+  isPending?: boolean;
+  projectLink?: ProjectLinkData | null;
 }

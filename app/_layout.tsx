@@ -13,9 +13,14 @@ import AppSplashScreen from "@/components/AppSplashScreen";
 import ActionSheet from "@/components/ActionSheet";
 import Toast from "@/components/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import { NotificationTester } from "@/components/dev/NotificationTester";
 import { ThemeContextProvider, useAppTheme } from "@/contexts/ThemeContext";
+import { UnreadProvider } from "@/contexts/UnreadContext";
 import useAuth from "@/hooks/use-auth";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { useUpdateCheck } from "@/hooks/use-update-check";
+import { UpdateProvider } from "@/contexts/UpdateContext";
+import UpdateModal from "@/components/UpdateModal";
 import AuthScreen from "./auth/auth-screen";
 import { useProfile } from "@/hooks/use-profile";
 import WaitingRoomScreen from "@/components/WaitingRoomScreen";
@@ -32,6 +37,7 @@ function RootLayoutInner() {
   const { user, isLoading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   usePushNotifications();
+  useUpdateCheck();
   const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
@@ -77,12 +83,28 @@ function RootLayoutInner() {
           options={{ title: "Modifier le membre" }}
         />
         <Stack.Screen
+          name="admin/release-notes"
+          options={{ title: "Notes de version" }}
+        />
+        <Stack.Screen
+          name="admin/release-note-edit"
+          options={{ title: "Note de version" }}
+        />
+        <Stack.Screen
           name="channel/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="project/[id]"
           options={{ headerShown: false }}
         />
         <Stack.Screen
           name="treasury/member-payment"
           options={{ title: "Gestion des Paiements" }}
+        />
+        <Stack.Screen
+          name="task/[id]"
+          options={{ headerShown: false }}
         />
       </Stack>
     );
@@ -99,6 +121,8 @@ function RootLayoutInner() {
       <Toast />
       <ActionSheet />
       <ConfirmModal />
+      <UpdateModal />
+      {__DEV__ && <NotificationTester />}
 
       {/* Animated JS splash — sits on top until isReady, then fades out */}
       {!splashDone && (
@@ -114,7 +138,11 @@ function RootLayoutInner() {
 export default function RootLayout() {
   return (
     <ThemeContextProvider>
-      <RootLayoutInner />
+      <UpdateProvider>
+        <UnreadProvider>
+          <RootLayoutInner />
+        </UnreadProvider>
+      </UpdateProvider>
     </ThemeContextProvider>
   );
 }

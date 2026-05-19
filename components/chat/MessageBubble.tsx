@@ -10,13 +10,15 @@ import { PRESET_AVATARS } from "@/constants/avatarPresets";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { normalizeUrl, splitLinkParts } from "@/utils/urlParsing";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import { Audio, AVPlaybackStatus, ResizeMode, Video } from "expo-av";
+import { router } from "expo-router";
 import React, {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  JSX,
 } from "react";
 import {
   ActivityIndicator,
@@ -49,6 +51,8 @@ interface MessageBubbleProps {
   onPollVote: (messageId: string, poll: PollData, optionIndex: number) => void;
   onFileDownload: (uri: string, name: string) => void;
   onSwipeReply: (message: ChatMessage) => void;
+  onReplyPress?: (replyId: string) => void;
+  onVideoPress?: (uri: string, positionMillis: number, resumeInline: (positionMillis: number) => void) => void;
   searchQuery?: string;
   isSearchFocus?: boolean;
 }
@@ -345,6 +349,22 @@ const HighlightedText = React.memo(
                 key={`link-${linkIdx}`}
                 style={{ color: "#0EA5E9", textDecorationLine: "underline" }}
                 onPress={() => Linking.openURL(normalizeUrl(linkPart.value))}
+              >
+                {linkPart.value}
+              </Text>
+            );
+          }
+
+          if (linkPart.type === "phone") {
+            return (
+              <Text
+                key={`phone-${linkIdx}`}
+                style={{ color: "#0EA5E9", textDecorationLine: "underline" }}
+                onPress={() =>
+                  Linking.openURL(
+                    `tel:${linkPart.value.replace(/[\s\-\(\)]/g, "")}`,
+                  ).catch(() => {})
+                }
               >
                 {linkPart.value}
               </Text>
@@ -878,17 +898,20 @@ const MessageBubble = React.memo(
     onPollVote,
     onFileDownload,
     onSwipeReply,
+    onReplyPress,
+    onVideoPress,
     searchQuery = "",
     isSearchFocus = false,
   }: MessageBubbleProps) => {
     const { colors, tokens } = useAppTheme();
     const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
+    const inlineVideoRef = useRef<Video | null>(null);
 
     const isMe = message.user._id === currentUserId;
 
-    // True when the bubble contains only an image (no text, quote, audio, poll, file)
-    const isImageOnly =
-      !!message.image &&
+    // True when the bubble contains only an image or video (no text, quote, audio, poll, file)
+    const isImageOrVideoOnly =
+      (!!message.image || !!message.video) &&
       !message.replyTo &&
       !message.audio &&
       !message.poll &&
@@ -1042,7 +1065,7 @@ const MessageBubble = React.memo(
 
     const renderReplyQuote = useCallback(() => {
       if (!message.replyTo) return null;
-      return (
+      const inner = (
         <View
           style={[
             styles.replyQuote,
@@ -1069,7 +1092,16 @@ const MessageBubble = React.memo(
           </Text>
         </View>
       );
-    }, [message.replyTo, isMe, styles]);
+      if (!onReplyPress) return inner;
+      return (
+        <TouchableOpacity
+          activeOpacity={0.6}
+          onPress={() => onReplyPress(message.replyTo!.id)}
+        >
+          {inner}
+        </TouchableOpacity>
+      );
+    }, [message.replyTo, isMe, styles, onReplyPress]);
 
     const renderImage = useCallback(() => {
       if (!message.image) return null;
@@ -1077,16 +1109,76 @@ const MessageBubble = React.memo(
         <TouchableOpacity
           onPress={handleImagePress}
           activeOpacity={0.9}
-          style={isImageOnly ? styles.imageWrapperOnly : styles.imageWrapper}
+          disabled={!!message.isPending}
+          style={
+            isImageOrVideoOnly ? styles.imageWrapperOnly : styles.imageWrapper
+          }
         >
           <Image
             source={{ uri: message.image }}
-            style={isImageOnly ? styles.messageImageOnly : styles.messageImage}
+            style={[
+              isImageOrVideoOnly
+                ? styles.messageImageOnly
+                : styles.messageImage,
+              message.isPending && { opacity: 0.5 },
+            ]}
             resizeMode="cover"
           />
+          {message.isPending && (
+            <ActivityIndicator
+              size="small"
+              color="#fff"
+              style={{ position: "absolute", alignSelf: "center", top: "40%" }}
+            />
+          )}
         </TouchableOpacity>
       );
-    }, [message.image, isImageOnly, handleImagePress, styles]);
+    }, [
+      message.image,
+      message.isPending,
+      isImageOrVideoOnly,
+      handleImagePress,
+      styles,
+    ]);
+
+    const renderVideo = useCallback(() => {
+      if (!message.video) return null;
+      return (
+        <View style={{ width: 240, height: 160, borderRadius: 10, marginBottom: 4, overflow: "hidden" }}>
+          <Video
+            ref={inlineVideoRef}
+            source={{ uri: message.video }}
+            useNativeControls={!message.isPending}
+            resizeMode={ResizeMode.CONTAIN}
+            style={{ width: 240, height: 160, opacity: message.isPending ? 0.5 : 1 }}
+          />
+          {message.isPending ? (
+            <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator size="large" color="#fff" />
+            </View>
+          ) : onVideoPress ? (
+            <TouchableOpacity
+              style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 6, padding: 4 }}
+              onPress={async () => {
+                const status: AVPlaybackStatus | null = await inlineVideoRef.current
+                  ?.getStatusAsync()
+                  .catch(() => null) ?? null;
+                const pos = status?.isLoaded ? status.positionMillis : 0;
+                inlineVideoRef.current?.pauseAsync().catch(() => {});
+                onVideoPress(message.video!, pos, (resumePos) => {
+                  inlineVideoRef.current
+                    ?.setStatusAsync({ positionMillis: resumePos, shouldPlay: true })
+                    .catch(() => {});
+                });
+              }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="expand-outline" size={16} color="#FFF" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      );
+    }, [message.video, message.isPending, onVideoPress]);
 
     const renderAudio = useCallback(() => {
       if (!message.audio) return null;
@@ -1293,6 +1385,62 @@ const MessageBubble = React.memo(
       );
     }, [message.file, handleFileDownload, isMe, colors, styles]);
 
+    const renderProjectLink = useCallback(() => {
+      if (!message.projectLink) return null;
+      const { projectId, projectName } = message.projectLink;
+      return (
+        <TouchableOpacity
+          onPress={() => router.push(`/project/${projectId}` as any)}
+          activeOpacity={0.75}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: isMe
+              ? "rgba(255,255,255,0.15)"
+              : colors.primary + "12",
+            borderRadius: 10,
+            padding: 10,
+            borderWidth: 1,
+            borderColor: isMe ? "rgba(255,255,255,0.3)" : colors.primary + "40",
+            marginTop: message.text ? 6 : 0,
+          }}
+        >
+          <Ionicons
+            name="folder-open-outline"
+            size={22}
+            color={isMe ? "#FFFFFF" : colors.primary}
+          />
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
+                marginBottom: 1,
+              }}
+            >
+              Projet lié
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: isMe ? "#FFFFFF" : colors.primary,
+              }}
+              numberOfLines={1}
+            >
+              {projectName}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={isMe ? "rgba(255,255,255,0.7)" : colors.primary}
+          />
+        </TouchableOpacity>
+      );
+    }, [message.projectLink, message.text, isMe, colors]);
+
     const renderText = useCallback(() => {
       if (!message.text || message.poll) return null;
       const textStyle = [
@@ -1434,15 +1582,17 @@ const MessageBubble = React.memo(
                     isMe ? styles.bubbleMe : styles.bubbleOther,
                     bubbleTailStyle,
                     isSearchFocus && styles.bubbleSearchFocus,
-                    isImageOnly && styles.bubbleImageOnly,
+                    isImageOrVideoOnly && styles.bubbleImageOnly,
                   ]}
                 >
                   {renderReplyQuote()}
                   {renderImage()}
+                  {renderVideo()}
                   {renderAudio()}
                   {renderPoll()}
                   {renderFile()}
                   {renderText()}
+                  {renderProjectLink()}
                   {renderMeta()}
                 </View>
               </TouchableOpacity>

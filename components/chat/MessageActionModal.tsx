@@ -13,6 +13,7 @@
  *   └───────────────────────────────┘
  */
 
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import React, {
   useCallback,
@@ -32,7 +33,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { useAppTheme } from "@/contexts/ThemeContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,15 +59,19 @@ const DESTRUCTIVE_COLOR = "#EF4444";
 
 // Colored icon backgrounds per action id
 const ACTION_ICON_MAP: Record<string, { bg: string; color: string }> = {
-  copy:    { bg: "#3B82F6",  color: "#FFFFFF" },
-  reply:   { bg: "#6366F1",  color: "#FFFFFF" },
-  edit:    { bg: "#F59E0B",  color: "#FFFFFF" },
-  forward: { bg: "#06B6D4",  color: "#FFFFFF" },
-  save:    { bg: "#10B981",  color: "#FFFFFF" },
-  delete:  { bg: DESTRUCTIVE_COLOR, color: "#FFFFFF" },
+  copy: { bg: "#3B82F6", color: "#FFFFFF" },
+  reply: { bg: "#6366F1", color: "#FFFFFF" },
+  edit: { bg: "#F59E0B", color: "#FFFFFF" },
+  forward: { bg: "#06B6D4", color: "#FFFFFF" },
+  save: { bg: "#10B981", color: "#FFFFFF" },
+  delete: { bg: DESTRUCTIVE_COLOR, color: "#FFFFFF" },
 };
 
-function getActionColors(id: string, isDestructive: boolean, primaryColor: string) {
+function getActionColors(
+  id: string,
+  isDestructive: boolean,
+  primaryColor: string,
+) {
   if (isDestructive) return { bg: DESTRUCTIVE_COLOR, color: "#FFFFFF" };
   return ACTION_ICON_MAP[id] ?? { bg: primaryColor, color: "#FFFFFF" };
 }
@@ -88,6 +92,11 @@ const getStyles = (colors: any, tokens: any) =>
       paddingHorizontal: 12,
       paddingBottom: Platform.OS === "ios" ? 32 : 20,
       gap: 10,
+      ...(Platform.OS === "web" && {
+        maxWidth: 520,
+        width: "100%",
+        alignSelf: "center",
+      }),
     },
 
     // ── Reaction pill row ─────────────────────────────────────────────────────
@@ -96,9 +105,9 @@ const getStyles = (colors: any, tokens: any) =>
       borderRadius: 50,
       paddingHorizontal: 6,
       paddingVertical: 6,
-      flexDirection: "row",
-      alignItems: "center",
       alignSelf: "center",
+      width: "100%",
+      ...(Platform.OS === "web" && { maxWidth: 440 }),
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
@@ -214,39 +223,44 @@ interface EmojiButtonProps {
   styles: ReturnType<typeof getStyles>;
 }
 
-const EmojiButton = React.memo(({ emoji, onPress, styles }: EmojiButtonProps) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+const EmojiButton = React.memo(
+  ({ emoji, onPress, styles }: EmojiButtonProps) => {
+    const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handlePress = useCallback(() => {
-    Animated.sequence([
-      Animated.spring(scaleAnim, {
-        toValue: 1.35,
-        tension: 320,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 320,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onPress(emoji));
-  }, [emoji, onPress, scaleAnim]);
+    const handlePress = useCallback(() => {
+      onPress(emoji);
+      Animated.sequence([
+        Animated.spring(scaleAnim, {
+          toValue: 1.35,
+          tension: 320,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 320,
+          friction: 12,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [emoji, onPress, scaleAnim]);
 
-  return (
-    <TouchableOpacity
-      style={styles.emojiButton}
-      onPress={handlePress}
-      activeOpacity={0.7}
-      hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
-    >
-      <Animated.Text style={[styles.emojiText, { transform: [{ scale: scaleAnim }] }]}>
-        {emoji}
-      </Animated.Text>
-    </TouchableOpacity>
-  );
-});
+    return (
+      <TouchableOpacity
+        style={styles.emojiButton}
+        onPress={handlePress}
+        activeOpacity={0.7}
+        hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+      >
+        <Animated.Text
+          style={[styles.emojiText, { transform: [{ scale: scaleAnim }] }]}
+        >
+          {emoji}
+        </Animated.Text>
+      </TouchableOpacity>
+    );
+  },
+);
 EmojiButton.displayName = "EmojiButton";
 
 // ─── ActionRow sub-component ──────────────────────────────────────────────────
@@ -300,13 +314,15 @@ const ActionRowItem = React.memo(
             {action.label}
           </Text>
           {!isDestructive && (
-            <Ionicons name="chevron-forward" size={16} color={colors.borderLight} />
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={colors.borderLight}
+            />
           )}
         </TouchableOpacity>
 
-        {!isLast && !isDestructive && (
-          <View style={styles.separator} />
-        )}
+        {!isLast && !isDestructive && <View style={styles.separator} />}
       </>
     );
   },
@@ -418,7 +434,14 @@ const MessageActionModal = React.memo(
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ flexDirection: "row", alignItems: "center" }}
+                    contentContainerStyle={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 4,
+                      gap: 6,
+                      flexGrow: 1,
+                    }}
                   >
                     {QUICK_EMOJIS.map((emoji) => (
                       <EmojiButton
@@ -446,7 +469,9 @@ const MessageActionModal = React.memo(
                   {allActions.map((action, index) => {
                     const isDestructive = action.style === "destructive";
                     const isFirstDestructive =
-                      isDestructive && defaultActions.length > 0 && index === defaultActions.length;
+                      isDestructive &&
+                      defaultActions.length > 0 &&
+                      index === defaultActions.length;
                     const isLast = index === allActions.length - 1;
 
                     return (

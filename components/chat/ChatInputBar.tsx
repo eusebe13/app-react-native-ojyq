@@ -36,6 +36,7 @@ interface ChatInputBarProps {
   onOpenGallery: () => void;
   onOpenPoll: () => void;
   onOpenDocument: () => void;
+  onOpenVideo?: () => void;
   onCancelReply: () => void;
   onTyping: () => void;
   sending: boolean;
@@ -67,6 +68,7 @@ export default function ChatInputBar({
   onOpenGallery,
   onOpenPoll,
   onOpenDocument,
+  onOpenVideo,
   onCancelReply,
   onTyping,
   sending,
@@ -414,6 +416,11 @@ export default function ChatInputBar({
     onOpenDocument();
   }, [closePanel, onOpenDocument]);
 
+  const handleVideoAction = useCallback(() => {
+    closePanel();
+    onOpenVideo?.();
+  }, [closePanel, onOpenVideo]);
+
   const handleCameraAction = useCallback(() => {
     closePanel();
     handleCamera();
@@ -469,6 +476,7 @@ export default function ChatInputBar({
           {[
             { icon: "camera-outline" as const, label: "Caméra", onPress: handleCameraAction },
             { icon: "image-outline" as const, label: "Galerie", onPress: handleGalleryAction },
+            { icon: "videocam-outline" as const, label: "Vidéo", onPress: handleVideoAction },
             { icon: "bar-chart-outline" as const, label: "Sondage", onPress: handlePollAction },
             { icon: "document-attach-outline" as const, label: "Document", onPress: handleDocumentAction },
           ].map(({ icon, label, onPress }) => (

@@ -8,6 +8,16 @@
 import { Timestamp } from 'firebase/firestore';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// READ TRACKING
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Firestore: `users/{uid}/reads/{itemId}` — itemId is the channel/task/event doc ID */
+export interface ReadEntry {
+  type: "channel" | "task" | "event";
+  lastReadAt: Timestamp;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MEMBRES ET RÔLES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -82,6 +92,34 @@ export interface GeneralEvent extends CalendarEvent {
 export type CalendarItem = Shift | GeneralEvent;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MODULE PROJETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  date?: Timestamp;
+  dateObj?: Date;
+  location?: string;
+  locationLabel?: string;
+  locationAddress?: string;
+  channelId?: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export type VoteValue = 'pour' | 'contre';
+
+export interface ProjectVote {
+  userId: string;
+  userName: string;
+  vote: VoteValue;
+  votedAt: Timestamp;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MODULE CHAT
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -90,14 +128,19 @@ export interface Channel {
   name: string;
   description?: string;
   type: 'public' | 'private' | 'direct';
+  audienceType?: 'public' | 'roles' | 'private' | 'direct';
   createdBy: string;
   createdAt: Timestamp;
   lastMessage: string;
   lastMessageAt?: Timestamp;
-  members?: string[]; // Pour les canaux privés
+  members?: string[];
+  allowedRoles?: string[];
+  image?: string | null;
+  dmParticipants?: Record<string, { name: string; avatar?: string | null }>;
   avatarUrl?: string;
   unreadCount?: number;
   isPinned?: boolean;
+  lastMessageReadBy?: Record<string, Timestamp>;
 }
 
 export interface MessageUser {

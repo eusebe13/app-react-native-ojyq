@@ -47,6 +47,10 @@ export function useProfile() {
             (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
+                    // Mirror Firebase Auth email to Firestore if missing
+                    if (!data.email && user.email) {
+                        setDoc(docRef, { email: user.email }, { merge: true }).catch(() => {});
+                    }
                     setProfile({
                         firstName: data.firstName ?? "",
                         lastName: data.lastName ?? "",
@@ -62,7 +66,7 @@ export function useProfile() {
                         notifMessages: data.notifMessages !== false,
                         avatarUrl: data.avatarUrl ?? undefined,
                         avatarPreset: data.avatarPreset ?? undefined,
-                        email: data.email ?? "",
+                        email: data.email ?? user.email ?? "",
                     });
                 } else {
                     // Document doesn't exist yet — seed with email prefix

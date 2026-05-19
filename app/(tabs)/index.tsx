@@ -10,6 +10,7 @@
 
 import React from "react";
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Platform,
@@ -27,6 +28,8 @@ import useAuth from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useUpcomingEvents } from "@/hooks/use-upcoming-events";
 import { useChannelsPreview } from "@/hooks/use-channels-preview";
+import { useReleaseNotes } from "@/hooks/use-release-notes";
+import ReleaseNotesModal from "@/components/ReleaseNotesModal";
 import { TaskSection } from "@/components/TaskSection";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/ui/Icon";
@@ -185,8 +188,9 @@ const HomeScreen = () => {
   const router = useRouter();
   const { user }     = useAuth();
   const { profile }  = useProfile();
-  const { events }   = useUpcomingEvents(6);
-  const { channels } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
+  const { events, totalCount: eventsTotalCount, loading: eventsLoading } = useUpcomingEvents(6);
+  const { channels, totalCount: channelsTotalCount, loading: channelsLoading } = useChannelsPreview({ uid: user?.uid, userRole: profile.role, maxCount: 4 });
+  const { latestNote, isNew, markAsSeen } = useReleaseNotes(user?.uid);
 
   const styles      = getStyles(colors, tokens);
   const greeting    = getGreeting();
@@ -227,7 +231,7 @@ const HomeScreen = () => {
                 activeOpacity={0.85}
               >
                 <View style={styles.avatarRing}>
-                  <Avatar name={fullName} size={42} />
+                  <Avatar name={fullName} size={42} avatarPreset={profile.avatarPreset ?? null} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -256,7 +260,7 @@ const HomeScreen = () => {
             </View>
 
             {/* Row 4: quick stats */}
-            {(events.length > 0 || channels.length > 0) && (
+            {(eventsTotalCount > 0 || channelsTotalCount > 0) && (
               <View style={styles.statsRow}>
                 <TouchableOpacity
                   style={styles.statBtn}
@@ -267,9 +271,9 @@ const HomeScreen = () => {
                     <Icon name="calendar-check-outline" size={16} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.statValue}>{events.length}</Text>
+                    <Text style={styles.statValue}>{eventsTotalCount}</Text>
                     <Text style={styles.statLabel}>
-                      {events.length === 1 ? "événement" : "événements"}
+                      {eventsTotalCount === 1 ? "événement" : "événements"}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -285,9 +289,9 @@ const HomeScreen = () => {
                     <Icon name="chat-outline" size={16} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.statValue}>{channels.length}</Text>
+                    <Text style={styles.statValue}>{channelsTotalCount}</Text>
                     <Text style={styles.statLabel}>
-                      {channels.length === 1 ? "canal" : "canaux"}
+                      {channelsTotalCount === 1 ? "canal" : "canaux"}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -317,7 +321,11 @@ const HomeScreen = () => {
             />
           </View>
 
-          {events.length === 0 ? (
+          {eventsLoading ? (
+            <View style={[styles.emptyCard, { marginHorizontal: tokens.space.xl }]}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : events.length === 0 ? (
             <View style={[styles.emptyCard, { marginHorizontal: tokens.space.xl }]}>
               <Icon name="calendar-remove-outline" size={32} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>Aucun événement à venir</Text>
@@ -411,7 +419,11 @@ const HomeScreen = () => {
             tokens={tokens}
           />
 
-          {channels.length === 0 ? (
+          {channelsLoading ? (
+            <View style={styles.emptyCard}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : channels.length === 0 ? (
             <View style={styles.emptyCard}>
               <Icon name="chat-remove-outline" size={32} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>Aucun canal</Text>
@@ -576,16 +588,22 @@ const HomeScreen = () => {
             FOOTER
             ══════════════════════════════════════════════════════════ */}
         <View style={styles.footer}>
-          <Image
-            source={{ uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg" }}
-            style={styles.footerLogo}
-          />
+          <TouchableOpacity onPress={() => Linking.openURL("https://ojyq.org")} activeOpacity={0.75}>
+            <Image
+              source={{ uri: "https://ojyq.org/wp-content/uploads/2025/04/IMG-20250318-WA0007.jpg" }}
+              style={styles.footerLogo}
+            />
+          </TouchableOpacity>
           <Text style={styles.footerText}>
-            © 2026 Organisation de la jeunesse Yira du Québec
+            © {new Date().getFullYear()} Organisation de la jeunesse Yira du Québec
           </Text>
           <Text style={styles.footerSub}>Tous droits réservés</Text>
         </View>
       </ScrollView>
+
+      {isNew && latestNote && (
+        <ReleaseNotesModal note={latestNote} onDismiss={markAsSeen} />
+      )}
     </>
   );
 };

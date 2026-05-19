@@ -93,3 +93,8 @@ test_reports/
 *.ai-log
 ai-sessions/
 .agent-*
+.worktrees/
+/.log
+package-lock.json
+/__mocks__
+/__tests__

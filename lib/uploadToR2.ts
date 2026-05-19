@@ -131,6 +131,35 @@ export async function uploadImageUri(uri: string, channelId: string): Promise<st
   return uploadBuffer(buffer, `images/${channelId}/${Date.now()}.jpg`, "image/jpeg");
 }
 
+// ─── Videos ───────────────────────────────────────────────────────────────────
+
+/**
+ * Upload video by streaming directly from disk via FileSystem.uploadAsync.
+ * Unlike readUriAsBuffer, this never loads the file into memory, so it works
+ * for large files (100MB+) without crashing.
+ */
+export async function uploadVideoUri(uri: string, channelId: string): Promise<string> {
+  if (Platform.OS === "web") {
+    const buffer = await (await fetch(uri)).arrayBuffer();
+    return uploadBuffer(buffer, `videos/${channelId}/${Date.now()}.mp4`, "video/mp4");
+  }
+  const path = `videos/${channelId}/${Date.now()}.mp4`;
+  const result = await FileSystem.uploadAsync(`${WORKER_URL}/upload`, uri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: {
+      Authorization: `Bearer ${UPLOAD_SECRET}`,
+      "Content-Type": "video/mp4",
+      "X-R2-Path": path,
+    },
+  });
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`R2 upload failed (${result.status}): ${result.body}`);
+  }
+  const { url } = JSON.parse(result.body);
+  return url as string;
+}
+
 // ─── Documents ────────────────────────────────────────────────────────────────
 
 export async function uploadDocument(
