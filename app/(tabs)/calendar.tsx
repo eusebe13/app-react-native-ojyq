@@ -1,4 +1,5 @@
 import { showActionSheet } from "@/components/ActionSheet";
+import { APP_DOMAIN } from "@/constants/config";
 import {
   AvailabilityData,
   AvailabilityModal,
@@ -20,7 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { getAuth } from "firebase/auth";
 import {
   addDoc,
@@ -416,6 +417,21 @@ export default function FirebaseCalendarScreen() {
     profile.role === "Administrateur" || profile.role === "Président";
 
   const [savedLocations, setSavedLocations] = useState<any[]>([]);
+
+  // --- Deep link params (calendar?type=evenement&id=xxx) ---
+  const { type: deepLinkType, id: deepLinkId } = useLocalSearchParams<{ type?: string; id?: string }>();
+  const deepLinkHandled = useRef(false);
+
+  useEffect(() => {
+    if (!deepLinkId || !deepLinkType || deepLinkHandled.current) return;
+    if (deepLinkType === "evenement" && events.length > 0) {
+      const ev = events.find((e) => e.id === deepLinkId);
+      if (ev) {
+        deepLinkHandled.current = true;
+        setSelectedEvent(ev);
+      }
+    }
+  }, [deepLinkId, deepLinkType, events]);
 
   // --- 1. ÉCOUTER LES DONNÉES ---
   useEffect(() => {
@@ -906,6 +922,16 @@ export default function FirebaseCalendarScreen() {
   // --- Vue détail & Participation ---
   const handleEventPress = (item: any) => setSelectedEvent(item);
 
+  const handleShareEvent = async (eventId: string) => {
+    await Clipboard.setStringAsync(`${APP_DOMAIN}/calendar?type=evenement&id=${eventId}`);
+    showToast("Lien copié !");
+  };
+
+  const handleShareProject = async (projectId: string) => {
+    await Clipboard.setStringAsync(`${APP_DOMAIN}/project/${projectId}`);
+    showToast("Lien copié !");
+  };
+
   const handleParticipationChange = async (
     status: "going" | "not_going" | "online" | "absent" | "present_physical",
   ) => {
@@ -1205,7 +1231,15 @@ export default function FirebaseCalendarScreen() {
                   </Text>
                 ) : null}
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => handleShareProject(item.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="share-outline" size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </View>
             </TouchableOpacity>
           )}
         />
@@ -1964,6 +1998,13 @@ export default function FirebaseCalendarScreen() {
                       {formatDate(ev.dateObj)} • {formatTime(ev.dateObj)}
                     </Text>
                   </View>
+                  {/* Bouton partage */}
+                  <TouchableOpacity
+                    onPress={() => handleShareEvent(ev.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="share-outline" size={22} color={colors.textSecondary} />
+                  </TouchableOpacity>
                   {/* Badge phase */}
                   <View
                     style={{
