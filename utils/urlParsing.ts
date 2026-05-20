@@ -1,6 +1,6 @@
-// Group 1 = URL, Group 2 = phone — no nested groups to avoid index drift
+// Group 1 = ojyq deeplink, Group 2 = URL, Group 3 = phone — no nested groups to avoid index drift
 const COMBINED_REGEX =
-  /(https?:\/\/[^\s]+|www\.[^\s]+)|(\+?1?[\s\-\.]?\(?\d{3}\)?[\s\-\.]\d{3}[\s\-\.]\d{4}|\+?\d{10,11}(?!\d))/gi;
+  /(ojyq:\/\/[^\s]+)|(https?:\/\/[^\s]+|www\.[^\s]+)|(\+?1?[\s\-\.]?\(?\d{3}\)?[\s\-\.]\d{3}[\s\-\.]\d{4}|\+?\d{10,11}(?!\d))/gi;
 
 export const normalizeUrl = (url: string): string =>
   url.startsWith("http://") || url.startsWith("https://")
@@ -10,7 +10,8 @@ export const normalizeUrl = (url: string): string =>
 export type LinkPart =
   | { type: "text"; value: string }
   | { type: "link"; value: string }
-  | { type: "phone"; value: string };
+  | { type: "phone"; value: string }
+  | { type: "deeplink"; value: string };
 
 export const splitLinkParts = (text: string): LinkPart[] => {
   const regex = new RegExp(COMBINED_REGEX.source, "gi");
@@ -23,9 +24,11 @@ export const splitLinkParts = (text: string): LinkPart[] => {
       parts.push({ type: "text", value: text.slice(lastIndex, start) });
     }
     if (match[1]) {
-      parts.push({ type: "link", value: match[1] });
+      parts.push({ type: "deeplink", value: match[1] });
     } else if (match[2]) {
-      parts.push({ type: "phone", value: match[2].trim() });
+      parts.push({ type: "link", value: match[2] });
+    } else if (match[3]) {
+      parts.push({ type: "phone", value: match[3].trim() });
     }
     lastIndex = start + match[0].length;
   }
