@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "org.ojyq.app",
+      "sha256_cert_fingerprints": [
+        "68:17:2F:27:5B:48:4C:39:52:AF:2C:F0:B8:F7:94:BA:38:2C:B1:B4:10:ED:35:DA:DC:01:28:60:04:73:94:C1"
+      ]
+    }
+  }
+]
