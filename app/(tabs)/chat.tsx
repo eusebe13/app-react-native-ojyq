@@ -137,7 +137,7 @@ export default function ChatListScreen(): ReactElement {
     // 1. Récupérer les canaux
     const qChannels = query(
       collection(db, "channels"),
-      orderBy("createdAt", "desc"),
+      orderBy("lastMessageAt", "desc"),
     );
     const unsubChannels = onSnapshot(
       qChannels,

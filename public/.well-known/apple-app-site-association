@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "597M658HHP.org.ojyq.app",
+        "paths": [
+          "/project/*",
+          "/calendar*"
+        ]
+      }
+    ]
+  }
+}
