@@ -22,6 +22,23 @@ const path = require('path');
 const GRPC_POST_INSTALL_FIX = `
   require 'find'
 
+  # CocoaPods/Xcodeproj sometimes stores a multi-value build setting like
+  # OTHER_CFLAGS as a native Ruby Array instead of a pre-joined String,
+  # depending on the pod graph and Xcodeproj gem version. This has been
+  # observed to differ between a local machine and the EAS Build servers
+  # for the exact same target. Blindly string-interpolating an Array calls
+  # Ruby's Array#to_s (== #inspect), producing literal bracket/quote/comma
+  # text like '["-Da", "-Db"]' that Xcode then tries to use as a single
+  # broken path -> "no such file or directory: '[ ... ]'". Always coerce
+  # through this helper before treating a build setting as a plain string.
+  def coerce_flags_str(val)
+    case val
+    when Array then val.join(' ')
+    when String then val
+    else '$(inherited)'
+    end
+  end
+
   # Fix 1: Scan ALL xcconfig files in Pods/ and remove problematic flags.
   # - ALL -fmodule-map-file= flags: Xcode 16.x Clang concatenates multiple flags
   #   on one OTHER_CFLAGS line into a single broken path argument.
@@ -98,13 +115,13 @@ const GRPC_POST_INSTALL_FIX = `
       # Quote the path: Target Support Files paths contain spaces, and an
       # unquoted -fmodule-map-file= gets split into multiple broken tokens.
       swift_flag = "-Xcc -fmodule-map-file=\\"#{abs_modulemap}\\""
-      current_swift = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+      current_swift = coerce_flags_str(config.build_settings['OTHER_SWIFT_FLAGS'])
       unless current_swift.include?(abs_modulemap)
         config.build_settings['OTHER_SWIFT_FLAGS'] = "#{current_swift} #{swift_flag}"
       end
 
       cflag = "-fmodule-map-file=\\"#{abs_modulemap}\\""
-      current_cflags = config.build_settings['OTHER_CFLAGS'] || '$(inherited)'
+      current_cflags = coerce_flags_str(config.build_settings['OTHER_CFLAGS'])
       unless current_cflags.include?(cflag)
         config.build_settings['OTHER_CFLAGS'] = "#{current_cflags} #{cflag}"
       end
@@ -124,7 +141,7 @@ const GRPC_POST_INSTALL_FIX = `
       native_target.build_configurations.each do |config|
         all_modulemaps.each do |abs_modulemap|
           swift_flag = "-Xcc -fmodule-map-file=\\"#{abs_modulemap}\\""
-          current_swift = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+          current_swift = coerce_flags_str(config.build_settings['OTHER_SWIFT_FLAGS'])
           unless current_swift.include?(abs_modulemap)
             config.build_settings['OTHER_SWIFT_FLAGS'] = "#{current_swift} #{swift_flag}"
           end

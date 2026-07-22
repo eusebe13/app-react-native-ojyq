@@ -4,8 +4,11 @@ const config: Config = {
   preset: "ts-jest",
   testEnvironment: "node",
   moduleFileExtensions: ["ts", "tsx", "js", "jsx"],
+  // functions/ and cf-worker/ are separate sub-projects with their own
+  // package.json, dependencies, and test runner (see .github/workflows/ci.yml)
+  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/functions/", "<rootDir>/cf-worker/"],
   transform: {
-    "^.+\\.(ts|tsx)$": ["ts-jest", { tsconfig: { strict: true, jsx: "react-jsx" } }],
+    "^.+\\.(ts|tsx)$": ["ts-jest", { tsconfig: { strict: true, jsx: "react-jsx", types: ["jest", "node"] } }],
   },
   moduleNameMapper: {
     // Mock Firebase and native modules not available in Node test env

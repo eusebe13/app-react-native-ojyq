@@ -21,7 +21,7 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "buildNumber": "4"
+      "buildNumber": "9"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -99,6 +99,7 @@
         }
       ],
       "expo-video",
+      "expo-asset",
       [
         "expo-build-properties",
         {
