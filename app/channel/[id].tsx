@@ -32,7 +32,7 @@ import {
   uploadVideoUri,
 } from "@/lib/uploadToR2";
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
@@ -678,7 +678,7 @@ export default function ChannelScreen() {
   const resumeInlineVideoRef = useRef<
     ((positionMillis: number) => void) | null
   >(null);
-  const modalVideoRef = useRef<Video | null>(null);
+  const modalVideoPlayer = useVideoPlayer(null);
   const webVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Emoji picker
@@ -1135,23 +1135,29 @@ export default function ChannelScreen() {
     [],
   );
 
-  const handleCloseVideoModal = useCallback(async () => {
+  // Load the selected video into the modal player whenever it changes.
+  useEffect(() => {
+    if (selectedVideo && Platform.OS !== "web") {
+      modalVideoPlayer.replace({ uri: selectedVideo });
+      modalVideoPlayer.currentTime = videoStartPosition / 1000;
+      modalVideoPlayer.play();
+    }
+  }, [selectedVideo, videoStartPosition, modalVideoPlayer]);
+
+  const handleCloseVideoModal = useCallback(() => {
     let currentPos = 0;
     if (Platform.OS === "web") {
       currentPos = webVideoRef.current
         ? webVideoRef.current.currentTime * 1000
         : 0;
     } else {
-      const status = await modalVideoRef.current
-        ?.getStatusAsync()
-        .catch(() => null);
-      currentPos = status?.isLoaded ? status.positionMillis : 0;
-      modalVideoRef.current?.pauseAsync().catch(() => {});
+      currentPos = modalVideoPlayer.currentTime * 1000;
+      modalVideoPlayer.pause();
     }
     resumeInlineVideoRef.current?.(currentPos);
     resumeInlineVideoRef.current = null;
     setSelectedVideo(null);
-  }, []);
+  }, [modalVideoPlayer]);
 
   const handlePollVote = useCallback(
     async (messageId: string, poll: PollData, optionIndex: number) => {
@@ -1760,13 +1766,10 @@ export default function ChannelScreen() {
                 }
               />
             ) : (
-              <Video
-                ref={modalVideoRef}
-                source={{ uri: selectedVideo }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
-                positionMillis={videoStartPosition}
+              <VideoView
+                player={modalVideoPlayer}
+                nativeControls
+                contentFit="contain"
                 style={{ width: windowWidth, height: windowHeight * 0.75 }}
               />
             ))}

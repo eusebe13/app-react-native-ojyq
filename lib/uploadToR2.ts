@@ -85,7 +85,7 @@ export async function deleteFromR2(path: string): Promise<void> {
 // ─── Audio ────────────────────────────────────────────────────────────────────
 
 /**
- * Upload audio from a local URI (native recording via expo-av).
+ * Upload audio from a local URI (native recording via expo-audio).
  * Avoids the fetch(uri).blob() → FormData path that breaks in React Native.
  */
 export async function uploadAudioUri(

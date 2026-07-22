@@ -11,7 +11,8 @@ import { APP_DOMAIN } from "@/constants/config";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { normalizeUrl, splitLinkParts } from "@/utils/urlParsing";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio, AVPlaybackStatus, ResizeMode, Video } from "expo-av";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { VideoView, useVideoPlayer, type VideoPlayer } from "expo-video";
 import { router } from "expo-router";
 import React, {
   useCallback,
@@ -116,61 +117,41 @@ interface AudioPlayerProps {
 
 const AudioPlayer = React.memo(
   ({ uri, isMe, colors, tokens }: AudioPlayerProps) => {
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [positionMs, setPositionMs] = useState(0);
-    const [durationMs, setDurationMs] = useState(0);
+    const player = useAudioPlayer(null);
+    const status = useAudioPlayerStatus(player);
+    const [hasStarted, setHasStarted] = useState(false);
 
     const accentColor = isMe ? "#FFFFFF" : colors.primary;
+    const isLoading = hasStarted && !status.isLoaded;
 
-    // Cleanup on unmount
+    // Reset to the beginning once playback finishes, so the next press replays from 0
     useEffect(() => {
-      return () => {
-        sound?.unloadAsync();
-      };
-    }, [sound]);
+      if (status.didJustFinish) {
+        player.seekTo(0);
+        setHasStarted(false);
+      }
+    }, [status.didJustFinish, player]);
 
-    const handlePlayPause = useCallback(async () => {
+    const handlePlayPause = useCallback(() => {
       if (isLoading) return;
 
-      if (!sound) {
-        setIsLoading(true);
-        try {
-          const { sound: newSound } = await Audio.Sound.createAsync(
-            { uri },
-            { shouldPlay: true },
-            (status) => {
-              if (!status.isLoaded) return;
-              setPositionMs(status.positionMillis ?? 0);
-              setDurationMs(status.durationMillis ?? 0);
-              setIsPlaying(status.isPlaying);
-              if (status.didJustFinish) {
-                setIsPlaying(false);
-                setPositionMs(0);
-                // Unload so next press recreates the sound from the beginning
-                newSound.unloadAsync().catch(() => {});
-                setSound(null);
-              }
-            },
-          );
-          setSound(newSound);
-          setIsPlaying(true);
-        } catch {
-          // silently ignore load errors
-        } finally {
-          setIsLoading(false);
-        }
+      if (!hasStarted) {
+        player.replace({ uri });
+        player.play();
+        setHasStarted(true);
         return;
       }
 
-      if (isPlaying) {
-        await sound.pauseAsync();
+      if (status.playing) {
+        player.pause();
       } else {
-        await sound.playAsync();
+        player.play();
       }
-    }, [isLoading, sound, isPlaying, uri]);
+    }, [isLoading, hasStarted, player, status.playing, uri]);
 
+    const isPlaying = status.playing;
+    const positionMs = status.currentTime * 1000;
+    const durationMs = status.duration * 1000;
     const progress = durationMs > 0 ? positionMs / durationMs : 0;
 
     return (
@@ -945,7 +926,7 @@ const MessageBubble = React.memo(
   }: MessageBubbleProps) => {
     const { colors, tokens } = useAppTheme();
     const styles = useMemo(() => getStyles(colors, tokens), [colors, tokens]);
-    const inlineVideoRef = useRef<Video | null>(null);
+    const inlineVideoPlayer = useVideoPlayer(message.video ?? null);
 
     const isMe = message.user._id === currentUserId;
 
@@ -1185,11 +1166,10 @@ const MessageBubble = React.memo(
       if (!message.video) return null;
       return (
         <View style={{ width: 240, height: 160, borderRadius: 10, marginBottom: 4, overflow: "hidden" }}>
-          <Video
-            ref={inlineVideoRef}
-            source={{ uri: message.video }}
-            useNativeControls={!message.isPending}
-            resizeMode={ResizeMode.CONTAIN}
+          <VideoView
+            player={inlineVideoPlayer}
+            nativeControls={!message.isPending}
+            contentFit="contain"
             style={{ width: 240, height: 160, opacity: message.isPending ? 0.5 : 1 }}
           />
           {message.isPending ? (
@@ -1199,16 +1179,12 @@ const MessageBubble = React.memo(
           ) : onVideoPress ? (
             <TouchableOpacity
               style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 6, padding: 4 }}
-              onPress={async () => {
-                const status: AVPlaybackStatus | null = await inlineVideoRef.current
-                  ?.getStatusAsync()
-                  .catch(() => null) ?? null;
-                const pos = status?.isLoaded ? status.positionMillis : 0;
-                inlineVideoRef.current?.pauseAsync().catch(() => {});
+              onPress={() => {
+                const pos = inlineVideoPlayer.currentTime * 1000;
+                inlineVideoPlayer.pause();
                 onVideoPress(message.video!, pos, (resumePos) => {
-                  inlineVideoRef.current
-                    ?.setStatusAsync({ positionMillis: resumePos, shouldPlay: true })
-                    .catch(() => {});
+                  inlineVideoPlayer.currentTime = resumePos / 1000;
+                  inlineVideoPlayer.play();
                 });
               }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -1218,7 +1194,7 @@ const MessageBubble = React.memo(
           ) : null}
         </View>
       );
-    }, [message.video, message.isPending, onVideoPress]);
+    }, [message.video, message.isPending, onVideoPress, inlineVideoPlayer]);
 
     const renderAudio = useCallback(() => {
       if (!message.audio) return null;

@@ -93,16 +93,17 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "OJYQ utilise le microphone pour les messages vocaux."
         }
       ],
+      "expo-video",
       [
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "16.0",
+            "deploymentTarget": "16.4",
             "newArchEnabled": true
           }
         }

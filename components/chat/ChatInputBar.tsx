@@ -1,6 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "@/contexts/ThemeContext";
-import { Audio } from "expo-av";
+import {
+  RecordingPresets,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+  useAudioRecorder,
+} from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import { uploadAudio, uploadAudioUri } from "@/lib/uploadToR2";
 import React, {
@@ -107,8 +112,8 @@ export default function ChatInputBar({
   const [isUploading, setIsUploading] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
 
-  // Native recording ref
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  // Native recording
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   // Web recording refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -179,38 +184,34 @@ export default function ChatInputBar({
   // -------------------------------------------------------------------------
 
   const startRecordingNative = useCallback(async () => {
-    const { granted } = await Audio.requestPermissionsAsync();
+    const { granted } = await requestRecordingPermissionsAsync();
     if (!granted) return;
 
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
     });
 
-    const { recording } = await Audio.Recording.createAsync(
-      Audio.RecordingOptionsPresets.HIGH_QUALITY
-    );
-    recordingRef.current = recording;
+    await audioRecorder.prepareToRecordAsync();
+    audioRecorder.record();
     setIsRecording(true);
     startPulse();
     startTimer();
-  }, [startPulse, startTimer]);
+  }, [audioRecorder, startPulse, startTimer]);
 
   const stopRecordingNative = useCallback(
     async (cancel: boolean) => {
-      const recording = recordingRef.current;
-      if (!recording) return;
+      if (!audioRecorder.isRecording) return;
 
       stopPulse();
       stopTimer();
       setIsRecording(false);
-      recordingRef.current = null;
 
-      await recording.stopAndUnloadAsync();
+      await audioRecorder.stop();
 
       if (cancel) return;
 
-      const uri = recording.getURI();
+      const uri = audioRecorder.uri;
       if (!uri) return;
 
       setIsUploading(true);
@@ -221,7 +222,7 @@ export default function ChatInputBar({
         setIsUploading(false);
       }
     },
-    [stopPulse, stopTimer, onSendAudio, channelId]
+    [audioRecorder, stopPulse, stopTimer, onSendAudio, channelId]
   );
 
   // -------------------------------------------------------------------------
