@@ -4,6 +4,7 @@
  */
 
 import { showToast } from "@/components/Toast";
+import { APP_DOMAIN } from "@/constants/config";
 import { showConfirm } from "@/components/ui/ConfirmModal";
 import { EventFormData, EventFormModal } from "@/components/calendar";
 import { useAppTheme } from "@/contexts/ThemeContext";
@@ -20,6 +21,7 @@ import {
   query,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
@@ -140,7 +142,7 @@ export default function ProjectDetailScreen() {
   const handleSaveLinkedEvent = async (data: EventFormData) => {
     if (!id) return;
     try {
-      await addDoc(collection(db, "events"), {
+      const eventRef = await addDoc(collection(db, "events"), {
         title: data.title.trim(),
         description: data.description.trim(),
         type: "General",
@@ -158,6 +160,34 @@ export default function ProjectDetailScreen() {
           address: data.locationAddress.trim(),
           createdAt: Timestamp.now(),
         });
+      }
+
+      // Notifier le canal du projet
+      if (project?.channelId && user) {
+        const eventLink = `${APP_DOMAIN}/calendar?type=evenement&id=${eventRef.id}`;
+        const msgText = `📅 Nouvel événement lié au projet : ${data.title.trim()}\n${eventLink}`;
+        const channelRef = doc(db, "channels", project.channelId);
+        await addDoc(collection(db, "channels", project.channelId, "messages"), {
+          text: msgText,
+          createdAt: Timestamp.now(),
+          user: {
+            _id: "ojyq-system",
+            name: "OJYQ",
+            avatar: null,
+            avatarPreset: null,
+            role: null,
+          },
+          image: null,
+          video: null,
+          poll: null,
+          file: null,
+          audio: null,
+          replyTo: null,
+        });
+        updateDoc(channelRef, {
+          lastMessage: msgText.split("\n")[0],
+          lastMessageAt: Timestamp.now(),
+        }).catch(() => {});
       }
 
       setEventModalVisible(false);
@@ -595,8 +625,9 @@ export default function ProjectDetailScreen() {
             </Text>
           ) : (
             linkedEvents.map((ev) => (
-              <View
+              <TouchableOpacity
                 key={ev.id}
+                onPress={() => router.push(`/calendar?type=evenement&id=${ev.id}` as any)}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -636,7 +667,8 @@ export default function ProjectDetailScreen() {
                     </Text>
                   )}
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+              </TouchableOpacity>
             ))
           )}
         </View>

@@ -7,6 +7,7 @@
 
 import { Icon } from "@/components/ui/Icon";
 import { PRESET_AVATARS } from "@/constants/avatarPresets";
+import { APP_DOMAIN } from "@/constants/config";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { normalizeUrl, splitLinkParts } from "@/utils/urlParsing";
 import { Ionicons } from "@expo/vector-icons";
@@ -343,7 +344,46 @@ const HighlightedText = React.memo(
     return (
       <Text style={textStyle}>
         {linkParts.map((linkPart, linkIdx) => {
+          if (linkPart.type === "deeplink") {
+            const path = linkPart.value.replace(/^ojyq:\/\//, "");
+            const isEvent = linkPart.value.includes("type=evenement");
+            const isProject = linkPart.value.includes("/project/");
+            const label = isEvent
+              ? "📅 Voir l'événement"
+              : isProject
+                ? "📁 Voir le projet"
+                : linkPart.value;
+            return (
+              <Text
+                key={`deeplink-${linkIdx}`}
+                style={{ color: "#0EA5E9", textDecorationLine: "underline" }}
+                onPress={() => router.push(path as any)}
+              >
+                {label}
+              </Text>
+            );
+          }
+
           if (linkPart.type === "link") {
+            if (linkPart.value.startsWith(`${APP_DOMAIN}/`)) {
+              const path = linkPart.value.replace(APP_DOMAIN, "");
+              const isEvent = path.includes("type=evenement");
+              const isProject = path.includes("/project/");
+              const label = isEvent
+                ? "📅 Voir l'événement"
+                : isProject
+                  ? "📁 Voir le projet"
+                  : path;
+              return (
+                <Text
+                  key={`link-${linkIdx}`}
+                  style={{ color: "#0EA5E9", textDecorationLine: "underline" }}
+                  onPress={() => router.push(path as any)}
+                >
+                  {label}
+                </Text>
+              );
+            }
             return (
               <Text
                 key={`link-${linkIdx}`}
